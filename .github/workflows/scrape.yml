@@ -65,9 +65,11 @@ jobs:
           python -m tfmkt games \
             -p $GITHUB_WORKSPACE/data/raw/clubs.json \
             -s 2024 \
-            --output $GITHUB_WORKSPACE/data/raw/games.json || true
-          echo "Wedstrijden: $(wc -l < $GITHUB_WORKSPACE/data/raw/games.json 2>/dev/null || echo 0)"
-
+            > $GITHUB_WORKSPACE/data/raw/games.json || true
+          echo "Wedstrijden: $(wc -l < $GITHUB_WORKSPACE/data/raw/games.json)"
+          echo "Eerste 3 regels:"
+          head -3 $GITHUB_WORKSPACE/data/raw/games.json || echo "leeg"
+          
       - name: Stap 5 - JSON naar CSV omzetten
         run: |
           python3 << 'PYEOF'
