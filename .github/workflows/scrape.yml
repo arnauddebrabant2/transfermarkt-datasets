@@ -65,14 +65,16 @@ jobs:
           python -m tfmkt games \
             -p $GITHUB_WORKSPACE/data/raw/clubs.json \
             -s 2024
-          # Zoek waar het bestand terechtkwam
-          find /tmp/scraper -name "*.json" -newer /tmp/scraper/pyproject.toml 2>/dev/null
-          find /home/runner -name "games.json" 2>/dev/null
-          # Kopieer naar onze map
-          cp /tmp/scraper/games.json $GITHUB_WORKSPACE/data/raw/games.json 2>/dev/null || \
-          cp /tmp/scraper/storage/datasets/default/*.json $GITHUB_WORKSPACE/data/raw/games.json 2>/dev/null || \
-          echo "games.json niet gevonden"
-          echo "Wedstrijden: $(wc -l < $GITHUB_WORKSPACE/data/raw/games.json 2>/dev/null || echo 0)"
+          # Data zit in storage/datasets/default/
+          ls -la /tmp/scraper/storage/datasets/ 2>/dev/null || echo "geen datasets map"
+          ls -la /tmp/scraper/storage/datasets/default/ 2>/dev/null || echo "geen default map"
+          # Combineer alle bestanden in de datasets map naar één json
+          if [ -d "/tmp/scraper/storage/datasets/default" ]; then
+            cat /tmp/scraper/storage/datasets/default/*.json > $GITHUB_WORKSPACE/data/raw/games.json
+            echo "Wedstrijden: $(wc -l < $GITHUB_WORKSPACE/data/raw/games.json)"
+          else
+            echo "geen data gevonden"
+          fi
           
       - name: Stap 5 - JSON naar CSV omzetten
         run: |
