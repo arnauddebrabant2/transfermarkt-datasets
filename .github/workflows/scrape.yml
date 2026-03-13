@@ -39,25 +39,25 @@ jobs:
             > $GITHUB_WORKSPACE/data/raw/clubs.json || true
           echo "Clubs: $(wc -l < $GITHUB_WORKSPACE/data/raw/clubs.json)"
 
-      - name: Stap 2 - Spelers scrapen
-        run: |
-          cd /tmp/scraper
-          python -m tfmkt players \
-            -p $GITHUB_WORKSPACE/data/raw/clubs.json \
-            -s 2024 \
-            > $GITHUB_WORKSPACE/data/raw/players.json || true
-          echo "Spelers: $(wc -l < $GITHUB_WORKSPACE/data/raw/players.json)"
+      # - name: Stap 2 - Spelers scrapen
+      #   run: |
+      #     cd /tmp/scraper
+      #     python -m tfmkt players \
+      #       -p $GITHUB_WORKSPACE/data/raw/clubs.json \
+      #       -s 2024 \
+      #       > $GITHUB_WORKSPACE/data/raw/players.json || true
+      #     echo "Spelers: $(wc -l < $GITHUB_WORKSPACE/data/raw/players.json)"
 
-      - name: Stap 3 - Optredens scrapen
-        timeout-minutes: 90
-        continue-on-error: true
-        run: |
-          cd /tmp/scraper
-          python -m tfmkt appearances \
-            -p $GITHUB_WORKSPACE/data/raw/players.json \
-            -s 2024 \
-            > $GITHUB_WORKSPACE/data/raw/appearances.json || true
-          echo "Optredens: $(wc -l < $GITHUB_WORKSPACE/data/raw/appearances.json)"
+      # - name: Stap 3 - Optredens scrapen
+      #   timeout-minutes: 90
+      #   continue-on-error: true
+      #   run: |
+      #     cd /tmp/scraper
+      #     python -m tfmkt appearances \
+      #       -p $GITHUB_WORKSPACE/data/raw/players.json \
+      #       -s 2024 \
+      #       > $GITHUB_WORKSPACE/data/raw/appearances.json || true
+      #     echo "Optredens: $(wc -l < $GITHUB_WORKSPACE/data/raw/appearances.json)"
 
       - name: Stap 4 - Wedstrijden scrapen
         run: |
@@ -65,8 +65,8 @@ jobs:
           python -m tfmkt games \
             -p $GITHUB_WORKSPACE/data/raw/clubs.json \
             -s 2024 \
-            > $GITHUB_WORKSPACE/data/raw/games.json || true
-          echo "Wedstrijden: $(wc -l < $GITHUB_WORKSPACE/data/raw/games.json)"
+            --output $GITHUB_WORKSPACE/data/raw/games.json || true
+          echo "Wedstrijden: $(wc -l < $GITHUB_WORKSPACE/data/raw/games.json 2>/dev/null || echo 0)"
 
       - name: Stap 5 - JSON naar CSV omzetten
         run: |
@@ -98,123 +98,6 @@ jobs:
                   return parts[parts.index('verein') + 1]
               return parts[-1]
 
-          # CLUBS
-          clubs = load_jsonl(RAW / 'clubs.json')
-          club_lookup = {}
-          club_rows = []
-          for c in clubs:
-              comp_href = c.get('parent', {}).get('href', '')
-              comp_id = extract_id(comp_href)
-              club_id = c.get('id') or extract_id(c.get('href', ''))
-              club_lookup[c.get('href', '')] = {'club_id': club_id, 'name': c.get('name', ''), 'competition_id': comp_id}
-              club_rows.append({
-                  'club_id': club_id, 'name': c.get('name', ''),
-                  'domestic_competition_id': comp_id,
-                  'squad_size': c.get('squad_size', ''),
-                  'average_age': c.get('average_age', ''),
-                  'total_market_value': c.get('total_market_value', ''),
-                  'coach_name': c.get('coach_name', ''),
-                  'url': f"https://www.transfermarkt.co.uk{c.get('href', '')}",
-              })
-          if club_rows:
-              with open(OUT / 'clubs.csv', 'w', newline='', encoding='utf-8') as f:
-                  w = csv.DictWriter(f, fieldnames=list(club_rows[0].keys()))
-                  w.writeheader(); w.writerows(club_rows)
-              print(f'clubs.csv: {len(club_rows)} rijen')
-
-          # SPELERS
-          players = load_jsonl(RAW / 'players.json')
-          player_rows = []
-          player_lookup = {}
-          for p in players:
-              club_href = p.get('parent', {}).get('href', '')
-              club_info = club_lookup.get(club_href, {})
-              player_id = p.get('id') or extract_id(p.get('href', ''))
-
-              height_raw = p.get('height', '') or ''
-              try:
-                  height_cm = int(float(height_raw.replace('m','').replace(',','.').strip()) * 100)
-              except:
-                  height_cm = ''
-
-              pos = p.get('position', '') or ''
-              pos_map = {
-                  'goalkeeper': 'Goalkeeper',
-                  'centre-back': 'Defender', 'left-back': 'Defender', 'right-back': 'Defender', 'defender': 'Defender',
-                  'attacking midfield': 'Midfield', 'midfielder': 'Midfield', 'midfield': 'Midfield',
-                  'centre-forward': 'Attack', 'left winger': 'Attack', 'right winger': 'Attack', 'forward': 'Attack', 'attack': 'Attack'
-              }
-              position = next((v for k, v in pos_map.items() if k in pos.lower()), 'Midfield')
-
-              mv_raw = p.get('current_market_value') or ''
-              try:
-                  mv = int(str(mv_raw).replace('€','').replace(',','').strip()) if mv_raw else ''
-              except:
-                  mv = ''
-
-              mv_high_raw = p.get('highest_market_value') or ''
-              try:
-                  mv_high = int(str(mv_high_raw).replace('€','').replace(',','').strip()) if mv_high_raw else ''
-              except:
-                  mv_high = ''
-
-              row = {
-                  'player_id': player_id,
-                  'name': p.get('name', '') or p.get('last_name', ''),
-                  'first_name': p.get('name', ''),
-                  'last_name': p.get('last_name', ''),
-                  'date_of_birth': p.get('date_of_birth', ''),
-                  'age': p.get('age', ''),
-                  'country_of_citizenship': p.get('citizenship', ''),
-                  'country_of_birth': (p.get('place_of_birth') or {}).get('country', ''),
-                  'position': position,
-                  'sub_position': pos,
-                  'foot': p.get('foot', ''),
-                  'height_in_cm': height_cm,
-                  'market_value_in_eur': mv,
-                  'highest_market_value_in_eur': mv_high,
-                  'contract_expiration_date': p.get('contract_expires', ''),
-                  'current_club_id': club_info.get('club_id', ''),
-                  'current_club_name': club_info.get('name', ''),
-                  'current_club_domestic_competition_id': club_info.get('competition_id', ''),
-                  'image_url': p.get('image_url', ''),
-                  'url': f"https://www.transfermarkt.co.uk{p.get('href', '')}",
-              }
-              player_rows.append(row)
-              player_lookup[p.get('href', '')] = row
-
-          if player_rows:
-              with open(OUT / 'players.csv', 'w', newline='', encoding='utf-8') as f:
-                  w = csv.DictWriter(f, fieldnames=list(player_rows[0].keys()))
-                  w.writeheader(); w.writerows(player_rows)
-              print(f'players.csv: {len(player_rows)} rijen')
-
-          # OPTREDENS
-          appearances = load_jsonl(RAW / 'appearances.json')
-          app_rows = []
-          for a in appearances:
-              player_href = a.get('parent', {}).get('href', '')
-              player_info = player_lookup.get(player_href, {})
-              app_rows.append({
-                  'appearance_id': a.get('id', ''),
-                  'game_id': a.get('game_id', ''),
-                  'player_id': player_info.get('player_id', ''),
-                  'player_club_id': player_info.get('current_club_id', ''),
-                  'date': a.get('date', ''),
-                  'player_name': player_info.get('name', ''),
-                  'competition_id': a.get('competition_id', ''),
-                  'yellow_cards': a.get('yellow_cards', 0) or 0,
-                  'red_cards': a.get('red_cards', 0) or 0,
-                  'goals': a.get('goals', 0) or 0,
-                  'assists': a.get('assists', 0) or 0,
-                  'minutes_played': a.get('minutes_played', 0) or 0,
-              })
-          if app_rows:
-              with open(OUT / 'appearances.csv', 'w', newline='', encoding='utf-8') as f:
-                  w = csv.DictWriter(f, fieldnames=list(app_rows[0].keys()))
-                  w.writeheader(); w.writerows(app_rows)
-              print(f'appearances.csv: {len(app_rows)} rijen')
-
           # WEDSTRIJDEN
           games = load_jsonl(RAW / 'games.json')
           game_rows = []
@@ -239,6 +122,8 @@ jobs:
                   w = csv.DictWriter(f, fieldnames=list(game_rows[0].keys()))
                   w.writeheader(); w.writerows(game_rows)
               print(f'games.csv: {len(game_rows)} rijen')
+          else:
+              print('games.json leeg of niet gevonden')
 
           print('Conversie klaar!')
           PYEOF
@@ -247,10 +132,9 @@ jobs:
         run: |
           git config user.name "ScoutAI Bot"
           git config user.email "actions@users.noreply.github.com"
-          gzip data/csv/appearances.csv
           git add data/csv/
           TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
-          git commit -m "ScoutAI data update: ${TIMESTAMP}" || echo "Geen wijzigingen"
+          git commit -m "ScoutAI games update: ${TIMESTAMP}" || echo "Geen wijzigingen"
           git push
 
       - name: Samenvatting
