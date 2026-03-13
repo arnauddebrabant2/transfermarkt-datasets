@@ -2,13 +2,13 @@ name: Weekly Transfermarkt Scrape
 
 on:
   schedule:
-    - cron: '0 4 * * 1'  # Elke maandag om 04:00 UTC
-  workflow_dispatch:       # Ook manueel te starten via GitHub UI
+    - cron: '0 4 * * 1'
+  workflow_dispatch:
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 360   # Max 6 uur
+    timeout-minutes: 360
 
     steps:
       - name: Checkout repo
@@ -39,127 +39,37 @@ jobs:
             > $GITHUB_WORKSPACE/data/raw/clubs.json || true
           echo "Clubs: $(wc -l < $GITHUB_WORKSPACE/data/raw/clubs.json)"
 
-      # - name: Stap 2 - Spelers scrapen
-      #   run: |
-      #     cd /tmp/scraper
-      #     python -m tfmkt players \
-      #       -p $GITHUB_WORKSPACE/data/raw/clubs.json \
-      #       -s 2024 \
-      #       > $GITHUB_WORKSPACE/data/raw/players.json || true
-      #     echo "Spelers: $(wc -l < $GITHUB_WORKSPACE/data/raw/players.json)"
-
-      # - name: Stap 3 - Optredens scrapen
-      #   timeout-minutes: 90
-      #   continue-on-error: true
-      #   run: |
-      #     cd /tmp/scraper
-      #     python -m tfmkt appearances \
-      #       -p $GITHUB_WORKSPACE/data/raw/players.json \
-      #       -s 2024 \
-      #       > $GITHUB_WORKSPACE/data/raw/appearances.json || true
-      #     echo "Optredens: $(wc -l < $GITHUB_WORKSPACE/data/raw/appearances.json)"
-
-      - name: Stap 4 - Wedstrijden scrapen
+      - name: Stap 2 - Spelers scrapen
         run: |
           cd /tmp/scraper
-          python -m tfmkt games \
-            -p $GITHUB_WORKSPACE/data/competitions.json \
+          python -m tfmkt players \
+            -p $GITHUB_WORKSPACE/data/raw/clubs.json \
             -s 2024 \
-            > $GITHUB_WORKSPACE/data/raw/games.json || true
-          echo "Wedstrijden: $(wc -l < $GITHUB_WORKSPACE/data/raw/games.json)"
-          head -2 $GITHUB_WORKSPACE/data/raw/games.json || echo "leeg"
-          
-      - name: Stap 5 - JSON naar CSV omzetten
+            > $GITHUB_WORKSPACE/data/raw/players.json || true
+          echo "Spelers: $(wc -l < $GITHUB_WORKSPACE/data/raw/players.json)"
+
+      - name: Stap 3 - Optredens scrapen
+        timeout-minutes: 90
+        continue-on-error: true
         run: |
-          python3 << 'PYEOF'
-          import json, csv
-          from pathlib import Path
+          cd /tmp/scraper
+          python -m tfmkt appearances \
+            -p $GITHUB_WORKSPACE/data/raw/players.json \
+            -s 2024 \
+            > $GITHUB_WORKSPACE/data/raw/appearances.json || true
+          echo "Optredens: $(wc -l < $GITHUB_WORKSPACE/data/raw/appearances.json)"
+          echo "Eerste 2 regels appearances:"
+          head -2 $GITHUB_WORKSPACE/data/raw/appearances.json || echo "leeg"
 
-          RAW = Path('data/raw')
-          OUT = Path('data/csv')
-          OUT.mkdir(exist_ok=True)
-
-          def load_jsonl(path):
-              items = []
-              if not path.exists():
-                  return items
-              with open(path, encoding='utf-8') as f:
-                  for line in f:
-                      line = line.strip()
-                      if line:
-                          try: items.append(json.loads(line))
-                          except: pass
-              return items
-
-          def extract_id(href):
-              parts = href.rstrip('/').split('/')
-              if 'wettbewerb' in parts:
-                  return parts[parts.index('wettbewerb') + 1]
-              if 'verein' in parts:
-                  return parts[parts.index('verein') + 1]
-              return parts[-1]
-
-          # WEDSTRIJDEN
-          games = load_jsonl(RAW / 'games.json')
-          game_rows = []
-          for g in games:
-              # Score splitsen: "1:2" → home=1, away=2
-              result = g.get('result', '') or ''
-              try:
-                  home_goals, away_goals = result.split(':')
-                  home_goals = home_goals.strip()
-                  away_goals = away_goals.strip()
-              except:
-                  home_goals, away_goals = '', ''
-
-              # Club IDs uit href halen
-              home_href = (g.get('home_club') or {}).get('href', '')
-              away_href = (g.get('away_club') or {}).get('href', '')
-              home_id = extract_id(home_href)
-              away_id = extract_id(away_href)
-
-              # Competition ID uit parent
-              comp_id = (g.get('parent') or {}).get('country_code', '') or \
-                        extract_id((g.get('parent') or {}).get('href', ''))
-
-              game_rows.append({
-                  'game_id': g.get('game_id', ''),
-                  'competition_id': comp_id,
-                  'season': g.get('season', '2024'),
-                  'date': g.get('date', ''),
-                  'home_club_id': home_id,
-                  'away_club_id': away_id,
-                  'home_club_goals': home_goals,
-                  'away_club_goals': away_goals,
-                  'home_club_name': g.get('home_club_name', ''),
-                  'away_club_name': g.get('away_club_name', ''),
-                  'stadium': g.get('stadium', ''),
-                  'attendance': g.get('attendance', ''),
-                  'url': f"https://www.transfermarkt.co.uk{g.get('href', '')}",
-              })
-          if game_rows:
-              with open(OUT / 'games.csv', 'w', newline='', encoding='utf-8') as f:
-                  w = csv.DictWriter(f, fieldnames=list(game_rows[0].keys()))
-                  w.writeheader(); w.writerows(game_rows)
-              print(f'games.csv: {len(game_rows)} rijen')
-          else:
-              print('games.json leeg of niet gevonden')
-
-          print('Conversie klaar!')
-          PYEOF
-
-      - name: Commit en push CSV's
-        run: |
-          git config user.name "ScoutAI Bot"
-          git config user.email "actions@users.noreply.github.com"
-          git add data/csv/
-          TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
-          git commit -m "ScoutAI games update: ${TIMESTAMP}" || echo "Geen wijzigingen"
-          git push
+      # - name: Stap 4 - Wedstrijden scrapen
+      #   run: |
+      #     cd /tmp/scraper
+      #     python -m tfmkt games \
+      #       -p $GITHUB_WORKSPACE/data/competitions.json \
+      #       -s 2024 \
+      #       > $GITHUB_WORKSPACE/data/raw/games.json || true
+      #     echo "Wedstrijden: $(wc -l < $GITHUB_WORKSPACE/data/raw/games.json)"
 
       - name: Samenvatting
         run: |
-          echo "=== SCRAPING KLAAR ==="
-          for f in data/csv/*; do
-            echo "$f: $(wc -c < $f) bytes"
-          done
+          echo "=== KLAAR ==="
