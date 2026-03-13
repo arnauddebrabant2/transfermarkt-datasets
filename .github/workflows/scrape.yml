@@ -45,7 +45,7 @@ jobs:
           python -m tfmkt players \
             -p $GITHUB_WORKSPACE/data/raw/clubs.json \
             -s 2024 \
-            > $GITHUB_WORKSPACE/data/raw/players.json
+            > $GITHUB_WORKSPACE/data/raw/players.json || true
           echo "Spelers: $(wc -l < $GITHUB_WORKSPACE/data/raw/players.json)"
 
       - name: Stap 3 - Optredens scrapen
