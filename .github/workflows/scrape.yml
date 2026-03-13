@@ -28,7 +28,7 @@ jobs:
           poetry install --without dev
 
       - name: Maak output map aan
-        run: mkdir -p data/raw
+        run: mkdir -p data/raw data/csv
 
       - name: Stap 1 - Clubs scrapen
         run: |
@@ -36,7 +36,7 @@ jobs:
           python -m tfmkt clubs \
             -p $GITHUB_WORKSPACE/data/competitions.json \
             -s 2024 \
-            > $GITHUB_WORKSPACE/data/raw/clubs.json
+            > $GITHUB_WORKSPACE/data/raw/clubs.json || true
           echo "Clubs: $(wc -l < $GITHUB_WORKSPACE/data/raw/clubs.json)"
 
       - name: Stap 2 - Spelers scrapen
@@ -49,12 +49,14 @@ jobs:
           echo "Spelers: $(wc -l < $GITHUB_WORKSPACE/data/raw/players.json)"
 
       - name: Stap 3 - Optredens scrapen
+        timeout-minutes: 90
+        continue-on-error: true
         run: |
           cd /tmp/scraper
           python -m tfmkt appearances \
             -p $GITHUB_WORKSPACE/data/raw/players.json \
             -s 2024 \
-            > $GITHUB_WORKSPACE/data/raw/appearances.json
+            > $GITHUB_WORKSPACE/data/raw/appearances.json || true
           echo "Optredens: $(wc -l < $GITHUB_WORKSPACE/data/raw/appearances.json)"
 
       - name: Stap 4 - Wedstrijden scrapen
@@ -63,13 +65,13 @@ jobs:
           python -m tfmkt games \
             -p $GITHUB_WORKSPACE/data/raw/clubs.json \
             -s 2024 \
-            > $GITHUB_WORKSPACE/data/raw/games.json
+            > $GITHUB_WORKSPACE/data/raw/games.json || true
           echo "Wedstrijden: $(wc -l < $GITHUB_WORKSPACE/data/raw/games.json)"
 
       - name: Stap 5 - JSON naar CSV omzetten
         run: |
           python3 << 'PYEOF'
-          import json, csv, gzip
+          import json, csv
           from pathlib import Path
 
           RAW = Path('data/raw')
@@ -78,6 +80,8 @@ jobs:
 
           def load_jsonl(path):
               items = []
+              if not path.exists():
+                  return items
               with open(path, encoding='utf-8') as f:
                   for line in f:
                       line = line.strip()
@@ -94,7 +98,7 @@ jobs:
                   return parts[parts.index('verein') + 1]
               return parts[-1]
 
-          # ── CLUBS ──
+          # CLUBS
           clubs = load_jsonl(RAW / 'clubs.json')
           club_lookup = {}
           club_rows = []
@@ -118,7 +122,7 @@ jobs:
                   w.writeheader(); w.writerows(club_rows)
               print(f'clubs.csv: {len(club_rows)} rijen')
 
-          # ── SPELERS ──
+          # SPELERS
           players = load_jsonl(RAW / 'players.json')
           player_rows = []
           player_lookup = {}
@@ -126,23 +130,22 @@ jobs:
               club_href = p.get('parent', {}).get('href', '')
               club_info = club_lookup.get(club_href, {})
               player_id = p.get('id') or extract_id(p.get('href', ''))
-              
-              # Hoogte: "1,85 m" → 185
+
               height_raw = p.get('height', '') or ''
               try:
                   height_cm = int(float(height_raw.replace('m','').replace(',','.').strip()) * 100)
               except:
                   height_cm = ''
 
-              # Positie mapping
               pos = p.get('position', '') or ''
-              pos_map = {'Goalkeeper': 'Goalkeeper', 'Defender': 'Defender', 
-                         'Centre-Back': 'Defender', 'Left-Back': 'Defender', 'Right-Back': 'Defender',
-                         'Midfielder': 'Midfield', 'Attacking Midfield': 'Midfield',
-                         'Forward': 'Attack', 'Centre-Forward': 'Attack', 'Left Winger': 'Attack', 'Right Winger': 'Attack'}
-              position = next((v for k, v in pos_map.items() if k.lower() in pos.lower()), 'Midfield')
+              pos_map = {
+                  'goalkeeper': 'Goalkeeper',
+                  'centre-back': 'Defender', 'left-back': 'Defender', 'right-back': 'Defender', 'defender': 'Defender',
+                  'attacking midfield': 'Midfield', 'midfielder': 'Midfield', 'midfield': 'Midfield',
+                  'centre-forward': 'Attack', 'left winger': 'Attack', 'right winger': 'Attack', 'forward': 'Attack', 'attack': 'Attack'
+              }
+              position = next((v for k, v in pos_map.items() if k in pos.lower()), 'Midfield')
 
-              # Marktwaarde
               mv_raw = p.get('current_market_value') or ''
               try:
                   mv = int(str(mv_raw).replace('€','').replace(',','').strip()) if mv_raw else ''
@@ -186,7 +189,7 @@ jobs:
                   w.writeheader(); w.writerows(player_rows)
               print(f'players.csv: {len(player_rows)} rijen')
 
-          # ── OPTREDENS ──
+          # OPTREDENS
           appearances = load_jsonl(RAW / 'appearances.json')
           app_rows = []
           for a in appearances:
@@ -212,32 +215,30 @@ jobs:
                   w.writeheader(); w.writerows(app_rows)
               print(f'appearances.csv: {len(app_rows)} rijen')
 
-          # ── WEDSTRIJDEN ──
-          games_raw = RAW / 'games.json'
-          if games_raw.exists():
-              games = load_jsonl(games_raw)
-              game_rows = []
-              for g in games:
-                  game_rows.append({
-                      'game_id': g.get('id', ''),
-                      'competition_id': g.get('competition_id', ''),
-                      'season': g.get('season', ''),
-                      'date': g.get('date', ''),
-                      'home_club_id': g.get('home_club_id', ''),
-                      'away_club_id': g.get('away_club_id', ''),
-                      'home_club_goals': g.get('home_club_goals', ''),
-                      'away_club_goals': g.get('away_club_goals', ''),
-                      'home_club_name': g.get('home_club_name', ''),
-                      'away_club_name': g.get('away_club_name', ''),
-                      'stadium': g.get('stadium', ''),
-                      'attendance': g.get('attendance', ''),
-                      'url': f"https://www.transfermarkt.co.uk{g.get('href', '')}",
-                  })
-              if game_rows:
-                  with open(OUT / 'games.csv', 'w', newline='', encoding='utf-8') as f:
-                      w = csv.DictWriter(f, fieldnames=list(game_rows[0].keys()))
-                      w.writeheader(); w.writerows(game_rows)
-                  print(f'games.csv: {len(game_rows)} rijen')
+          # WEDSTRIJDEN
+          games = load_jsonl(RAW / 'games.json')
+          game_rows = []
+          for g in games:
+              game_rows.append({
+                  'game_id': g.get('id', ''),
+                  'competition_id': g.get('competition_id', ''),
+                  'season': g.get('season', ''),
+                  'date': g.get('date', ''),
+                  'home_club_id': g.get('home_club_id', ''),
+                  'away_club_id': g.get('away_club_id', ''),
+                  'home_club_goals': g.get('home_club_goals', ''),
+                  'away_club_goals': g.get('away_club_goals', ''),
+                  'home_club_name': g.get('home_club_name', ''),
+                  'away_club_name': g.get('away_club_name', ''),
+                  'stadium': g.get('stadium', ''),
+                  'attendance': g.get('attendance', ''),
+                  'url': f"https://www.transfermarkt.co.uk{g.get('href', '')}",
+              })
+          if game_rows:
+              with open(OUT / 'games.csv', 'w', newline='', encoding='utf-8') as f:
+                  w = csv.DictWriter(f, fieldnames=list(game_rows[0].keys()))
+                  w.writeheader(); w.writerows(game_rows)
+              print(f'games.csv: {len(game_rows)} rijen')
 
           print('Conversie klaar!')
           PYEOF
@@ -246,8 +247,8 @@ jobs:
         run: |
           git config user.name "ScoutAI Bot"
           git config user.email "actions@users.noreply.github.com"
+          gzip data/csv/appearances.csv
           git add data/csv/
-          git add data/raw/
           TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
           git commit -m "ScoutAI data update: ${TIMESTAMP}" || echo "Geen wijzigingen"
           git push
@@ -255,6 +256,6 @@ jobs:
       - name: Samenvatting
         run: |
           echo "=== SCRAPING KLAAR ==="
-          for f in data/csv/*.csv; do
-            echo "$f: $(wc -l < $f) rijen"
+          for f in data/csv/*; do
+            echo "$f: $(wc -c < $f) bytes"
           done
