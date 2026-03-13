@@ -64,11 +64,15 @@ jobs:
           cd /tmp/scraper
           python -m tfmkt games \
             -p $GITHUB_WORKSPACE/data/raw/clubs.json \
-            -s 2024 \
-            > $GITHUB_WORKSPACE/data/raw/games.json || true
-          echo "Wedstrijden: $(wc -l < $GITHUB_WORKSPACE/data/raw/games.json)"
-          echo "Eerste 3 regels:"
-          head -3 $GITHUB_WORKSPACE/data/raw/games.json || echo "leeg"
+            -s 2024
+          # Zoek waar het bestand terechtkwam
+          find /tmp/scraper -name "*.json" -newer /tmp/scraper/pyproject.toml 2>/dev/null
+          find /home/runner -name "games.json" 2>/dev/null
+          # Kopieer naar onze map
+          cp /tmp/scraper/games.json $GITHUB_WORKSPACE/data/raw/games.json 2>/dev/null || \
+          cp /tmp/scraper/storage/datasets/default/*.json $GITHUB_WORKSPACE/data/raw/games.json 2>/dev/null || \
+          echo "games.json niet gevonden"
+          echo "Wedstrijden: $(wc -l < $GITHUB_WORKSPACE/data/raw/games.json 2>/dev/null || echo 0)"
           
       - name: Stap 5 - JSON naar CSV omzetten
         run: |
