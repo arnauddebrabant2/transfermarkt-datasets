@@ -63,18 +63,11 @@ jobs:
         run: |
           cd /tmp/scraper
           python -m tfmkt games \
-            -p $GITHUB_WORKSPACE/data/raw/clubs.json \
-            -s 2024
-          # Data zit in storage/datasets/default/
-          ls -la /tmp/scraper/storage/datasets/ 2>/dev/null || echo "geen datasets map"
-          ls -la /tmp/scraper/storage/datasets/default/ 2>/dev/null || echo "geen default map"
-          # Combineer alle bestanden in de datasets map naar één json
-          if [ -d "/tmp/scraper/storage/datasets/default" ]; then
-            cat /tmp/scraper/storage/datasets/default/*.json > $GITHUB_WORKSPACE/data/raw/games.json
-            echo "Wedstrijden: $(wc -l < $GITHUB_WORKSPACE/data/raw/games.json)"
-          else
-            echo "geen data gevonden"
-          fi
+            -p $GITHUB_WORKSPACE/data/competitions.json \
+            -s 2024 \
+            > $GITHUB_WORKSPACE/data/raw/games.json || true
+          echo "Wedstrijden: $(wc -l < $GITHUB_WORKSPACE/data/raw/games.json)"
+          head -2 $GITHUB_WORKSPACE/data/raw/games.json || echo "leeg"
           
       - name: Stap 5 - JSON naar CSV omzetten
         run: |
