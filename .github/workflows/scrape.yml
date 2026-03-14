@@ -34,19 +34,25 @@ jobs:
       - name: Stap 1 - Clubs scrapen
         run: |
           cd /tmp/scraper
-          python -m tfmkt clubs \
-            -p $GITHUB_WORKSPACE/data/competitions.json \
-            -s 2025 \
-            > $GITHUB_WORKSPACE/data/raw/clubs.json || true
+          for SEASON in 2024 2025; do
+            echo "=== Clubs seizoen $SEASON ==="
+            python -m tfmkt clubs \
+              -p $GITHUB_WORKSPACE/data/competitions.json \
+              -s $SEASON \
+              >> $GITHUB_WORKSPACE/data/raw/clubs.json || true
+          done
           echo "Clubs: $(wc -l < $GITHUB_WORKSPACE/data/raw/clubs.json)"
 
       - name: Stap 2 - Spelers scrapen
         run: |
           cd /tmp/scraper
-          python -m tfmkt players \
-            -p $GITHUB_WORKSPACE/data/raw/clubs.json \
-            -s 2025 \
-            > $GITHUB_WORKSPACE/data/raw/players.json || true
+          for SEASON in 2024 2025; do
+            echo "=== Spelers seizoen $SEASON ==="
+            python -m tfmkt players \
+              -p $GITHUB_WORKSPACE/data/raw/clubs.json \
+              -s $SEASON \
+              >> $GITHUB_WORKSPACE/data/raw/players.json || true
+          done
           echo "Spelers: $(wc -l < $GITHUB_WORKSPACE/data/raw/players.json)"
 
       - name: Stap 2b - Marktwaarden ophalen
@@ -128,23 +134,30 @@ jobs:
           echo "Marktwaarden: $(wc -c < $GITHUB_WORKSPACE/data/raw/market_values.json 2>/dev/null || echo 0) bytes"
 
       - name: Stap 3 - Optredens scrapen
-        timeout-minutes: 40
+        timeout-minutes: 120
         continue-on-error: true
         run: |
           cd /tmp/scraper
-          python -m tfmkt appearances \
-            -p $GITHUB_WORKSPACE/data/raw/players.json \
-            -s 2025 \
-            > $GITHUB_WORKSPACE/data/raw/appearances.json || true
+          for SEASON in 2024 2025; do
+            echo "=== Optredens seizoen $SEASON ==="
+            python -m tfmkt appearances \
+              -p $GITHUB_WORKSPACE/data/raw/players.json \
+              -s $SEASON \
+              >> $GITHUB_WORKSPACE/data/raw/appearances.json || true
+          done
           echo "Optredens: $(wc -l < $GITHUB_WORKSPACE/data/raw/appearances.json)"
 
       - name: Stap 4 - Wedstrijden scrapen
+        timeout-minutes: 60
         run: |
           cd /tmp/scraper
-          python -m tfmkt games \
-            -p $GITHUB_WORKSPACE/data/competitions.json \
-            -s 2025 \
-            > $GITHUB_WORKSPACE/data/raw/games.json || true
+          for SEASON in 2024 2025; do
+            echo "=== Wedstrijden seizoen $SEASON ==="
+            python -m tfmkt games \
+              -p $GITHUB_WORKSPACE/data/competitions.json \
+              -s $SEASON \
+              >> $GITHUB_WORKSPACE/data/raw/games.json || true
+          done
           echo "Wedstrijden: $(wc -l < $GITHUB_WORKSPACE/data/raw/games.json)"
 
       - name: Stap 5 - JSON naar CSV omzetten
