@@ -412,7 +412,7 @@ jobs:
         run: |
           git config user.name "ScoutAI Bot"
           git config user.email "actions@users.noreply.github.com"
-          gzip data/csv/appearances.csv
+          gzip -f data/csv/appearances.csv
           git add data/csv/
           TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
           git commit -m "ScoutAI data update: ${TIMESTAMP}" || echo "Geen wijzigingen"
