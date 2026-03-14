@@ -36,7 +36,7 @@ jobs:
           cd /tmp/scraper
           python -m tfmkt clubs \
             -p $GITHUB_WORKSPACE/data/competitions.json \
-            -s 2024 \
+            -s 2025 \
             > $GITHUB_WORKSPACE/data/raw/clubs.json || true
           echo "Clubs: $(wc -l < $GITHUB_WORKSPACE/data/raw/clubs.json)"
 
@@ -45,7 +45,7 @@ jobs:
           cd /tmp/scraper
           python -m tfmkt players \
             -p $GITHUB_WORKSPACE/data/raw/clubs.json \
-            -s 2024 \
+            -s 2025 \
             > $GITHUB_WORKSPACE/data/raw/players.json || true
           echo "Spelers: $(wc -l < $GITHUB_WORKSPACE/data/raw/players.json)"
 
@@ -134,7 +134,7 @@ jobs:
           cd /tmp/scraper
           python -m tfmkt appearances \
             -p $GITHUB_WORKSPACE/data/raw/players.json \
-            -s 2024 \
+            -s 2025 \
             > $GITHUB_WORKSPACE/data/raw/appearances.json || true
           echo "Optredens: $(wc -l < $GITHUB_WORKSPACE/data/raw/appearances.json)"
 
@@ -143,7 +143,7 @@ jobs:
           cd /tmp/scraper
           python -m tfmkt games \
             -p $GITHUB_WORKSPACE/data/competitions.json \
-            -s 2024 \
+            -s 2025 \
             > $GITHUB_WORKSPACE/data/raw/games.json || true
           echo "Wedstrijden: $(wc -l < $GITHUB_WORKSPACE/data/raw/games.json)"
 
@@ -387,7 +387,7 @@ jobs:
               game_rows.append({
                   'game_id': g.get('game_id', ''),
                   'competition_id': comp_id,
-                  'season': g.get('season', '2024'),
+                  'season': g.get('season', '2025'),
                   'date': g.get('date', ''),
                   'home_club_id': home_id,
                   'away_club_id': away_id,
