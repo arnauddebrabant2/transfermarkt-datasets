@@ -107,10 +107,8 @@ jobs:
           async def main():
               player_ids = get_player_ids()
               print(f"Marktwaarden ophalen voor {len(player_ids)} spelers...")
-
-              semaphore = asyncio.Semaphore(10)  # max 10 gelijktijdige requests
+              semaphore = asyncio.Semaphore(10)
               results = {}
-
               async with aiohttp.ClientSession() as session:
                   tasks = [fetch_mv(session, pid, semaphore) for pid in player_ids]
                   done = 0
@@ -121,9 +119,7 @@ jobs:
                       done += 1
                       if done % 500 == 0:
                           print(f"  {done}/{len(player_ids)} verwerkt, {len(results)} met waarde")
-
               print(f"Klaar: {len(results)} marktwaarden gevonden")
-
               with open(MV_FILE, 'w', encoding='utf-8') as f:
                   json.dump(results, f)
 
@@ -263,7 +259,6 @@ jobs:
               }
               position = next((v for k, v in pos_map.items() if k in pos.lower()), 'Midfield')
 
-              # Marktwaarde: eerst uit mv_lookup, dan uit scraper
               mv = mv_lookup.get(str(player_id), '')
               if not mv:
                   mv_raw = p.get('current_market_value') or ''
@@ -321,7 +316,14 @@ jobs:
               club_href = (parent.get('current_club') or {}).get('href', '')
               player_club_id = extract_id(club_href)
 
-              result_href = (a.get('result') or {}).get('href', '')
+              # game_id: result kan een dict of string zijn
+              result_raw = a.get('result')
+              if isinstance(result_raw, dict):
+                  result_href = result_raw.get('href', '')
+              elif isinstance(result_raw, str):
+                  result_href = result_raw
+              else:
+                  result_href = ''
               game_id = extract_id(result_href)
 
               date = a.get('date', '')
