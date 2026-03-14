@@ -31,6 +31,27 @@ jobs:
       - name: Maak output map aan
         run: mkdir -p data/raw data/csv
 
+      - name: Stap 0 - Bestaande CSV data inladen (accumulate)
+        run: |
+          python3 << 'PYEOF'
+          import gzip, shutil
+          from pathlib import Path
+
+          CSV = Path('data/csv')
+          RAW = Path('data/raw')
+
+          # Als er al een appearances.csv.gz is, decomprimeer die naar raw
+          gz = CSV / 'appearances.csv.gz'
+          if gz.exists():
+              print(f"Bestaande appearances.csv.gz gevonden ({gz.stat().st_size // 1024} KB)")
+              with gzip.open(gz, 'rb') as f_in:
+                  with open(CSV / 'appearances_existing.csv', 'wb') as f_out:
+                      shutil.copyfileobj(f_in, f_out)
+              print("  → Gedecomprimeerd naar appearances_existing.csv")
+          else:
+              print("Geen bestaande appearances.csv.gz gevonden — eerste run")
+          PYEOF
+
       - name: Stap 1 - Clubs scrapen
         run: |
           cd /tmp/scraper
@@ -41,7 +62,7 @@ jobs:
               -s $SEASON \
               >> $GITHUB_WORKSPACE/data/raw/clubs.json || true
           done
-          echo "Clubs: $(wc -l < $GITHUB_WORKSPACE/data/raw/clubs.json)"
+          echo "Clubs nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/clubs.json)"
 
       - name: Stap 2 - Spelers scrapen
         run: |
@@ -53,7 +74,7 @@ jobs:
               -s $SEASON \
               >> $GITHUB_WORKSPACE/data/raw/players.json || true
           done
-          echo "Spelers: $(wc -l < $GITHUB_WORKSPACE/data/raw/players.json)"
+          echo "Spelers nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/players.json)"
 
       - name: Stap 2b - Marktwaarden ophalen
         timeout-minutes: 30
@@ -145,7 +166,7 @@ jobs:
               -s $SEASON \
               >> $GITHUB_WORKSPACE/data/raw/appearances.json || true
           done
-          echo "Optredens: $(wc -l < $GITHUB_WORKSPACE/data/raw/appearances.json)"
+          echo "Optredens nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/appearances.json)"
 
       - name: Stap 4 - Wedstrijden scrapen
         timeout-minutes: 60
@@ -158,9 +179,9 @@ jobs:
               -s $SEASON \
               >> $GITHUB_WORKSPACE/data/raw/games.json || true
           done
-          echo "Wedstrijden: $(wc -l < $GITHUB_WORKSPACE/data/raw/games.json)"
+          echo "Wedstrijden nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/games.json)"
 
-      - name: Stap 5 - JSON naar CSV omzetten
+      - name: Stap 5 - JSON naar CSV omzetten en samenvoegen met bestaande data
         run: |
           python3 << 'PYEOF'
           import json, csv
@@ -181,6 +202,16 @@ jobs:
                           try: items.append(json.loads(line))
                           except: pass
               return items
+
+          def load_csv_existing(path):
+              rows = []
+              if not path.exists():
+                  return rows
+              with open(path, encoding='utf-8') as f:
+                  reader = csv.DictReader(f)
+                  for row in reader:
+                      rows.append(row)
+              return rows
 
           def extract_id(href):
               if not href:
@@ -227,13 +258,13 @@ jobs:
           # ── CLUBS ──
           clubs = load_jsonl(RAW / 'clubs.json')
           club_lookup = {}
-          club_rows = []
+          new_club_rows = []
           for c in clubs:
               comp_href = c.get('parent', {}).get('href', '')
               comp_id = extract_id(comp_href)
               club_id = c.get('id') or extract_id(c.get('href', ''))
               club_lookup[c.get('href', '')] = {'club_id': club_id, 'name': c.get('name', ''), 'competition_id': comp_id}
-              club_rows.append({
+              new_club_rows.append({
                   'club_id': club_id, 'name': c.get('name', ''),
                   'domestic_competition_id': comp_id,
                   'squad_size': c.get('squad_size', ''),
@@ -242,16 +273,26 @@ jobs:
                   'coach_name': c.get('coach_name', ''),
                   'url': f"https://www.transfermarkt.co.uk{c.get('href', '')}",
               })
-          if club_rows:
+
+          # Samenvoegen met bestaande clubs (op club_id)
+          existing_clubs = load_csv_existing(OUT / 'clubs.csv')
+          existing_club_ids = {r['club_id'] for r in existing_clubs}
+          merged_clubs = existing_clubs + [r for r in new_club_rows if str(r['club_id']) not in existing_club_ids]
+          # Update bestaande met nieuwe data (nieuwste wint)
+          club_id_map = {r['club_id']: r for r in existing_clubs}
+          for r in new_club_rows:
+              club_id_map[str(r['club_id'])] = r
+          merged_clubs = list(club_id_map.values())
+
+          if merged_clubs:
               with open(OUT / 'clubs.csv', 'w', newline='', encoding='utf-8') as f:
-                  w = csv.DictWriter(f, fieldnames=list(club_rows[0].keys()))
-                  w.writeheader(); w.writerows(club_rows)
-              print(f'clubs.csv: {len(club_rows)} rijen')
+                  w = csv.DictWriter(f, fieldnames=list(merged_clubs[0].keys()))
+                  w.writeheader(); w.writerows(merged_clubs)
+              print(f'clubs.csv: {len(merged_clubs)} rijen (was {len(existing_clubs)}, +{len(merged_clubs)-len(existing_clubs)} nieuw)')
 
           # ── SPELERS ──
           players = load_jsonl(RAW / 'players.json')
-          player_rows = []
-          player_lookup = {}
+          new_player_rows = []
           for p in players:
               club_href = p.get('parent', {}).get('href', '')
               club_info = club_lookup.get(club_href, {})
@@ -286,11 +327,15 @@ jobs:
               except:
                   mv_high = ''
 
-              row = {
+              first_name = p.get('name', '') or ''
+              last_name = p.get('last_name', '') or ''
+              full_name = f"{first_name} {last_name}".strip() or first_name
+
+              new_player_rows.append({
                   'player_id': player_id,
-                  'name': p.get('name', '') or p.get('last_name', ''),
-                  'first_name': p.get('name', ''),
-                  'last_name': p.get('last_name', ''),
+                  'name': full_name,
+                  'first_name': first_name,
+                  'last_name': last_name,
                   'date_of_birth': p.get('date_of_birth', ''),
                   'age': p.get('age', ''),
                   'country_of_citizenship': p.get('citizenship', ''),
@@ -307,29 +352,30 @@ jobs:
                   'current_club_domestic_competition_id': club_info.get('competition_id', ''),
                   'image_url': p.get('image_url', ''),
                   'url': f"https://www.transfermarkt.co.uk{p.get('href', '')}",
-              }
-              player_rows.append(row)
-              player_lookup[p.get('href', '')] = row
+              })
 
-          if player_rows:
+          # Samenvoegen met bestaande spelers (nieuwste wint op player_id)
+          existing_players = load_csv_existing(OUT / 'players.csv')
+          player_id_map = {r['player_id']: r for r in existing_players}
+          for r in new_player_rows:
+              player_id_map[str(r['player_id'])] = r
+          merged_players = list(player_id_map.values())
+
+          if merged_players:
               with open(OUT / 'players.csv', 'w', newline='', encoding='utf-8') as f:
-                  w = csv.DictWriter(f, fieldnames=list(player_rows[0].keys()))
-                  w.writeheader(); w.writerows(player_rows)
-              print(f'players.csv: {len(player_rows)} rijen')
+                  w = csv.DictWriter(f, fieldnames=list(merged_players[0].keys()))
+                  w.writeheader(); w.writerows(merged_players)
+              print(f'players.csv: {len(merged_players)} rijen (was {len(existing_players)}, +{len(merged_players)-len(existing_players)} nieuw)')
 
           # ── OPTREDENS ──
           appearances = load_jsonl(RAW / 'appearances.json')
-          app_rows = []
+          new_app_rows = []
           for a in appearances:
               parent = a.get('parent') or {}
-
               player_href = parent.get('href', '')
               player_id = extract_id(player_href)
-
               club_href = (parent.get('current_club') or {}).get('href', '')
               player_club_id = extract_id(club_href)
-
-              # game_id: result kan een dict of string zijn
               result_raw = a.get('result')
               if isinstance(result_raw, dict):
                   result_href = result_raw.get('href', '')
@@ -338,7 +384,6 @@ jobs:
               else:
                   result_href = ''
               game_id = extract_id(result_href)
-
               date = a.get('date', '')
               appearance_id = f"{player_id}_{date.replace('/', '')}" if player_id and date else ''
 
@@ -349,15 +394,13 @@ jobs:
                   minutes_played = 0
 
               def card_count(val):
-                  if val is None or val == '' or val == 0:
-                      return 0
+                  if val is None or val == '' or val == 0: return 0
                   return 1
-
               def safe_int(val):
                   try: return int(val) if val != '' and val is not None else 0
                   except: return 0
 
-              app_rows.append({
+              new_app_rows.append({
                   'appearance_id': appearance_id,
                   'game_id': game_id,
                   'player_id': player_id,
@@ -371,15 +414,24 @@ jobs:
                   'assists': safe_int(a.get('assists')),
                   'minutes_played': minutes_played,
               })
-          if app_rows:
+
+          # Samenvoegen met bestaande appearances (op appearance_id)
+          existing_apps = load_csv_existing(OUT / 'appearances_existing.csv')
+          app_id_map = {r['appearance_id']: r for r in existing_apps}
+          for r in new_app_rows:
+              if r['appearance_id']:
+                  app_id_map[r['appearance_id']] = r
+          merged_apps = list(app_id_map.values())
+
+          if merged_apps:
               with open(OUT / 'appearances.csv', 'w', newline='', encoding='utf-8') as f:
-                  w = csv.DictWriter(f, fieldnames=list(app_rows[0].keys()))
-                  w.writeheader(); w.writerows(app_rows)
-              print(f'appearances.csv: {len(app_rows)} rijen')
+                  w = csv.DictWriter(f, fieldnames=list(merged_apps[0].keys()))
+                  w.writeheader(); w.writerows(merged_apps)
+              print(f'appearances.csv: {len(merged_apps)} rijen (was {len(existing_apps)}, +{len(merged_apps)-len(existing_apps)} nieuw)')
 
           # ── WEDSTRIJDEN ──
           games = load_jsonl(RAW / 'games.json')
-          game_rows = []
+          new_game_rows = []
           for g in games:
               result = g.get('result', '') or ''
               try:
@@ -393,11 +445,10 @@ jobs:
               away_href = (g.get('away_club') or {}).get('href', '')
               home_id = extract_id(home_href)
               away_id = extract_id(away_href)
-
               comp_id = (g.get('parent') or {}).get('country_code', '') or \
                         extract_id((g.get('parent') or {}).get('href', ''))
 
-              game_rows.append({
+              new_game_rows.append({
                   'game_id': g.get('game_id', ''),
                   'competition_id': comp_id,
                   'season': g.get('season', '2025'),
@@ -412,13 +463,27 @@ jobs:
                   'attendance': g.get('attendance', ''),
                   'url': f"https://www.transfermarkt.co.uk{g.get('href', '')}",
               })
-          if game_rows:
-              with open(OUT / 'games.csv', 'w', newline='', encoding='utf-8') as f:
-                  w = csv.DictWriter(f, fieldnames=list(game_rows[0].keys()))
-                  w.writeheader(); w.writerows(game_rows)
-              print(f'games.csv: {len(game_rows)} rijen')
 
-          print('Conversie klaar!')
+          # Samenvoegen met bestaande games (op game_id)
+          existing_games = load_csv_existing(OUT / 'games.csv')
+          game_id_map = {r['game_id']: r for r in existing_games}
+          for r in new_game_rows:
+              if r['game_id']:
+                  game_id_map[str(r['game_id'])] = r
+          merged_games = list(game_id_map.values())
+
+          if merged_games:
+              with open(OUT / 'games.csv', 'w', newline='', encoding='utf-8') as f:
+                  w = csv.DictWriter(f, fieldnames=list(merged_games[0].keys()))
+                  w.writeheader(); w.writerows(merged_games)
+              print(f'games.csv: {len(merged_games)} rijen (was {len(existing_games)}, +{len(merged_games)-len(existing_games)} nieuw)')
+
+          # Ruim tijdelijk bestand op
+          tmp = Path('data/csv/appearances_existing.csv')
+          if tmp.exists():
+              tmp.unlink()
+
+          print('Conversie en samenvoegen klaar!')
           PYEOF
 
       - name: Commit en push CSV's
@@ -428,7 +493,8 @@ jobs:
           gzip -f data/csv/appearances.csv
           git add data/csv/
           TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
-          git commit -m "ScoutAI data update: ${TIMESTAMP}" || echo "Geen wijzigingen"
+          BATCH=$(basename $(cat $GITHUB_WORKSPACE/data/competitions.json | python3 -c "import sys,json; lines=[json.loads(l) for l in sys.stdin if l.strip()]; codes=[l.get('country_code','') for l in lines[:3]]; print('+'.join(codes))" 2>/dev/null) 2>/dev/null || echo "batch")
+          git commit -m "ScoutAI data update: ${TIMESTAMP} [${BATCH}...]" || echo "Geen wijzigingen"
           git push
 
       - name: Samenvatting
