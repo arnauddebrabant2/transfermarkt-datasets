@@ -154,6 +154,35 @@ jobs:
           PYEOF
           echo "Marktwaarden: $(wc -c < $GITHUB_WORKSPACE/data/raw/market_values.json 2>/dev/null || echo 0) bytes"
 
+      - name: Stap 2c - Transferhistorie scrapen
+        timeout-minutes: 30
+        continue-on-error: true
+        run: |
+          cd /tmp/scraper
+          for SEASON in 2024 2025; do
+            echo "=== Transfers seizoen $SEASON ==="
+            python -m tfmkt transfers \
+              -p $GITHUB_WORKSPACE/data/raw/players.json \
+              -s $SEASON \
+              >> $GITHUB_WORKSPACE/data/raw/transfers.json || true
+          done
+          echo "Transfers: $(wc -l < $GITHUB_WORKSPACE/data/raw/transfers.json 2>/dev/null || echo 0)"
+
+      - name: Stap 2d - Historische marktwaarden scrapen
+        timeout-minutes: 30
+        continue-on-error: true
+        run: |
+          cd /tmp/scraper
+          for SEASON in 2024 2025; do
+            echo "=== Valuations seizoen $SEASON ==="
+            python -m tfmkt valuations \
+              -p $GITHUB_WORKSPACE/data/raw/players.json \
+              -s $SEASON \
+              >> $GITHUB_WORKSPACE/data/raw/valuations.json || true
+          done
+          echo "Valuations: $(wc -l < $GITHUB_WORKSPACE/data/raw/valuations.json 2>/dev/null || echo 0)"
+
+
       - name: Stap 3 - Optredens scrapen
         timeout-minutes: 120
         continue-on-error: true
@@ -478,6 +507,64 @@ jobs:
                   w.writeheader(); w.writerows(merged_games)
               print(f'games.csv: {len(merged_games)} rijen (was {len(existing_games)}, +{len(merged_games)-len(existing_games)} nieuw)')
 
+          # ── TRANSFERS ──
+          transfers = load_jsonl(RAW / 'transfers.json')
+          new_transfer_rows = []
+          for t in transfers:
+              parent = t.get('parent') or {}
+              player_href = parent.get('href', '')
+              player_id = extract_id(player_href)
+              from_href = (t.get('from_club') or {}).get('href', '')
+              to_href   = (t.get('to_club')   or {}).get('href', '')
+              new_transfer_rows.append({
+                  'player_id':       player_id,
+                  'transfer_date':   t.get('date', ''),
+                  'transfer_season': t.get('season', ''),
+                  'from_club_id':    extract_id(from_href),
+                  'from_club_name':  (t.get('from_club') or {}).get('name', ''),
+                  'to_club_id':      extract_id(to_href),
+                  'to_club_name':    (t.get('to_club') or {}).get('name', ''),
+                  'transfer_fee':    t.get('fee', ''),
+                  'market_value_at_transfer': t.get('market_value', ''),
+              })
+          existing_transfers = load_csv_existing(OUT / 'transfers.csv')
+          transfer_key = lambda r: f"{r.get('player_id','')}_{r.get('transfer_date','')}_{r.get('to_club_id','')}"
+          transfer_map = {transfer_key(r): r for r in existing_transfers}
+          for r in new_transfer_rows:
+              transfer_map[transfer_key(r)] = r
+          merged_transfers = list(transfer_map.values())
+          if merged_transfers:
+              with open(OUT / 'transfers.csv', 'w', newline='', encoding='utf-8') as f:
+                  w = csv.DictWriter(f, fieldnames=list(merged_transfers[0].keys()))
+                  w.writeheader(); w.writerows(merged_transfers)
+              print(f'transfers.csv: {len(merged_transfers)} rijen (was {len(existing_transfers)}, +{len(merged_transfers)-len(existing_transfers)} nieuw)')
+
+          # ── VALUATIONS ──
+          valuations = load_jsonl(RAW / 'valuations.json')
+          new_val_rows = []
+          for v in valuations:
+              parent = v.get('parent') or {}
+              player_href = parent.get('href', '')
+              player_id = extract_id(player_href)
+              new_val_rows.append({
+                  'player_id':             player_id,
+                  'date':                  v.get('date', ''),
+                  'market_value_in_eur':   parse_market_value(v.get('market_value', '')),
+                  'current_club_id':       extract_id((v.get('current_club') or {}).get('href', '')),
+                  'player_club_domestic_competition_id': v.get('competition_code', ''),
+              })
+          existing_vals = load_csv_existing(OUT / 'player_valuations.csv')
+          val_key = lambda r: f"{r.get('player_id','')}_{r.get('date','')}"
+          val_map = {val_key(r): r for r in existing_vals}
+          for r in new_val_rows:
+              val_map[val_key(r)] = r
+          merged_vals = list(val_map.values())
+          if merged_vals:
+              with open(OUT / 'player_valuations.csv', 'w', newline='', encoding='utf-8') as f:
+                  w = csv.DictWriter(f, fieldnames=list(merged_vals[0].keys()))
+                  w.writeheader(); w.writerows(merged_vals)
+              print(f'player_valuations.csv: {len(merged_vals)} rijen (was {len(existing_vals)}, +{len(merged_vals)-len(existing_vals)} nieuw)')
+
           # Ruim tijdelijk bestand op
           tmp = Path('data/csv/appearances_existing.csv')
           if tmp.exists():
@@ -491,7 +578,7 @@ jobs:
           git config user.name "ScoutAI Bot"
           git config user.email "actions@users.noreply.github.com"
           gzip -f data/csv/appearances.csv
-          git add data/csv/
+          git add data/csv/ data/csv/transfers.csv data/csv/player_valuations.csv
           TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
           BATCH=$(basename $(cat $GITHUB_WORKSPACE/data/competitions.json | python3 -c "import sys,json; lines=[json.loads(l) for l in sys.stdin if l.strip()]; codes=[l.get('country_code','') for l in lines[:3]]; print('+'.join(codes))" 2>/dev/null) 2>/dev/null || echo "batch")
           git commit -m "ScoutAI data update: ${TIMESTAMP} [${BATCH}...]" || echo "Geen wijzigingen"
