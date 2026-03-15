@@ -555,6 +555,20 @@ jobs:
                   w.writeheader(); w.writerows(merged_games)
               print(f'games.csv: {len(merged_games)} rijen (was {len(existing_games)}, +{len(merged_games)-len(existing_games)} nieuw)')
 
+
+          def _club_name(val):
+              if not val: return ''
+              import ast as _ast
+              s = str(val).strip()
+              if s.startswith('{'):
+                  try:
+                      import json as _j
+                      return _j.loads(s.replace("'",'"')).get('clubName', s)
+                  except:
+                      try: return _ast.literal_eval(s).get('clubName', s)
+                      except: pass
+              return s
+
           # ── TRANSFERS ──
           transfers_raw = load_jsonl(RAW / 'transfers.json')
           new_transfer_rows = []
@@ -564,8 +578,8 @@ jobs:
                   'player_id':                player_id,
                   'transfer_date':            t.get('date', '') or t.get('transferDate', ''),
                   'transfer_season':          t.get('season', ''),
-                  'from_club_name':           t.get('from', '') or t.get('fromClubName', ''),
-                  'to_club_name':             t.get('to', '') or t.get('toClubName', ''),
+                  'from_club_name':           _club_name(t.get('from', '') or t.get('fromClubName', '')),
+                  'to_club_name':             _club_name(t.get('to', '') or t.get('toClubName', '')),
                   'transfer_fee':             t.get('fee', '') or t.get('transferFee', ''),
                   'market_value_at_transfer': t.get('mv', '') or t.get('marketValue', ''),
               })
