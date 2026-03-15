@@ -28,6 +28,24 @@ jobs:
           poetry install --without dev
           pip install aiohttp asyncio
 
+      - name: Zoek en verwijder crawlee limieten
+        run: |
+          echo "=== Zoek max_requests in scraper ==="
+          grep -rn "max_requests\|MAX_REQUESTS\|maxRequestsPerCrawl\|max_crawls" /tmp/scraper/ 2>/dev/null || echo "Niet gevonden via grep"
+          echo "=== Pas settings.py aan ==="
+          # Verhoog limiet in settings als die bestaat
+          if [ -f /tmp/scraper/tfmkt/settings.py ]; then
+            cat /tmp/scraper/tfmkt/settings.py
+            sed -i 's/CLOSESPIDER_ITEMCOUNT.*/CLOSESPIDER_ITEMCOUNT = 0/' /tmp/scraper/tfmkt/settings.py || true
+            sed -i 's/CLOSESPIDER_PAGECOUNT.*/CLOSESPIDER_PAGECOUNT = 0/' /tmp/scraper/tfmkt/settings.py || true
+            echo "Settings na aanpassing:"
+            cat /tmp/scraper/tfmkt/settings.py
+          fi
+          echo "=== Stel environment variabelen in ==="
+          echo "CRAWLEE_MAX_REQUESTS_PER_CRAWL=999999" >> $GITHUB_ENV
+          echo "SCRAPY_CLOSESPIDER_ITEMCOUNT=0" >> $GITHUB_ENV
+          echo "SCRAPY_CLOSESPIDER_PAGECOUNT=0" >> $GITHUB_ENV
+
       - name: Maak output map aan
         run: mkdir -p data/raw data/csv
 
@@ -55,6 +73,9 @@ jobs:
       - name: Stap 1 - Clubs scrapen
         run: |
           cd /tmp/scraper
+          export CRAWLEE_MAX_REQUESTS_PER_CRAWL=999999
+          export SCRAPY_CLOSESPIDER_ITEMCOUNT=0
+          export SCRAPY_CLOSESPIDER_PAGECOUNT=0
           for SEASON in 2024 2025; do
             echo "=== Clubs seizoen $SEASON ==="
             python -m tfmkt clubs \
@@ -67,6 +88,9 @@ jobs:
       - name: Stap 2 - Spelers scrapen
         run: |
           cd /tmp/scraper
+          export CRAWLEE_MAX_REQUESTS_PER_CRAWL=999999
+          export SCRAPY_CLOSESPIDER_ITEMCOUNT=0
+          export SCRAPY_CLOSESPIDER_PAGECOUNT=0
           for SEASON in 2024 2025; do
             echo "=== Spelers seizoen $SEASON ==="
             python -m tfmkt players \
@@ -305,6 +329,9 @@ jobs:
         continue-on-error: true
         run: |
           cd /tmp/scraper
+          export CRAWLEE_MAX_REQUESTS_PER_CRAWL=999999
+          export SCRAPY_CLOSESPIDER_ITEMCOUNT=0
+          export SCRAPY_CLOSESPIDER_PAGECOUNT=0
           for SEASON in 2024 2025; do
             echo "=== Optredens seizoen $SEASON ==="
             python -m tfmkt appearances \
@@ -318,6 +345,9 @@ jobs:
         timeout-minutes: 60
         run: |
           cd /tmp/scraper
+          export CRAWLEE_MAX_REQUESTS_PER_CRAWL=999999
+          export SCRAPY_CLOSESPIDER_ITEMCOUNT=0
+          export SCRAPY_CLOSESPIDER_PAGECOUNT=0
           for SEASON in 2024 2025; do
             echo "=== Wedstrijden seizoen $SEASON ==="
             python -m tfmkt games \
