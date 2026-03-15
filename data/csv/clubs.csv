@@ -96,7 +96,7 @@ club_id,name,domestic_competition_id,squad_size,average_age,total_market_value,c
 15,Bayer 04 Leverkusen Fußball,L1,27,26.4,,,https://www.transfermarkt.co.uk/bayer-04-leverkusen/startseite/verein/15
 39,1. Fußball- und Sportverein Mainz 05,L1,31,27.2,,,https://www.transfermarkt.co.uk/1-fsv-mainz-05/startseite/verein/39
 533,Turn- und Sportgemeinschaft 1899 Hoffenheim Fußball-Spielbetriebs,L1,29,25.3,,,https://www.transfermarkt.co.uk/tsg-1899-hoffenheim/startseite/verein/533
-24,Eintracht Frankfurt Fußball AG,L1,29,25.4,,,https://www.transfermarkt.co.uk/eintracht-frankfurt/startseite/verein/24
+24,Eintracht Frankfurt,L1,29,25.4,,Dino Toppmöller,https://www.transfermarkt.co.uk/eintracht-frankfurt/startseite/verein/24
 167,Fußball-Club Augsburg 1907,L1,28,25.5,,,https://www.transfermarkt.co.uk/fc-augsburg/startseite/verein/167
 27,FC Bayern München,L1,24,27.1,,,https://www.transfermarkt.co.uk/fc-bayern-munchen/startseite/verein/27
 2036,1. Fußballclub Heidenheim 1846,L1,29,26.2,,,https://www.transfermarkt.co.uk/1-fc-heidenheim-1846/startseite/verein/2036
