@@ -1,178 +1,178 @@
 club_id,name,domestic_competition_id,squad_size,average_age,total_market_value,coach_name,url
-122,SK Sturm Graz,A1,26,24.0,,Christian Ilzer,https://www.transfermarkt.co.uk/sk-sturm-graz/startseite/verein/122
-413,LASK,A1,25,24.5,,Thomas Darazs,https://www.transfermarkt.co.uk/lask/startseite/verein/413
-409,Red Bull Salzburg,A1,30,22.7,,Pepijn Lijnders,https://www.transfermarkt.co.uk/red-bull-salzburg/startseite/verein/409
-4441,Wolfsberger AC,A1,29,24.8,,Dietmar Kühbauer,https://www.transfermarkt.co.uk/wolfsberger-ac/startseite/verein/4441
-170,Rapid Vienna,A1,31,25.0,,Robert Klauß,https://www.transfermarkt.co.uk/sk-rapid-wien/startseite/verein/170
-4467,TSV Hartberg,A1,29,23.8,,Markus Schopp,https://www.transfermarkt.co.uk/tsv-hartberg/startseite/verein/4467
-3551,SCR Altach,A1,27,26.2,,Joachim Standfest,https://www.transfermarkt.co.uk/scr-altach/startseite/verein/3551
-316,Grazer AK 1902,A1,27,26.2,,Gernot Messner,https://www.transfermarkt.co.uk/grazer-ak-1902/startseite/verein/316
-2446,WSG Tirol,A1,28,23.8,,Philipp Semlic,https://www.transfermarkt.co.uk/wsg-tirol/startseite/verein/2446
-6574,US Sassuolo,IT2,29,25.9,,Fabio Grosso,https://www.transfermarkt.co.uk/us-sassuolo/startseite/verein/6574
-14,Austria Vienna,A1,31,25.2,,Stephan Helm,https://www.transfermarkt.co.uk/fk-austria-wien/startseite/verein/14
+122,Sportklub Puntigamer Sturm Graz,A1,26,24.0,,,https://www.transfermarkt.co.uk/sk-sturm-graz/startseite/verein/122
+413,Linzer Athletik-Sport-Klub,A1,25,24.5,,,https://www.transfermarkt.co.uk/lask/startseite/verein/413
+409,Fußballclub Red Bull Salzburg,A1,30,22.7,,,https://www.transfermarkt.co.uk/red-bull-salzburg/startseite/verein/409
+4441,RZ Pellets Wolfsberger Athletiksport Club,A1,29,24.8,,,https://www.transfermarkt.co.uk/wolfsberger-ac/startseite/verein/4441
+170,Sportklub Rapid,A1,31,25.0,,,https://www.transfermarkt.co.uk/sk-rapid-wien/startseite/verein/170
+4467,Turn- und Sportverein Egger Glas Hartberg,A1,29,23.8,,,https://www.transfermarkt.co.uk/tsv-hartberg/startseite/verein/4467
+3551,Sportclub Rheindorf Altach,A1,27,26.2,,,https://www.transfermarkt.co.uk/scr-altach/startseite/verein/3551
+316,Grazer Athletiksport Klub 1902,A1,27,26.2,,,https://www.transfermarkt.co.uk/grazer-ak-1902/startseite/verein/316
+2446,Wattener Sportgemeinschaft Swarovski Tirol,A1,28,23.8,,,https://www.transfermarkt.co.uk/wsg-tirol/startseite/verein/2446
+6574,Unione Sportiva Sassuolo Calcio,IT1,29,25.9,,,https://www.transfermarkt.co.uk/us-sassuolo/startseite/verein/6574
+14,Fußballklub Austria Wien,A1,31,25.2,,,https://www.transfermarkt.co.uk/fk-austria-wien/startseite/verein/14
 28760,SK Austria Klagenfurt,A1,24,23.2,,Peter Pacult,https://www.transfermarkt.co.uk/sk-austria-klagenfurt/startseite/verein/28760
-2157,FC Blau-Weiss Linz,A1,30,26.5,,Gerald Scheiblehner,https://www.transfermarkt.co.uk/fc-blau-weiss-linz/startseite/verein/2157
-458,Palermo FC,IT2,24,27.9,,Alessio Dionisi,https://www.transfermarkt.co.uk/palermo-fc/startseite/verein/458
-4172,Pisa Sporting Club,IT2,29,26.9,,Filippo Inzaghi,https://www.transfermarkt.co.uk/ac-pisa-1909/startseite/verein/4172
-8970,Frosinone Calcio,IT2,30,24.3,,Vincenzo Vivarini,https://www.transfermarkt.co.uk/frosinone-calcio/startseite/verein/8970
-2239,US Cremonese,IT2,27,28.4,,Giovanni Stroppa,https://www.transfermarkt.co.uk/us-cremonese/startseite/verein/2239
-5587,SS Juve Stabia,IT2,28,25.0,,Guido Pagliuca,https://www.transfermarkt.co.uk/ss-juve-stabia/startseite/verein/5587
-1038,UC Sampdoria,IT2,30,26.9,,Andrea Pirlo,https://www.transfermarkt.co.uk/sampdoria-genua/startseite/verein/1038
-1429,Cesena FC,IT2,27,25.7,,Michele Mignani,https://www.transfermarkt.co.uk/cesena-fc/startseite/verein/1429
+2157,Fußballclub Blau-Weiß Linz,A1,30,26.5,,,https://www.transfermarkt.co.uk/fc-blau-weiss-linz/startseite/verein/2157
+458,Football Club Palermo,IT2,24,27.9,,,https://www.transfermarkt.co.uk/palermo-fc/startseite/verein/458
+4172,Pisa Sporting Club,IT1,29,26.9,,,https://www.transfermarkt.co.uk/ac-pisa-1909/startseite/verein/4172
+8970,Frosinone Calcio S.r.l.,IT2,30,24.3,,,https://www.transfermarkt.co.uk/frosinone-calcio/startseite/verein/8970
+2239,Unione Sportiva Cremonese S.p.A.,IT1,27,28.4,,,https://www.transfermarkt.co.uk/us-cremonese/startseite/verein/2239
+5587,Società Sportiva Juve Stabia,IT2,28,25.0,,,https://www.transfermarkt.co.uk/ss-juve-stabia/startseite/verein/5587
+1038,Unione Calcio Sampdoria,IT2,30,26.9,,,https://www.transfermarkt.co.uk/sampdoria-genua/startseite/verein/1038
+1429,Cesena F.C.,IT2,27,25.7,,,https://www.transfermarkt.co.uk/cesena-fc/startseite/verein/1429
 380,US Salernitana 1919,IT2,26,26.9,,Andrea Sottil,https://www.transfermarkt.co.uk/us-salernitana-1919/startseite/verein/380
 19,Brescia Calcio (- 2025),IT2,0,0.0,,Rolando Maran,https://www.transfermarkt.co.uk/brescia-calcio/startseite/verein/19
-4554,FC Südtirol,IT2,27,27.9,,Federico Valente,https://www.transfermarkt.co.uk/fc-sudtirol/startseite/verein/4554
-4159,Carrarese Calcio 1908,IT2,29,25.8,,Nicola Antonio Calabro,https://www.transfermarkt.co.uk/carrarese-calcio-1908/startseite/verein/4159
-2581,Mantova 1911,IT2,30,25.5,,Davide Possanzini,https://www.transfermarkt.co.uk/mantova-1911/startseite/verein/2581
+4554,Fussball Club Südtirol,IT2,27,27.9,,,https://www.transfermarkt.co.uk/fc-sudtirol/startseite/verein/4554
+4159,Carrarese Calcio 1908,IT2,29,25.8,,,https://www.transfermarkt.co.uk/carrarese-calcio-1908/startseite/verein/4159
+2581,Mantova Football Club,IT2,30,25.5,,,https://www.transfermarkt.co.uk/mantova-1911/startseite/verein/2581
 4031,Cosenza Calcio,IT2,30,25.1,,Massimiliano Alvini,https://www.transfermarkt.co.uk/cosenza-calcio/startseite/verein/4031
-1385,Modena FC,IT2,28,26.3,,Pierpaolo Bisoli,https://www.transfermarkt.co.uk/modena-fc-2018/startseite/verein/1385
-332,SSC Bari,IT2,31,26.6,,Moreno Longo,https://www.transfermarkt.co.uk/ssc-bari/startseite/verein/332
-5621,AC Reggiana 1919,IT2,36,24.9,,William Viali,https://www.transfermarkt.co.uk/ac-reggiana-1919/startseite/verein/5621
-10331,FC Porto B,PO2,29,20.8,,João Brandão,https://www.transfermarkt.co.uk/fc-porto-b/startseite/verein/10331
-6912,FC Vizela,PO2,29,26.1,,Rubén de la Barrera,https://www.transfermarkt.co.uk/fc-vizela/startseite/verein/6912
-3522,Spezia Calcio,IT2,28,26.5,,Luca D'Angelo,https://www.transfermarkt.co.uk/spezia-calcio/startseite/verein/3522
-2432,SC União Torreense,PO2,28,24.9,,Tiago Fernandes,https://www.transfermarkt.co.uk/sc-uniao-torreense/startseite/verein/2432
-7378,Portimonense SAD,PO2,28,25.2,,Sérgio Vieira,https://www.transfermarkt.co.uk/portimonense-sc/startseite/verein/7378
-10330,SL Benfica B,PO2,27,19.8,,Nélson Veríssimo,https://www.transfermarkt.co.uk/benfica-lissabon-b/startseite/verein/10330
-1301,CS Marítimo,PO2,28,26.3,,Fábio Pereira,https://www.transfermarkt.co.uk/cs-maritimo/startseite/verein/1301
+1385,Modena Football Club,IT2,28,26.3,,,https://www.transfermarkt.co.uk/modena-fc-2018/startseite/verein/1385
+332,Società Sportiva Calcio Bari,IT2,31,26.6,,,https://www.transfermarkt.co.uk/ssc-bari/startseite/verein/332
+5621,A.C. Reggiana 1919,IT2,36,24.9,,,https://www.transfermarkt.co.uk/ac-reggiana-1919/startseite/verein/5621
+10331,FC Porto B,PO2,29,20.8,,,https://www.transfermarkt.co.uk/fc-porto-b/startseite/verein/10331
+6912,Futebol Clube de Vizela,PO2,29,26.1,,,https://www.transfermarkt.co.uk/fc-vizela/startseite/verein/6912
+3522,Spezia Calcio,IT2,28,26.5,,,https://www.transfermarkt.co.uk/spezia-calcio/startseite/verein/3522
+2432,Sport Clube União Torreense,PO2,28,24.9,,,https://www.transfermarkt.co.uk/sc-uniao-torreense/startseite/verein/2432
+7378,Portimonense Futebol SAD,PO2,28,25.2,,,https://www.transfermarkt.co.uk/portimonense-sc/startseite/verein/7378
+10330,SL Benfica B,PO2,27,19.8,,,https://www.transfermarkt.co.uk/benfica-lissabon-b/startseite/verein/10330
+1301,Club Sport Marítimo,PO2,28,26.3,,,https://www.transfermarkt.co.uk/cs-maritimo/startseite/verein/1301
 7179,CD Tondela,PO2,26,26.7,,Luís Pinto,https://www.transfermarkt.co.uk/cd-tondela/startseite/verein/7179
-3349,CD Feirense,PO2,24,25.8,,Vítor Martins,https://www.transfermarkt.co.uk/cd-feirense/startseite/verein/3349
-2639,UD Leiria,PO2,27,26.5,,Filipe Cândido,https://www.transfermarkt.co.uk/uniao-leiria/startseite/verein/2639
-3327,FC Penafiel,PO2,28,26.9,,Hélder Cristóvão,https://www.transfermarkt.co.uk/fc-penafiel/startseite/verein/3327
-3325,GD Chaves,PO2,28,27.2,,Marco Alves,https://www.transfermarkt.co.uk/gd-chaves/startseite/verein/3325
+3349,Clube Desportivo Feirense,PO2,24,25.8,,,https://www.transfermarkt.co.uk/cd-feirense/startseite/verein/3349
+2639,União Desportiva de Leiria,PO2,27,26.5,,,https://www.transfermarkt.co.uk/uniao-leiria/startseite/verein/2639
+3327,Futebol Clube de Penafiel,PO2,28,26.9,,,https://www.transfermarkt.co.uk/fc-penafiel/startseite/verein/3327
+3325,Grupo Desportivo de Chaves,PO2,28,27.2,,,https://www.transfermarkt.co.uk/gd-chaves/startseite/verein/3325
 4084,AS Cittadella,IT2,29,27.7,,Edoardo Gorini,https://www.transfermarkt.co.uk/as-cittadella/startseite/verein/4084
 2521,FC Alverca,PO2,29,24.3,,Zé Pedro,https://www.transfermarkt.co.uk/fc-alverca/startseite/verein/2521
-7788,Académico Viseu FC,PO2,27,26.1,,Rui Ferreira,https://www.transfermarkt.co.uk/academico-viseu-fc/startseite/verein/7788
-3345,Leixões SC,PO2,34,27.2,,Carlos Fangueiro,https://www.transfermarkt.co.uk/leixoes-sc/startseite/verein/3345
-419,GNK Dinamo Zagreb,KR1,31,25.8,,Sergej Jakirovic,https://www.transfermarkt.co.uk/gnk-dinamo-zagreb/startseite/verein/419
-327,NK Osijek,KR1,28,24.9,,Federico Coppitelli,https://www.transfermarkt.co.uk/nk-osijek/startseite/verein/327
-447,HNK Hajduk Split,KR1,29,24.9,,Gennaro Gattuso,https://www.transfermarkt.co.uk/hnk-hajduk-split/startseite/verein/447
-24575,HNK Gorica,KR1,25,25.8,,Rajko Vidovic,https://www.transfermarkt.co.uk/hnk-gorica/startseite/verein/24575
-11194,NK Lokomotiva Zagreb,KR1,38,25.7,,Silvijo Cabraja,https://www.transfermarkt.co.uk/nk-lokomotiva-zagreb/startseite/verein/11194
-144,HNK Rijeka,KR1,34,24.8,,Zeljko Sopic,https://www.transfermarkt.co.uk/hnk-rijeka/startseite/verein/144
-999,NK Istra 1961,KR1,29,23.1,,Paolo Tramezzani,https://www.transfermarkt.co.uk/nk-istra-1961/startseite/verein/999
+7788,Académico de Viseu Futebol Clube,PO2,27,26.1,,,https://www.transfermarkt.co.uk/academico-viseu-fc/startseite/verein/7788
+3345,Leixões Sport Clube,PO2,34,27.2,,,https://www.transfermarkt.co.uk/leixoes-sc/startseite/verein/3345
+419,GNK Dinamo Zagreb,KR1,31,25.8,,,https://www.transfermarkt.co.uk/gnk-dinamo-zagreb/startseite/verein/419
+327,NK Osijek s.d.d.,KR1,28,24.9,,,https://www.transfermarkt.co.uk/nk-osijek/startseite/verein/327
+447,HNK Hajduk Split,KR1,29,24.9,,,https://www.transfermarkt.co.uk/hnk-hajduk-split/startseite/verein/447
+24575,HNK Gorica,KR1,25,25.8,,,https://www.transfermarkt.co.uk/hnk-gorica/startseite/verein/24575
+11194,NK Lokomotiva Zagreb,KR1,38,25.7,,,https://www.transfermarkt.co.uk/nk-lokomotiva-zagreb/startseite/verein/11194
+144,Hrvatski Nogometni Klub Rijeka,KR1,34,24.8,,,https://www.transfermarkt.co.uk/hnk-rijeka/startseite/verein/144
+999,NK Istra 1961,KR1,29,23.1,,,https://www.transfermarkt.co.uk/nk-istra-1961/startseite/verein/999
 223,HNK Sibenik,KR1,15,26.3,,Mario Carevic,https://www.transfermarkt.co.uk/hnk-sibenik/startseite/verein/223
-2362,Slaven Belupo Koprivnica,KR1,33,26.5,,Ivan Radeljic,https://www.transfermarkt.co.uk/slaven-belupo-koprivnica/startseite/verein/2362
-599,NK Varazdin,KR1,25,27.1,,Nikola Safaric,https://www.transfermarkt.co.uk/nk-varazdin/startseite/verein/599
+2362,NK Slaven Belupo Koprivnica,KR1,33,26.5,,,https://www.transfermarkt.co.uk/slaven-belupo-koprivnica/startseite/verein/2362
+599,NK Varazdin,KR1,25,27.1,,,https://www.transfermarkt.co.uk/nk-varazdin/startseite/verein/599
 7056,CD Mafra,PO2,32,24.9,,Carlos Vaz Pinto,https://www.transfermarkt.co.uk/cd-mafra/startseite/verein/7056
-3,1.FC Köln,L2,30,25.7,,Gerhard Struber,https://www.transfermarkt.co.uk/1-fc-koln/startseite/verein/3
-41,Hamburger SV,L2,31,24.7,,Steffen Baumgart,https://www.transfermarkt.co.uk/hamburger-sv/startseite/verein/41
-44,Hertha BSC,L2,30,25.8,,Cristian Fiél,https://www.transfermarkt.co.uk/hertha-bsc/startseite/verein/44
-64,SV 07 Elversberg,L2,28,26.6,,Horst Steffen,https://www.transfermarkt.co.uk/sv-07-elversberg/startseite/verein/64
-127,SC Paderborn 07,L2,26,24.5,,Lukas Kwasniok,https://www.transfermarkt.co.uk/sc-paderborn-07/startseite/verein/127
-38,Fortuna Düsseldorf,L2,31,25.3,,Daniel Thioune,https://www.transfermarkt.co.uk/fortuna-dusseldorf/startseite/verein/38
-33,FC Schalke 04,L2,32,26.3,,Karel Geraerts,https://www.transfermarkt.co.uk/fc-schalke-04/startseite/verein/33
-2995,FC Paços de Ferreira,PO2,27,24.7,,Ricardo Silva,https://www.transfermarkt.co.uk/fc-pacos-de-ferreira/startseite/verein/2995
-42,Hannover 96,L2,31,24.5,,Stefan Leitl,https://www.transfermarkt.co.uk/hannover-96/startseite/verein/42
-4,1.FC Nuremberg,L2,30,23.4,,Miroslav Klose,https://www.transfermarkt.co.uk/1-fc-nurnberg/startseite/verein/4
-65,SpVgg Greuther Fürth,L2,31,25.5,,Alexander Zorniger,https://www.transfermarkt.co.uk/spvgg-greuther-furth/startseite/verein/65
+3,1. Fußball-Club Köln,L1,30,25.7,,,https://www.transfermarkt.co.uk/1-fc-koln/startseite/verein/3
+41,Hamburger Sport Verein,L1,31,24.7,,,https://www.transfermarkt.co.uk/hamburger-sv/startseite/verein/41
+44,Hertha Berliner Sport-Club,L2,30,25.8,,,https://www.transfermarkt.co.uk/hertha-bsc/startseite/verein/44
+64,Sportvereinigung 07 Elversberg,L2,28,26.6,,,https://www.transfermarkt.co.uk/sv-07-elversberg/startseite/verein/64
+127,SC Paderborn 07,L2,26,24.5,,,https://www.transfermarkt.co.uk/sc-paderborn-07/startseite/verein/127
+38,Düsseldorfer Turn- und Sportverein Fortuna 1895,L2,31,25.3,,,https://www.transfermarkt.co.uk/fortuna-dusseldorf/startseite/verein/38
+33,Fußballclub Gelsenkirchen-Schalke 04,L2,32,26.3,,,https://www.transfermarkt.co.uk/fc-schalke-04/startseite/verein/33
+2995,Futebol Clube Paços de Ferreira,PO2,27,24.7,,,https://www.transfermarkt.co.uk/fc-pacos-de-ferreira/startseite/verein/2995
+42,Hannoverscher Sportverein von 1896,L2,31,24.5,,,https://www.transfermarkt.co.uk/hannover-96/startseite/verein/42
+4,1. Fußball-Club Nürnberg Verein für Leibesübungen,L2,30,23.4,,,https://www.transfermarkt.co.uk/1-fc-nurnberg/startseite/verein/4
+65,SpVgg Greuther Fürth,L2,31,25.5,,,https://www.transfermarkt.co.uk/spvgg-greuther-furth/startseite/verein/65
 69,SSV Ulm 1846,L2,31,26.3,,Thomas Wörle,https://www.transfermarkt.co.uk/ssv-ulm-1846/startseite/verein/69
-23,Eintracht Braunschweig,L2,27,25.0,,Daniel Scherning,https://www.transfermarkt.co.uk/eintracht-braunschweig/startseite/verein/23
-91,Preußen Münster,L2,30,27.2,,Sascha Hildmann,https://www.transfermarkt.co.uk/preussen-munster/startseite/verein/91
+23,Braunschweiger Turn- und Sportverein Eintracht von 1895,L2,27,25.0,,,https://www.transfermarkt.co.uk/eintracht-braunschweig/startseite/verein/23
+91,Sportclub Preußen Münster von 1906 Münster (Westf.),L2,30,27.2,,,https://www.transfermarkt.co.uk/preussen-munster/startseite/verein/91
 109,SSV Jahn Regensburg,L2,28,25.6,,Joe Enochs,https://www.transfermarkt.co.uk/ssv-jahn-regensburg/startseite/verein/109
-187,1.FC Magdeburg,L2,32,26.4,,Christian Titz,https://www.transfermarkt.co.uk/1-fc-magdeburg/startseite/verein/187
-43560,Club NXT,BE2,29,19.6,,Robin Veldman,https://www.transfermarkt.co.uk/club-nxt/startseite/verein/43560
-5026,Lommel SK,BE2,29,23.7,,Steve Bould,https://www.transfermarkt.co.uk/lommel-sk/startseite/verein/5026
+187,1. Fußballclub Magdeburg,L2,32,26.4,,,https://www.transfermarkt.co.uk/1-fc-magdeburg/startseite/verein/187
+43560,Club NXT,BE2,29,19.6,,,https://www.transfermarkt.co.uk/club-nxt/startseite/verein/43560
+5026,Lommel Sportkring,BE2,29,23.7,,,https://www.transfermarkt.co.uk/lommel-sk/startseite/verein/5026
 3508,Zulte Waregem,BE2,31,24.1,,Sven Vandenbroeck,https://www.transfermarkt.co.uk/sv-zulte-waregem/startseite/verein/3508
-105,SV Darmstadt 98,L2,27,26.6,,Torsten Lieberknecht,https://www.transfermarkt.co.uk/sv-darmstadt-98/startseite/verein/105
-54189,RWDM Brussels,BE2,26,23.3,,Yannick Ferrera,https://www.transfermarkt.co.uk/rwd-molenbeek/startseite/verein/54189
-30857,RSCA Futures,BE2,29,18.9,,Jelle Coen,https://www.transfermarkt.co.uk/rsc-anderlecht-u21/startseite/verein/30857
+105,Sportverein Darmstadt 1898 e. V.,L2,27,26.6,,,https://www.transfermarkt.co.uk/sv-darmstadt-98/startseite/verein/105
+54189,Racing White Daring Molenbeek,BE2,26,23.3,,,https://www.transfermarkt.co.uk/rwd-molenbeek/startseite/verein/54189
+30857,RSCA Futures,BE2,29,18.9,,,https://www.transfermarkt.co.uk/rsc-anderlecht-u21/startseite/verein/30857
 3901,RAAL La Louvière,BE2,25,25.0,,Frédéric Taquin,https://www.transfermarkt.co.uk/raal-la-louviere/startseite/verein/3901
-28643,SK Beveren,BE2,25,25.8,,Marink Reedijk,https://www.transfermarkt.co.uk/waasland-beveren/startseite/verein/28643
-28107,K Lierse SK,BE2,29,22.8,,Christophe Grégoire,https://www.transfermarkt.co.uk/ksk-lierse-kempenzonen/startseite/verein/28107
-3225,Patro Eisden Maasmechelen,BE2,29,25.0,,Stijn Stijnen,https://www.transfermarkt.co.uk/patro-eisden-maasmechelen/startseite/verein/3225
-1245,KAS Eupen,BE2,31,25.0,,Mersad Selimbegovic,https://www.transfermarkt.co.uk/kas-eupen/startseite/verein/1245
-7773,KSC Lokeren,BE2,27,25.9,,Hans Cornelis,https://www.transfermarkt.co.uk/ksc-lokeren-temse/startseite/verein/7773
-2974,Francs Borains,BE2,32,24.6,,Sébastien Grandjean,https://www.transfermarkt.co.uk/royal-francs-borains/startseite/verein/2974
+28643,Koninklijke Voetbalclub Red Star Waasland-Sportkring Beveren,BE2,25,25.8,,,https://www.transfermarkt.co.uk/waasland-beveren/startseite/verein/28643
+28107,K. Lierse SK,BE2,29,22.8,,,https://www.transfermarkt.co.uk/ksk-lierse-kempenzonen/startseite/verein/28107
+3225,Patro Eisden Maasmechelen,BE2,29,25.0,,,https://www.transfermarkt.co.uk/patro-eisden-maasmechelen/startseite/verein/3225
+1245,Königliche Allgemeine Sportvereinigung Eupen,BE2,31,25.0,,,https://www.transfermarkt.co.uk/kas-eupen/startseite/verein/1245
+7773,KSC Lokeren-Temse,BE2,27,25.9,,,https://www.transfermarkt.co.uk/ksc-lokeren-temse/startseite/verein/7773
+2974,Royal Boussu-Dour Borinage,BE2,32,24.6,,,https://www.transfermarkt.co.uk/royal-francs-borains/startseite/verein/2974
 2321,KMSK Deinze (-2024),BE2,0,0.0,,Hernán Losada,https://www.transfermarkt.co.uk/kmsk-deinze/startseite/verein/2321
-3159,RFC Lüttich,BE2,27,26.3,,Gaëtan Englebert,https://www.transfermarkt.co.uk/rfc-luttich/startseite/verein/3159
-2715,RFC Seraing,BE2,29,22.5,,Mbaye Leye,https://www.transfermarkt.co.uk/rfc-seraing/startseite/verein/2715
-26,FC Basel 1893,C1,27,24.6,,Fabio Celestini,https://www.transfermarkt.co.uk/fc-basel-1893/startseite/verein/26
-452,BSC Young Boys,C1,28,26.0,,Patrick Rahmen,https://www.transfermarkt.co.uk/bsc-young-boys/startseite/verein/452
-46736,Jong Genk,BE2,31,19.4,,Thomas Buffel,https://www.transfermarkt.co.uk/krc-genk-u21/startseite/verein/46736
-527,FC Lausanne-Sport,C1,27,23.9,,Ludovic Magnin,https://www.transfermarkt.co.uk/fc-lausanne-sport/startseite/verein/527
-2790,FC Lugano,C1,28,25.9,,Mattia Croci-Torti,https://www.transfermarkt.co.uk/fc-lugano/startseite/verein/2790
-61,Servette FC,C1,26,27.2,,Thomas Häberli,https://www.transfermarkt.co.uk/servette-fc/startseite/verein/61
+3159,RFC Lüttich,BE2,27,26.3,,,https://www.transfermarkt.co.uk/rfc-luttich/startseite/verein/3159
+2715,Royal Football Club Seraing,BE2,29,22.5,,,https://www.transfermarkt.co.uk/rfc-seraing/startseite/verein/2715
+26,FC Basel 1893 AG,C1,27,24.6,,,https://www.transfermarkt.co.uk/fc-basel-1893/startseite/verein/26
+452,Berner Sport Club Young Boys,C1,28,26.0,,,https://www.transfermarkt.co.uk/bsc-young-boys/startseite/verein/452
+46736,Jong Genk,BE2,31,19.4,,,https://www.transfermarkt.co.uk/krc-genk-u21/startseite/verein/46736
+527,Football Club Lausanne-Sport,C1,27,23.9,,,https://www.transfermarkt.co.uk/fc-lausanne-sport/startseite/verein/527
+2790,FC Lugano,C1,28,25.9,,,https://www.transfermarkt.co.uk/fc-lugano/startseite/verein/2790
+61,Servette Football Club 1890 SA,C1,26,27.2,,,https://www.transfermarkt.co.uk/servette-fc/startseite/verein/61
 322,Yverdon Sport FC,C1,30,27.5,,Alessandro Mangiarratti,https://www.transfermarkt.co.uk/yverdon-sport-fc/startseite/verein/322
-257,FC St. Gallen 1879,C1,30,24.2,,Enrico Maaßen,https://www.transfermarkt.co.uk/fc-st-gallen-1879/startseite/verein/257
-260,FC Zürich,C1,28,24.3,,Ricardo Moniz,https://www.transfermarkt.co.uk/fc-zurich/startseite/verein/260
-504,Grasshopper Club Zurich,C1,31,24.2,,Marco Schällibaum,https://www.transfermarkt.co.uk/grasshopper-club-zurich/startseite/verein/504
-321,FC Sion,C1,27,25.3,,Didier Tholot,https://www.transfermarkt.co.uk/fc-sion/startseite/verein/321
-8817,Ajax Amsterdam U21,NL2,26,19.2,,Frank Peereboom,https://www.transfermarkt.co.uk/ajax-amsterdam-ii/startseite/verein/8817
-242,FC Winterthur,C1,30,26.1,,Ognjen Zaric,https://www.transfermarkt.co.uk/fc-winterthur/startseite/verein/242
-434,FC Luzern,C1,29,23.8,,Mario Frick,https://www.transfermarkt.co.uk/fc-luzern/startseite/verein/434
-11368,AZ Alkmaar U21,NL2,31,20.2,,Lee-Roy Echteld,https://www.transfermarkt.co.uk/az-alkmaar-ii/startseite/verein/11368
-17596,FC Utrecht U21,NL2,21,20.6,,Ivar van Dinteren,https://www.transfermarkt.co.uk/fc-utrecht-ii/startseite/verein/17596
-133,SC Cambuur Leeuwarden,NL2,25,23.0,,Henk de Jong,https://www.transfermarkt.co.uk/sc-cambuur-leeuwarden/startseite/verein/133
-1455,FC Dordrecht,NL2,32,23.3,,Peter Pursell,https://www.transfermarkt.co.uk/fc-dordrecht/startseite/verein/1455
+257,FC St. Gallen 1879,C1,30,24.2,,,https://www.transfermarkt.co.uk/fc-st-gallen-1879/startseite/verein/257
+260,FC Zürich,C1,28,24.3,,,https://www.transfermarkt.co.uk/fc-zurich/startseite/verein/260
+504,Grasshopper Club Zürich,C1,31,24.2,,,https://www.transfermarkt.co.uk/grasshopper-club-zurich/startseite/verein/504
+321,FC Sion,C1,27,25.3,,,https://www.transfermarkt.co.uk/fc-sion/startseite/verein/321
+8817,Jong Ajax Amsterdam,NL2,26,19.2,,,https://www.transfermarkt.co.uk/ajax-amsterdam-ii/startseite/verein/8817
+242,Fussballclub Winterthur,C1,30,26.1,,,https://www.transfermarkt.co.uk/fc-winterthur/startseite/verein/242
+434,FC Luzern,C1,29,23.8,,,https://www.transfermarkt.co.uk/fc-luzern/startseite/verein/434
+11368,Jong AZ Alkmaar,NL2,31,20.2,,,https://www.transfermarkt.co.uk/az-alkmaar-ii/startseite/verein/11368
+17596,Jong FC Utrecht,NL2,21,20.6,,,https://www.transfermarkt.co.uk/fc-utrecht-ii/startseite/verein/17596
+133,Sportclub Cambuur Leeuwarden,NL2,25,23.0,,,https://www.transfermarkt.co.uk/sc-cambuur-leeuwarden/startseite/verein/133
+1455,Football Club Dordrecht,NL2,32,23.3,,,https://www.transfermarkt.co.uk/fc-dordrecht/startseite/verein/1455
 798,Excelsior Rotterdam,NL2,25,24.4,,Ruben den Uil,https://www.transfermarkt.co.uk/sbv-excelsior-rotterdam/startseite/verein/798
-192,Roda JC Kerkrade,NL2,29,25.1,,Bas Sibum,https://www.transfermarkt.co.uk/roda-jc-kerkrade/startseite/verein/192
-642,De Graafschap Doetinchem,NL2,24,22.5,,Jan Vreman,https://www.transfermarkt.co.uk/de-graafschap-doetinchem/startseite/verein/642
-8827,UD Oliveirense,PO2,30,26.3,,Marco Leite,https://www.transfermarkt.co.uk/ud-oliveirense/startseite/verein/8827
-404,FC Den Bosch,NL2,24,24.5,,David Nascimento,https://www.transfermarkt.co.uk/fc-den-bosch/startseite/verein/404
-1268,ADO Den Haag,NL2,27,23.9,,Darije Kalezic,https://www.transfermarkt.co.uk/ado-den-haag/startseite/verein/1268
+192,Sportvereniging Roda Juliana Combinatie Kerkrade,NL2,29,25.1,,,https://www.transfermarkt.co.uk/roda-jc-kerkrade/startseite/verein/192
+642,VBV De Graafschap Doetinchem,NL2,24,22.5,,,https://www.transfermarkt.co.uk/de-graafschap-doetinchem/startseite/verein/642
+8827,União Desportiva Oliveirense,PO2,30,26.3,,,https://www.transfermarkt.co.uk/ud-oliveirense/startseite/verein/8827
+404,Football Club Den Bosch,NL2,24,24.5,,,https://www.transfermarkt.co.uk/fc-den-bosch/startseite/verein/404
+1268,Alles Door Oefening Den Haag,NL2,27,23.9,,,https://www.transfermarkt.co.uk/ado-den-haag/startseite/verein/1268
 724,FC Volendam,NL2,30,24.9,,Rick Kruys,https://www.transfermarkt.co.uk/fc-volendam/startseite/verein/724
 1434,SC Telstar,NL2,27,25.0,,Anthony Correia,https://www.transfermarkt.co.uk/sc-telstar/startseite/verein/1434
-500,Helmond Sport,NL2,25,24.0,,John Koolen,https://www.transfermarkt.co.uk/helmond-sport/startseite/verein/500
-1283,FC Emmen,NL2,31,23.4,,Robin Peter,https://www.transfermarkt.co.uk/fc-emmen/startseite/verein/1283
-3892,FC Eindhoven,NL2,27,24.4,,Maurice Verberne,https://www.transfermarkt.co.uk/fc-eindhoven/startseite/verein/3892
-384,MVV Maastricht,NL2,28,22.7,,Edwin Hermans,https://www.transfermarkt.co.uk/mvv-maastricht/startseite/verein/384
-1228,TOP Oss,NL2,27,24.3,,Sjors Ultee,https://www.transfermarkt.co.uk/top-oss/startseite/verein/1228
-3302,UD Almería,ES2,27,27.3,,Rubi,https://www.transfermarkt.co.uk/ud-almeria/startseite/verein/3302
-1426,VVV-Venlo,NL2,27,23.5,,John Lammers,https://www.transfermarkt.co.uk/vvv-venlo/startseite/verein/1426
-16795,Granada CF,ES2,24,25.8,,Guillermo Abascal,https://www.transfermarkt.co.uk/fc-granada/startseite/verein/16795
-1531,Elche CF,ES2,26,26.6,,Eder Sarabia,https://www.transfermarkt.co.uk/fc-elche/startseite/verein/1531
-630,Racing Santander,ES2,26,25.1,,José Alberto López,https://www.transfermarkt.co.uk/racing-santander/startseite/verein/630
-2497,Real Oviedo,ES2,25,27.9,,Javier Calleja,https://www.transfermarkt.co.uk/real-oviedo/startseite/verein/2497
-142,Real Zaragoza,ES2,32,27.2,,Víctor Fernández,https://www.transfermarkt.co.uk/real-saragossa/startseite/verein/142
-2687,Cádiz CF,ES2,27,25.7,,Paco López,https://www.transfermarkt.co.uk/fc-cadiz/startseite/verein/2687
-897,Deportivo de La Coruña,ES2,25,27.2,,Imanol Idiakez,https://www.transfermarkt.co.uk/deportivo-la-coruna/startseite/verein/897
-13222,CD Mirandés,ES2,27,24.0,,Alessio Lisci,https://www.transfermarkt.co.uk/cd-mirandes/startseite/verein/13222
-1701,FC Felgueiras 1932,PO2,27,25.4,,Agostinho Bento,https://www.transfermarkt.co.uk/fc-felgueiras-1932/startseite/verein/1701
-499,Vitesse Arnhem,NL2,27,23.2,,John van den Brom,https://www.transfermarkt.co.uk/vitesse-arnheim/startseite/verein/499
-1533,SD Eibar,ES2,23,28.6,,Joseba Etxeberria,https://www.transfermarkt.co.uk/sd-eibar/startseite/verein/1533
-2502,CD Castellón,ES2,24,27.9,,Dick Schreuder,https://www.transfermarkt.co.uk/cd-castellon/startseite/verein/2502
-1532,Albacete Balompié,ES2,26,27.5,,Alberto González,https://www.transfermarkt.co.uk/albacete-balompie/startseite/verein/1532
-2448,Sporting Gijón,ES2,24,26.8,,Rubén Albés,https://www.transfermarkt.co.uk/sporting-gijon/startseite/verein/2448
-1536,Burgos CF,ES2,25,26.5,,Bolo,https://www.transfermarkt.co.uk/burgos-cf/startseite/verein/1536
+500,Helmond Sport,NL2,25,24.0,,,https://www.transfermarkt.co.uk/helmond-sport/startseite/verein/500
+1283,Football Club Emmen,NL2,31,23.4,,,https://www.transfermarkt.co.uk/fc-emmen/startseite/verein/1283
+3892,Football Club Eindhoven,NL2,27,24.4,,,https://www.transfermarkt.co.uk/fc-eindhoven/startseite/verein/3892
+384,Maatschappelijke Voetbal Vereniging Maastricht,NL2,28,22.7,,,https://www.transfermarkt.co.uk/mvv-maastricht/startseite/verein/384
+1228,Tot Ons Plezier Oss,NL2,27,24.3,,,https://www.transfermarkt.co.uk/top-oss/startseite/verein/1228
+3302,Unión Deportiva Almería S.A.D.,ES2,27,27.3,,,https://www.transfermarkt.co.uk/ud-almeria/startseite/verein/3302
+1426,Venlose Voetbal Vereniging Venlo,NL2,27,23.5,,,https://www.transfermarkt.co.uk/vvv-venlo/startseite/verein/1426
+16795,Granada Club de Fútbol S.A.D.,ES2,24,25.8,,,https://www.transfermarkt.co.uk/fc-granada/startseite/verein/16795
+1531,Elche Club de Fútbol S.A.D.,ES1,26,26.6,,,https://www.transfermarkt.co.uk/fc-elche/startseite/verein/1531
+630,"Real Racing Club de Santander, S. A. D.",ES2,26,25.1,,,https://www.transfermarkt.co.uk/racing-santander/startseite/verein/630
+2497,Real Oviedo S.A.D.,ES1,25,27.9,,,https://www.transfermarkt.co.uk/real-oviedo/startseite/verein/2497
+142,Real Zaragoza S.A.D.,ES2,32,27.2,,,https://www.transfermarkt.co.uk/real-saragossa/startseite/verein/142
+2687,Cádiz Club de Fútbol S.A.D,ES2,27,25.7,,,https://www.transfermarkt.co.uk/fc-cadiz/startseite/verein/2687
+897,Real Club Deportivo de La Coruña S.A.D.,ES2,25,27.2,,,https://www.transfermarkt.co.uk/deportivo-la-coruna/startseite/verein/897
+13222,Club Deportivo Mirandés,ES2,27,24.0,,,https://www.transfermarkt.co.uk/cd-mirandes/startseite/verein/13222
+1701,Futebol Clube de Felgueiras 1932,PO2,27,25.4,,,https://www.transfermarkt.co.uk/fc-felgueiras-1932/startseite/verein/1701
+499,Stichting Betaald Voetbal Vitesse Arnhem,NL2,27,23.2,,,https://www.transfermarkt.co.uk/vitesse-arnheim/startseite/verein/499
+1533,Sociedad Deportiva Eibar S.A.D.,ES2,23,28.6,,,https://www.transfermarkt.co.uk/sd-eibar/startseite/verein/1533
+2502,Club Deportivo Castellón,ES2,24,27.9,,,https://www.transfermarkt.co.uk/cd-castellon/startseite/verein/2502
+1532,Albacete Balompié S.A.D.,ES2,26,27.5,,,https://www.transfermarkt.co.uk/albacete-balompie/startseite/verein/1532
+2448,Real Sporting de Gijón S.A.D.,ES2,24,26.8,,,https://www.transfermarkt.co.uk/sporting-gijon/startseite/verein/2448
+1536,Burgos Club de Fútbol S.A.D.,ES2,25,26.5,,,https://www.transfermarkt.co.uk/burgos-cf/startseite/verein/1536
 12567,CD Eldense,ES2,25,26.1,,Dani Ponz,https://www.transfermarkt.co.uk/cd-eldense/startseite/verein/12567
-1084,Málaga CF,ES2,30,26.0,,David Dóniga,https://www.transfermarkt.co.uk/fc-malaga/startseite/verein/1084
+1084,Málaga Club de Fútbol S.A.D.,ES2,30,26.0,,,https://www.transfermarkt.co.uk/fc-malaga/startseite/verein/1084
 7077,FC Cartagena,ES2,25,27.3,,Abelardo,https://www.transfermarkt.co.uk/fc-cartagena/startseite/verein/7077
-993,Córdoba CF,ES2,26,26.9,,Iván Ania,https://www.transfermarkt.co.uk/fc-cordoba/startseite/verein/993
-255,Legia Warszawa,PL1,30,26.9,,Gonçalo Feio,https://www.transfermarkt.co.uk/legia-warschau/startseite/verein/255
-238,Lech Poznan,PL1,30,24.4,,Niels Frederiksen,https://www.transfermarkt.co.uk/lech-posen/startseite/verein/238
-2300,Jagiellonia Bialystok,PL1,30,23.9,,Adrian Siemieniec,https://www.transfermarkt.co.uk/jagiellonia-bialystok/startseite/verein/2300
-4097,US Catanzaro,IT2,29,25.5,,Fabio Caserta,https://www.transfermarkt.co.uk/us-catanzaro/startseite/verein/4097
+993,Córdoba Club de Fútbol S.A.D.,ES2,26,26.9,,,https://www.transfermarkt.co.uk/fc-cordoba/startseite/verein/993
+255,Legia Warszawa Spółka Akcyjna,PL1,30,26.9,,,https://www.transfermarkt.co.uk/legia-warschau/startseite/verein/255
+238,KKS Lech Poznań Spółka Akcyjna,PL1,30,24.4,,,https://www.transfermarkt.co.uk/lech-posen/startseite/verein/238
+2300,Jagiellonia-Bialystok Sportowa Spólka Akcyjna,PL1,30,23.9,,,https://www.transfermarkt.co.uk/jagiellonia-bialystok/startseite/verein/2300
+4097,Catanzaro Calcio 2011,IT2,29,25.5,,,https://www.transfermarkt.co.uk/us-catanzaro/startseite/verein/4097
 648,CD Tenerife,ES2,27,27.5,,Óscar Cano,https://www.transfermarkt.co.uk/cd-teneriffa/startseite/verein/648
-428,Górnik Zabrze,PL1,28,26.8,,Jan Urban,https://www.transfermarkt.co.uk/gornik-zabrze/startseite/verein/428
-5689,Cracovia,PL1,27,25.4,,Dawid Kroczek,https://www.transfermarkt.co.uk/cracovia/startseite/verein/5689
-324,Pogon Szczecin,PL1,33,25.2,,Jens Gustafsson,https://www.transfermarkt.co.uk/pogon-stettin/startseite/verein/324
-7154,Radomiak Radom,PL1,27,27.0,,Bruno Baltazar,https://www.transfermarkt.co.uk/radomiak-radom/startseite/verein/7154
-9644,Raków Częstochowa,PL1,29,25.0,,Marek Papszun,https://www.transfermarkt.co.uk/rakow-czestochowa/startseite/verein/9644
-168,Zaglebie Lubin,PL1,30,26.2,,Waldemar Fornalik,https://www.transfermarkt.co.uk/zaglebie-lubin/startseite/verein/168
-6110,Korona Kielce,PL1,28,24.9,,Kamil Kuzera,https://www.transfermarkt.co.uk/korona-kielce/startseite/verein/6110
-88,Widzew Lodz,PL1,27,25.8,,Daniel Myśliwiec,https://www.transfermarkt.co.uk/widzew-lodz/startseite/verein/88
+428,Klub Sportowy Górnik Zabrze Sportowa Spółka Akcyjna,PL1,28,26.8,,,https://www.transfermarkt.co.uk/gornik-zabrze/startseite/verein/428
+5689,Klub Sportowy Cracovia Spółka Akcyjna,PL1,27,25.4,,,https://www.transfermarkt.co.uk/cracovia/startseite/verein/5689
+324,Morski Klub Sportowy Pogoń Szczecin,PL1,33,25.2,,,https://www.transfermarkt.co.uk/pogon-stettin/startseite/verein/324
+7154,Radomiak S.A.,PL1,27,27.0,,,https://www.transfermarkt.co.uk/radomiak-radom/startseite/verein/7154
+9644,RKS Raków Częstochowa SA,PL1,29,25.0,,,https://www.transfermarkt.co.uk/rakow-czestochowa/startseite/verein/9644
+168,Zagłębie Lubin Spółka Akcyjna,PL1,30,26.2,,,https://www.transfermarkt.co.uk/zaglebie-lubin/startseite/verein/168
+6110,Miejski Klub Sportowy Korona Kielce Spółka Akcyjna,PL1,28,24.9,,,https://www.transfermarkt.co.uk/korona-kielce/startseite/verein/6110
+88,Widzew Łódź Spółka Akcyjna,PL1,27,25.8,,,https://www.transfermarkt.co.uk/widzew-lodz/startseite/verein/88
 759,Slask Wroclaw,PL1,30,24.5,,Jacek Magiera,https://www.transfermarkt.co.uk/slask-wroclaw/startseite/verein/759
-6112,Piast Gliwice,PL1,28,26.2,,Aleksandar Vukovic,https://www.transfermarkt.co.uk/piast-gliwice/startseite/verein/6112
+6112,Gliwicki Klub Sportowy Piast Spółka Akcyjna,PL1,28,26.2,,,https://www.transfermarkt.co.uk/piast-gliwice/startseite/verein/6112
 22431,Stal Mielec,PL1,28,26.1,,Kamil Kieres,https://www.transfermarkt.co.uk/stal-mielec/startseite/verein/22431
-3527,Motor Lublin,PL1,30,25.2,,Mateusz Stolarski,https://www.transfermarkt.co.uk/motor-lublin/startseite/verein/3527
-1023,Sociedade Esportiva Palmeiras,BRA1,30,25.2,,Abel Ferreira,https://www.transfermarkt.co.uk/se-palmeiras-sao-paulo/startseite/verein/1023
-4000,Lechia Gdansk,PL1,26,24.0,,Szymon Grabowski,https://www.transfermarkt.co.uk/lechia-gdansk/startseite/verein/4000
+3527,Motor Lublin Spółka Akcyjna,PL1,30,25.2,,,https://www.transfermarkt.co.uk/motor-lublin/startseite/verein/3527
+1023,Sociedade Esportiva Palmeiras,BRA1,30,25.2,,,https://www.transfermarkt.co.uk/se-palmeiras-sao-paulo/startseite/verein/1023
+4000,Klub Sportowy Lechia Gdańsk,PL1,26,24.0,,,https://www.transfermarkt.co.uk/lechia-gdansk/startseite/verein/4000
 28893,Puszcza Niepolomice,PL1,22,25.9,,Tomasz Tulacz,https://www.transfermarkt.co.uk/puszcza-niepolomice/startseite/verein/28893
-221,Santos FC,BRA1,34,26.8,,Fábio Carille,https://www.transfermarkt.co.uk/fc-santos/startseite/verein/221
-614,CR Flamengo,BRA1,27,28.8,,Tite,https://www.transfermarkt.co.uk/flamengo-rio-de-janeiro/startseite/verein/614
-210,Grêmio Foot-Ball Porto Alegrense,BRA1,33,26.6,,Renato Gaúcho,https://www.transfermarkt.co.uk/gremio-porto-alegre/startseite/verein/210
-199,Sport Club Corinthians Paulista,BRA1,34,26.9,,António Oliveira,https://www.transfermarkt.co.uk/corinthians-sao-paulo/startseite/verein/199
-537,Botafogo de Futebol e Regatas,BRA1,32,26.9,,Artur Jorge,https://www.transfermarkt.co.uk/botafogo-rio-de-janeiro/startseite/verein/537
-9715,PSV Eindhoven U21,NL2,24,19.4,,Alfons Groenendijk,https://www.transfermarkt.co.uk/psv-eindhoven-ii/startseite/verein/9715
-8793,Red Bull Bragantino,BRA1,35,25.5,,Pedro Caixinha,https://www.transfermarkt.co.uk/red-bull-bragantino/startseite/verein/8793
-10010,Esporte Clube Bahia,BRA1,29,26.9,,Rogério Ceni,https://www.transfermarkt.co.uk/esporte-clube-bahia/startseite/verein/10010
-978,Clube de Regatas Vasco da Gama,BRA1,28,26.3,,Rafael Paiva,https://www.transfermarkt.co.uk/vasco-da-gama-rio-de-janeiro/startseite/verein/978
-6600,Sport Club Internacional,BRA1,31,26.8,,Eduardo Coudet,https://www.transfermarkt.co.uk/sc-internacional-porto-alegre/startseite/verein/6600
-3368,Levante UD,ES2,26,26.0,,Julián Calero,https://www.transfermarkt.co.uk/ud-levante/startseite/verein/3368
-585,São Paulo Futebol Clube,BRA1,39,26.7,,Luis Zubeldía,https://www.transfermarkt.co.uk/fc-sao-paulo/startseite/verein/585
+221,Santos Futebol Clube,BRA1,34,26.8,,,https://www.transfermarkt.co.uk/fc-santos/startseite/verein/221
+614,Clube de Regatas do Flamengo,BRA1,27,28.8,,,https://www.transfermarkt.co.uk/flamengo-rio-de-janeiro/startseite/verein/614
+210,Grêmio Foot-Ball Porto Alegrense,BRA1,33,26.6,,,https://www.transfermarkt.co.uk/gremio-porto-alegre/startseite/verein/210
+199,Sport Club Corinthians Paulista,BRA1,34,26.9,,,https://www.transfermarkt.co.uk/corinthians-sao-paulo/startseite/verein/199
+537,S. A. F. Botafogo,BRA1,32,26.9,,,https://www.transfermarkt.co.uk/botafogo-rio-de-janeiro/startseite/verein/537
+9715,Jong PSV Eindhoven,NL2,24,19.4,,,https://www.transfermarkt.co.uk/psv-eindhoven-ii/startseite/verein/9715
+8793,Red Bull Bragantino,BRA1,35,25.5,,,https://www.transfermarkt.co.uk/red-bull-bragantino/startseite/verein/8793
+10010,Esporte Clube Bahia,BRA1,29,26.9,,,https://www.transfermarkt.co.uk/esporte-clube-bahia/startseite/verein/10010
+978,Club de Regatas Vasco da Gama,BRA1,28,26.3,,,https://www.transfermarkt.co.uk/vasco-da-gama-rio-de-janeiro/startseite/verein/978
+6600,Sport Club Internacional,BRA1,31,26.8,,,https://www.transfermarkt.co.uk/sc-internacional-porto-alegre/startseite/verein/6600
+3368,Levante Unión Deportiva S.A.D.,ES1,26,26.0,,,https://www.transfermarkt.co.uk/ud-levante/startseite/verein/3368
+585,São Paulo Futebol Clube,BRA1,39,26.7,,,https://www.transfermarkt.co.uk/fc-sao-paulo/startseite/verein/585
 8718,Sport Club do Recife,BRA1,29,27.2,,Mariano Soso,https://www.transfermarkt.co.uk/sport-club-do-recife/startseite/verein/8718
-3876,Mirassol Futebol Clube (SP),BRA1,32,30.7,,Mozart,https://www.transfermarkt.co.uk/mirassol-futebol-clube-sp-/startseite/verein/3876
+3876,Mirasol Futebol Clube,BRA1,32,30.7,,,https://www.transfermarkt.co.uk/mirassol-futebol-clube-sp-/startseite/verein/3876
 209,CA River Plate,AR1N,32,26.1,,Martín Demichelis,https://www.transfermarkt.co.uk/club-atletico-river-plate/startseite/verein/209
 10492,Esporte Clube Juventude,BRA1,30,28.3,,Roger Machado,https://www.transfermarkt.co.uk/esporte-clube-juventude/startseite/verein/10492
 1176,Racing Ferrol,ES2,24,27.3,,Cristóbal Parralo,https://www.transfermarkt.co.uk/racing-ferrol/startseite/verein/1176
@@ -180,7 +180,7 @@ club_id,name,domestic_competition_id,squad_size,average_age,total_market_value,c
 1775,CA San Lorenzo de Almagro,AR1N,36,25.4,,Rubén Insúa,https://www.transfermarkt.co.uk/club-atletico-san-lorenzo-de-almagro/startseite/verein/1775
 10870,Fortaleza Esporte Clube,BRA1,30,27.5,,Juan Pablo Vojvoda,https://www.transfermarkt.co.uk/fortaleza-esporte-clube/startseite/verein/10870
 1444,Racing Club,AR1N,28,26.4,,Fernando Gago,https://www.transfermarkt.co.uk/racing-club/startseite/verein/1444
-2125,Esporte Clube Vitória,BRA1,36,28.2,,Thiago Carpini,https://www.transfermarkt.co.uk/esporte-clube-vitoria/startseite/verein/2125
+2125,Esporte Clube Vitória,BRA1,36,28.2,,,https://www.transfermarkt.co.uk/esporte-clube-vitoria/startseite/verein/2125
 333,CA Lanús,AR1N,26,27.5,,Frank Darío Kudelka,https://www.transfermarkt.co.uk/club-atletico-lanus/startseite/verein/333
 189,CA Boca Juniors,AR1N,36,28.0,,Jorge Almirón,https://www.transfermarkt.co.uk/club-atletico-boca-juniors/startseite/verein/189
 11831,Club Atlético Tigre,AR1N,30,26.0,,Juan Sara,https://www.transfermarkt.co.uk/club-atletico-tigre/startseite/verein/11831
@@ -191,7 +191,7 @@ club_id,name,domestic_competition_id,squad_size,average_age,total_market_value,c
 830,CA Banfield,AR1N,30,26.0,,Julio César Falcioni,https://www.transfermarkt.co.uk/club-atletico-banfield/startseite/verein/830
 928,Club Atlético Platense,AR1N,33,26.1,,Sebastián Grazzini,https://www.transfermarkt.co.uk/club-atletico-platense/startseite/verein/928
 14554,Club Atlético Tucumán,AR1N,29,26.8,,Sergio Gómez,https://www.transfermarkt.co.uk/club-atletico-tucuman/startseite/verein/14554
-48,Karlsruher SC,L2,29,25.2,,Christian Eichner,https://www.transfermarkt.co.uk/karlsruher-sc/startseite/verein/48
+48,Karlsruher Sport-Club Mühlburg-Phönix,L2,29,25.2,,,https://www.transfermarkt.co.uk/karlsruher-sc/startseite/verein/48
 31284,CA Central Córdoba (SdE),AR1N,26,25.8,,Leonardo Madelón,https://www.transfermarkt.co.uk/club-atletico-central-cordoba-sde-/startseite/verein/31284
 1234,CA Independiente,AR1N,25,28.0,,Ricardo Zielinski,https://www.transfermarkt.co.uk/club-atletico-independiente/startseite/verein/1234
 1106,Club de Gimnasia y Esgrima La Plata,AR1N,31,25.5,,Sebastián Romero,https://www.transfermarkt.co.uk/club-de-gimnasia-y-esgrima-la-plata/startseite/verein/1106
@@ -204,342 +204,205 @@ club_id,name,domestic_competition_id,squad_size,average_age,total_market_value,c
 12179,CS Independiente Rivadavia,AR1N,29,26.4,,Alfredo Berti,https://www.transfermarkt.co.uk/independiente-rivadavia/startseite/verein/12179
 12574,CD Godoy Cruz Antonio Tomba,AR1N,32,25.6,,Daniel Oldrá,https://www.transfermarkt.co.uk/club-deportivo-godoy-cruz-antonio-tomba/startseite/verein/12574
 19775,Club Deportivo Riestra,AR1N,33,29.5,,Walter Marchesi,https://www.transfermarkt.co.uk/cd-riestra/startseite/verein/19775
-1158,FC Lorient,FR2,25,25.8,,Olivier Pantaloni,https://www.transfermarkt.co.uk/fc-lorient/startseite/verein/1158
-347,FC Metz,FR2,28,25.7,,Ladislau Bölöni,https://www.transfermarkt.co.uk/fc-metz/startseite/verein/347
-9202,USL Dunkerque,FR2,28,24.8,,Luís Castro,https://www.transfermarkt.co.uk/usl-dunkerque/startseite/verein/9202
-855,EA Guingamp,FR2,25,26.0,,Sylvain Ripoll,https://www.transfermarkt.co.uk/ea-guingamp/startseite/verein/855
-3524,Clermont Foot 63,FR2,28,25.8,,Sébastien Bichard,https://www.transfermarkt.co.uk/clermont-foot-63/startseite/verein/3524
-10004,Paris FC,FR2,31,28.5,,Stéphane Gilli,https://www.transfermarkt.co.uk/paris-fc/startseite/verein/10004
-595,SC Bastia,FR2,28,25.7,,Benoît Tavenot,https://www.transfermarkt.co.uk/sc-bastia/startseite/verein/595
-5358,SD Huesca,ES2,27,28.0,,Antonio Hidalgo,https://www.transfermarkt.co.uk/sd-huesca/startseite/verein/5358
-1416,Amiens SC,FR2,28,24.6,,Omar Daf,https://www.transfermarkt.co.uk/amiens-sc/startseite/verein/1416
-1095,ESTAC Troyes,FR2,28,25.3,,David Guion,https://www.transfermarkt.co.uk/es-troyes-ac/startseite/verein/1095
-3166,Pau FC,FR2,23,25.1,,Nicolas Usaï,https://www.transfermarkt.co.uk/pau-fc/startseite/verein/3166
-30204,FC Annecy,FR2,31,25.2,,Laurent Guyot,https://www.transfermarkt.co.uk/fc-annecy/startseite/verein/30204
-1165,FC Martigues,FR2,6,23.1,,Thierry Laurey,https://www.transfermarkt.co.uk/fc-martigues/startseite/verein/1165
-1290,Grenoble Foot 38,FR2,24,26.1,,Oswald Tanchot,https://www.transfermarkt.co.uk/grenoble-foot-38/startseite/verein/1290
-1147,AC Ajaccio,FR2,20,27.4,,Mathieu Chabert,https://www.transfermarkt.co.uk/ac-ajaccio/startseite/verein/1147
-1080,Stade Lavallois,FR2,25,27.0,,Olivier Frapolli,https://www.transfermarkt.co.uk/stade-laval/startseite/verein/1080
-11273,Rodez AF,FR2,26,24.0,,Didier Santini,https://www.transfermarkt.co.uk/rodez-af/startseite/verein/11273
-609,Cruzeiro Esporte Clube,BRA1,32,26.2,,Nicolás Larcamón,https://www.transfermarkt.co.uk/ec-cruzeiro-belo-horizonte/startseite/verein/609
-990,Coventry City,GB2,26,26.5,,Mark Robins,https://www.transfermarkt.co.uk/coventry-city/startseite/verein/990
-641,Middlesbrough FC,GB2,29,26.7,,Michael Carrick,https://www.transfermarkt.co.uk/fc-middlesbrough/startseite/verein/641
-330,Clube Atlético Mineiro,BRA1,35,25.3,,Gabriel Milito,https://www.transfermarkt.co.uk/clube-atletico-mineiro/startseite/verein/330
-1123,Norwich City,GB2,36,24.8,,Johannes Hoff Thorup,https://www.transfermarkt.co.uk/norwich-city/startseite/verein/1123
-289,Sunderland AFC,GB2,28,25.0,,Régis Le Bris,https://www.transfermarkt.co.uk/afc-sunderland/startseite/verein/289
-984,West Bromwich Albion,GB2,24,25.8,,Carlos Corberán,https://www.transfermarkt.co.uk/west-bromwich-albion/startseite/verein/984
-1031,Luton Town,GB2,26,27.0,,Rob Edwards,https://www.transfermarkt.co.uk/luton-town/startseite/verein/1031
-1132,Burnley FC,GB2,29,27.6,,Scott Parker,https://www.transfermarkt.co.uk/fc-burnley/startseite/verein/1132
-1154,Red Star FC,FR2,25,26.8,,Grégory Poirier,https://www.transfermarkt.co.uk/red-star-fc/startseite/verein/1154
-350,Sheffield United,GB2,31,26.3,,Chris Wilder,https://www.transfermarkt.co.uk/sheffield-united/startseite/verein/350
-698,Bristol City,GB2,28,26.0,,Liam Manning,https://www.transfermarkt.co.uk/bristol-city/startseite/verein/698
-3008,Hull City,GB2,29,26.6,,Tim Walter,https://www.transfermarkt.co.uk/hull-city/startseite/verein/3008
-2262,Plymouth Argyle,GB2,27,26.0,,Wayne Rooney,https://www.transfermarkt.co.uk/plymouth-argyle/startseite/verein/2262
-1039,Queens Park Rangers,GB2,27,25.6,,Martí Cifuentes,https://www.transfermarkt.co.uk/queens-park-rangers/startseite/verein/1039
-2288,Swansea City,GB2,26,26.2,,Luke Williams,https://www.transfermarkt.co.uk/swansea-city/startseite/verein/2288
-603,Cardiff City,GB2,24,24.7,,Erol Bulut,https://www.transfermarkt.co.uk/cardiff-city/startseite/verein/603
-466,Preston North End,GB2,27,27.1,,Ryan Lowe,https://www.transfermarkt.co.uk/preston-north-end/startseite/verein/466
-164,Blackburn Rovers,GB2,29,26.4,,John Eustace,https://www.transfermarkt.co.uk/blackburn-rovers/startseite/verein/164
-1028,Millwall FC,GB2,31,25.9,,Neil Harris,https://www.transfermarkt.co.uk/fc-millwall/startseite/verein/1028
-1010,Watford FC,GB2,27,24.6,,Tom Cleverley,https://www.transfermarkt.co.uk/fc-watford/startseite/verein/1010
-1035,Sheffield Wednesday,GB2,26,25.1,,Danny Röhl,https://www.transfermarkt.co.uk/sheffield-wednesday/startseite/verein/1035
-1020,Portsmouth FC,GB2,36,26.3,,John Mousinho,https://www.transfermarkt.co.uk/fc-portsmouth/startseite/verein/1020
-301,FCSB,RO1,30,27.1,,Elias Charalambous,https://www.transfermarkt.co.uk/fcsb/startseite/verein/301
-7769,CFR Cluj,RO1,33,27.2,,Dan Petrescu,https://www.transfermarkt.co.uk/cfr-cluj/startseite/verein/7769
-1162,SM Caen,FR2,25,26.6,,Nicolas Seube,https://www.transfermarkt.co.uk/sm-caen/startseite/verein/1162
-22,Derby County,GB2,25,27.4,,Paul Warne,https://www.transfermarkt.co.uk/derby-county/startseite/verein/22
-988,Oxford United,GB2,33,26.1,,Des Buckingham,https://www.transfermarkt.co.uk/oxford-united/startseite/verein/988
-4959,SC Otelul Galati,RO1,25,26.5,,Dorinel Munteanu,https://www.transfermarkt.co.uk/sc-otelul-galati/startseite/verein/4959
-455,FC Rapid 1923,RO1,27,25.3,,Neil Lennon,https://www.transfermarkt.co.uk/fc-rapid-1923/startseite/verein/455
-288,Club Estudiantes de La Plata,AR1N,28,27.2,,Eduardo Domínguez,https://www.transfermarkt.co.uk/club-estudiantes-de-la-plata/startseite/verein/288
-29831,FCV Farul Constanta,RO1,31,25.4,,Gheorghe Hagi,https://www.transfermarkt.co.uk/fc-viitorul-constanta/startseite/verein/29831
-54585,Sepsi OSK Sf. Gheorghe,RO1,31,26.7,,Bernd Storck,https://www.transfermarkt.co.uk/sepsi-osk-sf-gheorghe/startseite/verein/54585
-6429,FC Universitatea Cluj,RO1,31,27.6,,Ovidiu Sabău,https://www.transfermarkt.co.uk/fc-universitatea-cluj/startseite/verein/6429
-8818,FC Botosani,RO1,32,26.1,,Bogdan Andone,https://www.transfermarkt.co.uk/fc-botosani/startseite/verein/8818
-33966,ACSM Politehnica Iasi,RO1,25,22.6,,Tony,https://www.transfermarkt.co.uk/acsm-politehnica-iasi/startseite/verein/33966
-312,FC Dinamo 1948,RO1,27,25.1,,Zeljko Kopic,https://www.transfermarkt.co.uk/fc-dinamo/startseite/verein/312
-952,UTA Arad,RO1,29,26.2,,Dorin Stana,https://www.transfermarkt.co.uk/uta-arad/startseite/verein/952
-58049,FC Hermannstadt,RO1,28,27.6,,Marius Măldărășanu,https://www.transfermarkt.co.uk/fc-hermannstadt/startseite/verein/58049
-9465,Petrolul Ploiesti,RO1,33,27.2,,Mehmet Topal,https://www.transfermarkt.co.uk/petrolul-ploiesti/startseite/verein/9465
-399,Leeds United,GB2,26,27.1,,Daniel Farke,https://www.transfermarkt.co.uk/leeds-united/startseite/verein/399
-11380,ASFC Buzau (2016-2025),RO1,0,0.0,,Andrei Prepeliță,https://www.transfermarkt.co.uk/scm-gloria-buzau/startseite/verein/11380
-29700,AFC Unirea 04 Slobozia,RO1,31,27.5,,Adrian Mihalcea,https://www.transfermarkt.co.uk/afc-unirea-04-slobozia/startseite/verein/29700
-1029,CA Vélez Sarsfield,AR1N,27,25.9,,Sebastián Méndez,https://www.transfermarkt.co.uk/club-atletico-velez-sarsfield/startseite/verein/1029
-512,Stoke City,GB2,27,26.6,,Steven Schumacher,https://www.transfermarkt.co.uk/stoke-city/startseite/verein/512
-40812,CS Universitatea Craiova,RO1,32,25.7,,Constantin Gâlcă,https://www.transfermarkt.co.uk/universitatea-craiova/startseite/verein/40812
-6456,GKS Katowice,PL1,32,27.2,,Rafal Gorak,https://www.transfermarkt.co.uk/gks-katowice/startseite/verein/6456
-2462,Fluminense Football Club,BRA1,35,28.0,,Marcão,https://www.transfermarkt.co.uk/fluminense-rio-de-janeiro/startseite/verein/2462
-12454,CA Sarmiento (Junin),AR1N,34,27.0,,Pablo Lavallén,https://www.transfermarkt.co.uk/club-atletico-sarmiento-junin-/startseite/verein/12454
-1038,Unione Calcio Sampdoria,IT2,30,26.9,,,https://www.transfermarkt.co.uk/sampdoria-genua/startseite/verein/1038
-2919,Associazione Calcio Monza,IT2,29,26.5,,,https://www.transfermarkt.co.uk/ac-monza/startseite/verein/2919
-458,Football Club Palermo,IT2,24,27.9,,,https://www.transfermarkt.co.uk/palermo-fc/startseite/verein/458
-1429,Cesena F.C.,IT2,27,25.7,,,https://www.transfermarkt.co.uk/cesena-fc/startseite/verein/1429
-4097,Catanzaro Calcio 2011,IT2,29,25.5,,,https://www.transfermarkt.co.uk/us-catanzaro/startseite/verein/4097
-749,Empoli Football Club S.r.l.,IT2,33,24.4,,,https://www.transfermarkt.co.uk/fc-empoli/startseite/verein/749
-607,Venezia Football Club,IT2,29,26.2,,,https://www.transfermarkt.co.uk/venezia-fc/startseite/verein/607
-1385,Modena Football Club,IT2,28,26.3,,,https://www.transfermarkt.co.uk/modena-fc-2018/startseite/verein/1385
-3522,Spezia Calcio,IT2,28,26.5,,,https://www.transfermarkt.co.uk/spezia-calcio/startseite/verein/3522
-8970,Frosinone Calcio S.r.l.,IT2,30,24.3,,,https://www.transfermarkt.co.uk/frosinone-calcio/startseite/verein/8970
-5587,Società Sportiva Juve Stabia,IT2,28,25.0,,,https://www.transfermarkt.co.uk/ss-juve-stabia/startseite/verein/5587
-2921,Delfino Pescara 1936 S.p.A.,IT2,30,26.4,,,https://www.transfermarkt.co.uk/delfino-pescara-1936/startseite/verein/2921
-332,Società Sportiva Calcio Bari,IT2,31,26.6,,,https://www.transfermarkt.co.uk/ssc-bari/startseite/verein/332
-2581,Mantova Football Club,IT2,30,25.5,,,https://www.transfermarkt.co.uk/mantova-1911/startseite/verein/2581
-4554,Fussball Club Südtirol,IT2,27,27.9,,,https://www.transfermarkt.co.uk/fc-sudtirol/startseite/verein/4554
-2331,Unione Sportiva Avellino 1912,IT2,30,27.5,,,https://www.transfermarkt.co.uk/us-avellino-1912/startseite/verein/2331
-3037,Calcio Padova,IT2,32,27.1,,,https://www.transfermarkt.co.uk/calcio-padova/startseite/verein/3037
-4159,Carrarese Calcio 1908,IT2,29,25.8,,,https://www.transfermarkt.co.uk/carrarese-calcio-1908/startseite/verein/4159
-10331,FC Porto B,PO2,29,20.8,,,https://www.transfermarkt.co.uk/fc-porto-b/startseite/verein/10331
-5621,A.C. Reggiana 1919,IT2,36,24.9,,,https://www.transfermarkt.co.uk/ac-reggiana-1919/startseite/verein/5621
-20519,Virtus Entella Srl,IT2,28,26.3,,,https://www.transfermarkt.co.uk/virtus-entella/startseite/verein/20519
-7788,Académico de Viseu Futebol Clube,PO2,27,26.1,,,https://www.transfermarkt.co.uk/academico-viseu-fc/startseite/verein/7788
-2639,União Desportiva de Leiria,PO2,27,26.5,,,https://www.transfermarkt.co.uk/uniao-leiria/startseite/verein/2639
-6912,Futebol Clube de Vizela,PO2,29,26.1,,,https://www.transfermarkt.co.uk/fc-vizela/startseite/verein/6912
-10949,Sporting CP B,PO2,29,20.7,,,https://www.transfermarkt.co.uk/sporting-lissabon-b/startseite/verein/10949
-3325,Grupo Desportivo de Chaves,PO2,28,27.2,,,https://www.transfermarkt.co.uk/gd-chaves/startseite/verein/3325
-2432,Sport Clube União Torreense,PO2,28,24.9,,,https://www.transfermarkt.co.uk/sc-uniao-torreense/startseite/verein/2432
-10330,SL Benfica B,PO2,27,19.8,,,https://www.transfermarkt.co.uk/benfica-lissabon-b/startseite/verein/10330
-1301,Club Sport Marítimo,PO2,28,26.3,,,https://www.transfermarkt.co.uk/cs-maritimo/startseite/verein/1301
-3327,Futebol Clube de Penafiel,PO2,28,26.9,,,https://www.transfermarkt.co.uk/fc-penafiel/startseite/verein/3327
-1701,Futebol Clube de Felgueiras 1932,PO2,27,25.4,,,https://www.transfermarkt.co.uk/fc-felgueiras-1932/startseite/verein/1701
-3349,Clube Desportivo Feirense,PO2,24,25.8,,,https://www.transfermarkt.co.uk/cd-feirense/startseite/verein/3349
-4294,Sporting Clube Farense,PO2,32,26.9,,,https://www.transfermarkt.co.uk/sc-farense/startseite/verein/4294
-3302,Unión Deportiva Almería S.A.D.,ES2,27,27.3,,,https://www.transfermarkt.co.uk/ud-almeria/startseite/verein/3302
-2995,Futebol Clube Paços de Ferreira,PO2,27,24.7,,,https://www.transfermarkt.co.uk/fc-pacos-de-ferreira/startseite/verein/2995
-897,Real Club Deportivo de La Coruña S.A.D.,ES2,25,27.2,,,https://www.transfermarkt.co.uk/deportivo-la-coruna/startseite/verein/897
-3345,Leixões Sport Clube,PO2,34,27.2,,,https://www.transfermarkt.co.uk/leixoes-sc/startseite/verein/3345
-8189,Lusitânia de Lourosa Futebol Clube,PO2,27,28.9,,,https://www.transfermarkt.co.uk/lusitania-fc-lourosa/startseite/verein/8189
-8827,União Desportiva Oliveirense,PO2,30,26.3,,,https://www.transfermarkt.co.uk/ud-oliveirense/startseite/verein/8827
-7378,Portimonense Futebol SAD,PO2,28,25.2,,,https://www.transfermarkt.co.uk/portimonense-sc/startseite/verein/7378
-630,"Real Racing Club de Santander, S. A. D.",ES2,26,25.1,,,https://www.transfermarkt.co.uk/racing-santander/startseite/verein/630
-142,Real Zaragoza S.A.D.,ES2,32,27.2,,,https://www.transfermarkt.co.uk/real-saragossa/startseite/verein/142
-472,Unión Deportiva Las Palmas S.A.D.,ES2,27,26.6,,,https://www.transfermarkt.co.uk/ud-las-palmas/startseite/verein/472
-2448,Real Sporting de Gijón S.A.D.,ES2,24,26.8,,,https://www.transfermarkt.co.uk/sporting-gijon/startseite/verein/2448
-16795,Granada Club de Fútbol S.A.D.,ES2,24,25.8,,,https://www.transfermarkt.co.uk/fc-granada/startseite/verein/16795
-10718,Futbol Club Andorra,ES2,27,25.2,,,https://www.transfermarkt.co.uk/fc-andorra/startseite/verein/10718
-1084,Málaga Club de Fútbol S.A.D.,ES2,30,26.0,,,https://www.transfermarkt.co.uk/fc-malaga/startseite/verein/1084
-1536,Burgos Club de Fútbol S.A.D.,ES2,25,26.5,,,https://www.transfermarkt.co.uk/burgos-cf/startseite/verein/1536
-1533,Sociedad Deportiva Eibar S.A.D.,ES2,23,28.6,,,https://www.transfermarkt.co.uk/sd-eibar/startseite/verein/1533
-2687,Cádiz Club de Fútbol S.A.D,ES2,27,25.7,,,https://www.transfermarkt.co.uk/fc-cadiz/startseite/verein/2687
-13222,Club Deportivo Mirandés,ES2,27,24.0,,,https://www.transfermarkt.co.uk/cd-mirandes/startseite/verein/13222
-5358,Sociedad Deportiva Huesca,ES2,27,28.0,,,https://www.transfermarkt.co.uk/sd-huesca/startseite/verein/5358
-993,Córdoba Club de Fútbol S.A.D.,ES2,26,26.9,,,https://www.transfermarkt.co.uk/fc-cordoba/startseite/verein/993
-2502,Club Deportivo Castellón,ES2,24,27.9,,,https://www.transfermarkt.co.uk/cd-castellon/startseite/verein/2502
-4542,"Cultural y Deportiva Leonesa, S.A.D.",ES2,27,27.3,,,https://www.transfermarkt.co.uk/cultural-leonesa/startseite/verein/4542
-1244,Club Deportivo Leganés S.A.D.,ES2,24,27.7,,,https://www.transfermarkt.co.uk/cd-leganes/startseite/verein/1244
-1532,Albacete Balompié S.A.D.,ES2,26,27.5,,,https://www.transfermarkt.co.uk/albacete-balompie/startseite/verein/1532
-9899,Real Sociedad San Sebastián B (Sanse),ES2,25,21.5,,,https://www.transfermarkt.co.uk/real-sociedad-b/startseite/verein/9899
-38,Düsseldorfer Turn- und Sportverein Fortuna 1895,L2,31,25.3,,,https://www.transfermarkt.co.uk/fortuna-dusseldorf/startseite/verein/38
-8568,Agrupación Deportiva Ceuta Fútbol Club,ES2,26,28.3,,,https://www.transfermarkt.co.uk/ad-ceuta/startseite/verein/8568
-105,Sportverein Darmstadt 1898 e. V.,L2,27,26.6,,,https://www.transfermarkt.co.uk/sv-darmstadt-98/startseite/verein/105
-42,Hannoverscher Sportverein von 1896,L2,31,24.5,,,https://www.transfermarkt.co.uk/hannover-96/startseite/verein/42
-127,SC Paderborn 07,L2,26,24.5,,,https://www.transfermarkt.co.uk/sc-paderborn-07/startseite/verein/127
-80,Verein für Leibesübungen Bochum 1848 Fußballgemeinschaft,L2,29,25.5,,,https://www.transfermarkt.co.uk/vfl-bochum/startseite/verein/80
-33,Fußballclub Gelsenkirchen-Schalke 04,L2,32,26.3,,,https://www.transfermarkt.co.uk/fc-schalke-04/startseite/verein/33
-4,1. Fußball-Club Nürnberg Verein für Leibesübungen,L2,30,23.4,,,https://www.transfermarkt.co.uk/1-fc-nurnberg/startseite/verein/4
-2,1. Fußball-Club Kaiserslautern,L2,27,25.5,,,https://www.transfermarkt.co.uk/1-fc-kaiserslautern/startseite/verein/2
-48,Karlsruher Sport-Club Mühlburg-Phönix,L2,29,25.2,,,https://www.transfermarkt.co.uk/karlsruher-sc/startseite/verein/48
-44,Hertha Berliner Sport-Club,L2,30,25.8,,,https://www.transfermarkt.co.uk/hertha-bsc/startseite/verein/44
-64,Sportvereinigung 07 Elversberg,L2,28,26.6,,,https://www.transfermarkt.co.uk/sv-07-elversberg/startseite/verein/64
-65,SpVgg Greuther Fürth,L2,31,25.5,,,https://www.transfermarkt.co.uk/spvgg-greuther-furth/startseite/verein/65
-129,Sportgemeinschaft Dynamo Dresden,L2,28,26.6,,,https://www.transfermarkt.co.uk/sg-dynamo-dresden/startseite/verein/129
-618,Association sportive de Saint-Étienne Loire,FR2,29,24.1,,,https://www.transfermarkt.co.uk/as-saint-etienne/startseite/verein/618
-10,Deutscher Sportclub Arminia Bielefeld,L2,29,25.8,,,https://www.transfermarkt.co.uk/arminia-bielefeld/startseite/verein/10
-269,Kieler Sportvereinigung Holstein von 1900,L2,29,25.1,,,https://www.transfermarkt.co.uk/holstein-kiel/startseite/verein/269
-187,1. Fußballclub Magdeburg,L2,32,26.4,,,https://www.transfermarkt.co.uk/1-fc-magdeburg/startseite/verein/187
-91,Sportclub Preußen Münster von 1906 Münster (Westf.),L2,30,27.2,,,https://www.transfermarkt.co.uk/preussen-munster/startseite/verein/91
-969,Montpellier Hérault Sport Club,FR2,23,24.3,,,https://www.transfermarkt.co.uk/montpellier-hsc/startseite/verein/969
-1421,Stade de Reims,FR2,24,23.9,,,https://www.transfermarkt.co.uk/stade-reims/startseite/verein/1421
-23,Braunschweiger Turn- und Sportverein Eintracht von 1895,L2,27,25.0,,,https://www.transfermarkt.co.uk/eintracht-braunschweig/startseite/verein/23
-1095,Espérance sportive Troyes Aube Champagne,FR2,28,25.3,,,https://www.transfermarkt.co.uk/es-troyes-ac/startseite/verein/1095
-855,En Avant de Guingamp,FR2,25,26.0,,,https://www.transfermarkt.co.uk/ea-guingamp/startseite/verein/855
+1158,Football Club Lorient-Bretagne Sud,FR1,25,25.9,,,https://www.transfermarkt.co.uk/fc-lorient/startseite/verein/1158
+347,Football Club de Metz,FR1,28,25.7,,,https://www.transfermarkt.co.uk/fc-metz/startseite/verein/347
 9202,Union Sportive du Littoral de Dunkerque,FR2,28,24.8,,,https://www.transfermarkt.co.uk/usl-dunkerque/startseite/verein/9202
+855,En Avant de Guingamp,FR2,25,26.0,,,https://www.transfermarkt.co.uk/ea-guingamp/startseite/verein/855
 3524,Clermont Foot 63,FR2,28,25.8,,,https://www.transfermarkt.co.uk/clermont-foot-63/startseite/verein/3524
-3166,Pau Football Club,FR2,23,25.1,,,https://www.transfermarkt.co.uk/pau-fc/startseite/verein/3166
-1154,Red Star Football Club,FR2,25,26.8,,,https://www.transfermarkt.co.uk/red-star-fc/startseite/verein/1154
-11273,SASP Rodez Aveyron Football,FR2,26,24.0,,,https://www.transfermarkt.co.uk/rodez-af/startseite/verein/11273
-30204,Football Club d'Annecy,FR2,31,25.2,,,https://www.transfermarkt.co.uk/fc-annecy/startseite/verein/30204
-1290,Grenoble Foot 38,FR2,24,26.1,,,https://www.transfermarkt.co.uk/grenoble-foot-38/startseite/verein/1290
-1080,Stade lavallois Mayenne Football Club,FR2,25,27.0,,,https://www.transfermarkt.co.uk/stade-laval/startseite/verein/1080
-1164,Le Mans Football Club,FR2,27,26.1,,,https://www.transfermarkt.co.uk/le-mans-fc/startseite/verein/1164
-1159,Association sportive Nancy-Lorraine,FR2,31,26.0,,,https://www.transfermarkt.co.uk/as-nancy-lorraine/startseite/verein/1159
-1245,Königliche Allgemeine Sportvereinigung Eupen,BE2,31,25.0,,,https://www.transfermarkt.co.uk/kas-eupen/startseite/verein/1245
+10004,Paris Football Club,FR1,31,28.5,,,https://www.transfermarkt.co.uk/paris-fc/startseite/verein/10004
 595,Sporting Club de Bastia,FR2,28,25.7,,,https://www.transfermarkt.co.uk/sc-bastia/startseite/verein/595
-7042,Union sportive Boulogne Côte d'Opale,FR2,27,25.5,,,https://www.transfermarkt.co.uk/us-boulogne/startseite/verein/7042
-30857,RSCA Futures,BE2,29,18.9,,,https://www.transfermarkt.co.uk/rsc-anderlecht-u21/startseite/verein/30857
-46736,Jong Genk,BE2,31,19.4,,,https://www.transfermarkt.co.uk/krc-genk-u21/startseite/verein/46736
-41274,Koninklijke Beerschot Voetbalclub Antwerpen,BE2,32,26.2,,,https://www.transfermarkt.co.uk/beerschot-v-a-/startseite/verein/41274
-601,Koninklijke Voetbalclub Kortrijk,BE2,27,25.0,,,https://www.transfermarkt.co.uk/kv-kortrijk/startseite/verein/601
-5026,Lommel Sportkring,BE2,29,23.7,,,https://www.transfermarkt.co.uk/lommel-sk/startseite/verein/5026
-54189,Racing White Daring Molenbeek,BE2,26,23.3,,,https://www.transfermarkt.co.uk/rwd-molenbeek/startseite/verein/54189
-43560,Club NXT,BE2,29,19.6,,,https://www.transfermarkt.co.uk/club-nxt/startseite/verein/43560
-2974,Royal Boussu-Dour Borinage,BE2,32,24.6,,,https://www.transfermarkt.co.uk/royal-francs-borains/startseite/verein/2974
-28643,Koninklijke Voetbalclub Red Star Waasland-Sportkring Beveren,BE2,25,25.8,,,https://www.transfermarkt.co.uk/waasland-beveren/startseite/verein/28643
-43562,Jong KAA Gent,BE2,30,19.8,,,https://www.transfermarkt.co.uk/kaa-gent-u21/startseite/verein/43562
-2715,Royal Football Club Seraing,BE2,29,22.5,,,https://www.transfermarkt.co.uk/rfc-seraing/startseite/verein/2715
-3225,Patro Eisden Maasmechelen,BE2,29,25.0,,,https://www.transfermarkt.co.uk/patro-eisden-maasmechelen/startseite/verein/3225
-3146,Olympic Charleroi,BE2,30,25.5,,,https://www.transfermarkt.co.uk/olympic-club-charleroi-farciennes/startseite/verein/3146
-614,Clube de Regatas do Flamengo,BRA1,27,28.8,,,https://www.transfermarkt.co.uk/flamengo-rio-de-janeiro/startseite/verein/614
-28107,K. Lierse SK,BE2,29,22.8,,,https://www.transfermarkt.co.uk/ksk-lierse-kempenzonen/startseite/verein/28107
-3159,RFC Lüttich,BE2,27,26.3,,,https://www.transfermarkt.co.uk/rfc-luttich/startseite/verein/3159
+5358,Sociedad Deportiva Huesca,ES2,27,28.0,,,https://www.transfermarkt.co.uk/sd-huesca/startseite/verein/5358
 1416,Amiens Sporting Club Football,FR2,28,24.6,,,https://www.transfermarkt.co.uk/amiens-sc/startseite/verein/1416
-1023,Sociedade Esportiva Palmeiras,BRA1,30,25.2,,,https://www.transfermarkt.co.uk/se-palmeiras-sao-paulo/startseite/verein/1023
-537,S. A. F. Botafogo,BRA1,32,26.9,,,https://www.transfermarkt.co.uk/botafogo-rio-de-janeiro/startseite/verein/537
+1095,Espérance sportive Troyes Aube Champagne,FR2,28,25.3,,,https://www.transfermarkt.co.uk/es-troyes-ac/startseite/verein/1095
+3166,Pau Football Club,FR2,23,25.1,,,https://www.transfermarkt.co.uk/pau-fc/startseite/verein/3166
+30204,Football Club d'Annecy,FR2,31,25.2,,,https://www.transfermarkt.co.uk/fc-annecy/startseite/verein/30204
+1165,FC Martigues,FR2,6,23.1,,Thierry Laurey,https://www.transfermarkt.co.uk/fc-martigues/startseite/verein/1165
+1290,Grenoble Foot 38,FR2,24,26.1,,,https://www.transfermarkt.co.uk/grenoble-foot-38/startseite/verein/1290
+1147,AC Ajaccio,FR2,20,27.4,,Mathieu Chabert,https://www.transfermarkt.co.uk/ac-ajaccio/startseite/verein/1147
+1080,Stade lavallois Mayenne Football Club,FR2,25,27.0,,,https://www.transfermarkt.co.uk/stade-laval/startseite/verein/1080
+11273,SASP Rodez Aveyron Football,FR2,26,24.0,,,https://www.transfermarkt.co.uk/rodez-af/startseite/verein/11273
 609,Cruzeiro Esporte Clube,BRA1,32,26.2,,,https://www.transfermarkt.co.uk/ec-cruzeiro-belo-horizonte/startseite/verein/609
-2462,Fluminense Football Club,BRA1,35,28.0,,,https://www.transfermarkt.co.uk/fluminense-rio-de-janeiro/startseite/verein/2462
-7773,KSC Lokeren-Temse,BE2,27,25.9,,,https://www.transfermarkt.co.uk/ksc-lokeren-temse/startseite/verein/7773
-978,Club de Regatas Vasco da Gama,BRA1,28,26.3,,,https://www.transfermarkt.co.uk/vasco-da-gama-rio-de-janeiro/startseite/verein/978
-8793,Red Bull Bragantino,BRA1,35,25.5,,,https://www.transfermarkt.co.uk/red-bull-bragantino/startseite/verein/8793
-199,Sport Club Corinthians Paulista,BRA1,34,26.9,,,https://www.transfermarkt.co.uk/corinthians-sao-paulo/startseite/verein/199
-210,Grêmio Foot-Ball Porto Alegrense,BRA1,33,26.6,,,https://www.transfermarkt.co.uk/gremio-porto-alegre/startseite/verein/210
-221,Santos Futebol Clube,BRA1,34,26.8,,,https://www.transfermarkt.co.uk/fc-santos/startseite/verein/221
-585,São Paulo Futebol Clube,BRA1,39,26.7,,,https://www.transfermarkt.co.uk/fc-sao-paulo/startseite/verein/585
-330,Clube Atlético Mineiro,BRA1,35,25.3,,,https://www.transfermarkt.co.uk/clube-atletico-mineiro/startseite/verein/330
-6600,Sport Club Internacional,BRA1,31,26.8,,,https://www.transfermarkt.co.uk/sc-internacional-porto-alegre/startseite/verein/6600
-679,Clube Atlético Paranaense,BRA1,29,25.8,,,https://www.transfermarkt.co.uk/club-athletico-paranaense/startseite/verein/679
-10997,Clube do Remo,BRA1,37,28.6,,,https://www.transfermarkt.co.uk/clube-do-remo-pa-/startseite/verein/10997
-3876,Mirasol Futebol Clube,BRA1,32,30.7,,,https://www.transfermarkt.co.uk/mirassol-futebol-clube-sp-/startseite/verein/3876
-999,NK Istra 1961,KR1,29,23.1,,,https://www.transfermarkt.co.uk/nk-istra-1961/startseite/verein/999
-17776,Associação Chapecoense de Futebol,BRA1,38,28.0,,,https://www.transfermarkt.co.uk/chapecoense/startseite/verein/17776
-776,Coritiba Foot Ball Club,BRA1,32,28.2,,,https://www.transfermarkt.co.uk/coritiba-fc/startseite/verein/776
-10010,Esporte Clube Bahia,BRA1,29,26.9,,,https://www.transfermarkt.co.uk/esporte-clube-bahia/startseite/verein/10010
-419,GNK Dinamo Zagreb,KR1,31,25.8,,,https://www.transfermarkt.co.uk/gnk-dinamo-zagreb/startseite/verein/419
-599,NK Varazdin,KR1,25,27.1,,,https://www.transfermarkt.co.uk/nk-varazdin/startseite/verein/599
-144,Hrvatski Nogometni Klub Rijeka,KR1,34,24.8,,,https://www.transfermarkt.co.uk/hnk-rijeka/startseite/verein/144
-24575,HNK Gorica,KR1,25,25.8,,,https://www.transfermarkt.co.uk/hnk-gorica/startseite/verein/24575
-2362,NK Slaven Belupo Koprivnica,KR1,33,26.5,,,https://www.transfermarkt.co.uk/slaven-belupo-koprivnica/startseite/verein/2362
-2125,Esporte Clube Vitória,BRA1,36,28.2,,,https://www.transfermarkt.co.uk/esporte-clube-vitoria/startseite/verein/2125
-9644,RKS Raków Częstochowa SA,PL1,29,25.0,,,https://www.transfermarkt.co.uk/rakow-czestochowa/startseite/verein/9644
-447,HNK Hajduk Split,KR1,29,24.9,,,https://www.transfermarkt.co.uk/hnk-hajduk-split/startseite/verein/447
-2300,Jagiellonia-Bialystok Sportowa Spólka Akcyjna,PL1,30,23.9,,,https://www.transfermarkt.co.uk/jagiellonia-bialystok/startseite/verein/2300
-88,Widzew Łódź Spółka Akcyjna,PL1,27,25.8,,,https://www.transfermarkt.co.uk/widzew-lodz/startseite/verein/88
-238,KKS Lech Poznań Spółka Akcyjna,PL1,30,24.4,,,https://www.transfermarkt.co.uk/lech-posen/startseite/verein/238
-255,Legia Warszawa Spółka Akcyjna,PL1,30,26.9,,,https://www.transfermarkt.co.uk/legia-warschau/startseite/verein/255
-168,Zagłębie Lubin Spółka Akcyjna,PL1,30,26.2,,,https://www.transfermarkt.co.uk/zaglebie-lubin/startseite/verein/168
-4000,Klub Sportowy Lechia Gdańsk,PL1,26,24.0,,,https://www.transfermarkt.co.uk/lechia-gdansk/startseite/verein/4000
-2118,Wisła Płock Spółka Akcyjna,PL1,31,26.7,,,https://www.transfermarkt.co.uk/wisla-plock/startseite/verein/2118
-5689,Klub Sportowy Cracovia Spółka Akcyjna,PL1,27,25.4,,,https://www.transfermarkt.co.uk/cracovia/startseite/verein/5689
-7154,Radomiak S.A.,PL1,27,27.0,,,https://www.transfermarkt.co.uk/radomiak-radom/startseite/verein/7154
-11194,NK Lokomotiva Zagreb,KR1,38,25.7,,,https://www.transfermarkt.co.uk/nk-lokomotiva-zagreb/startseite/verein/11194
-3527,Motor Lublin Spółka Akcyjna,PL1,30,25.2,,,https://www.transfermarkt.co.uk/motor-lublin/startseite/verein/3527
-6456,GKS GieKSa Katowice Spółka Akcyjna,PL1,32,27.2,,,https://www.transfermarkt.co.uk/gks-katowice/startseite/verein/6456
-324,Morski Klub Sportowy Pogoń Szczecin,PL1,33,25.2,,,https://www.transfermarkt.co.uk/pogon-stettin/startseite/verein/324
-6110,Miejski Klub Sportowy Korona Kielce Spółka Akcyjna,PL1,28,24.9,,,https://www.transfermarkt.co.uk/korona-kielce/startseite/verein/6110
-452,Berner Sport Club Young Boys,C1,28,26.0,,,https://www.transfermarkt.co.uk/bsc-young-boys/startseite/verein/452
-6107,Morski Związkowy Klub Sportowy Arka Gdynia Spółka Akcyjna,PL1,24,28.3,,,https://www.transfermarkt.co.uk/arka-gdynia/startseite/verein/6107
-428,Klub Sportowy Górnik Zabrze Sportowa Spółka Akcyjna,PL1,28,26.8,,,https://www.transfermarkt.co.uk/gornik-zabrze/startseite/verein/428
-6112,Gliwicki Klub Sportowy Piast Spółka Akcyjna,PL1,28,26.2,,,https://www.transfermarkt.co.uk/piast-gliwice/startseite/verein/6112
-456,HNK Vukovar 1991,KR1,25,26.0,,,https://www.transfermarkt.co.uk/hnk-vukovar-1991/startseite/verein/456
-434,FC Luzern,C1,29,23.8,,,https://www.transfermarkt.co.uk/fc-luzern/startseite/verein/434
-257,FC St. Gallen 1879,C1,30,24.2,,,https://www.transfermarkt.co.uk/fc-st-gallen-1879/startseite/verein/257
-260,FC Zürich,C1,28,24.3,,,https://www.transfermarkt.co.uk/fc-zurich/startseite/verein/260
-61,Servette Football Club 1890 SA,C1,26,27.2,,,https://www.transfermarkt.co.uk/servette-fc/startseite/verein/61
-15906,Termalica Bruk-Bet Nieciecza Klub Sportowy,PL1,25,27.6,,,https://www.transfermarkt.co.uk/bruk-bet-termalica-nieciecza/startseite/verein/15906
-527,Football Club Lausanne-Sport,C1,27,23.9,,,https://www.transfermarkt.co.uk/fc-lausanne-sport/startseite/verein/527
-504,Grasshopper Club Zürich,C1,31,24.2,,,https://www.transfermarkt.co.uk/grasshopper-club-zurich/startseite/verein/504
-2790,FC Lugano,C1,28,25.9,,,https://www.transfermarkt.co.uk/fc-lugano/startseite/verein/2790
-321,FC Sion,C1,27,25.3,,,https://www.transfermarkt.co.uk/fc-sion/startseite/verein/321
-242,Fussballclub Winterthur,C1,30,26.1,,,https://www.transfermarkt.co.uk/fc-winterthur/startseite/verein/242
-455,Fotbal Club Rapid 1923 SA,RO1,27,25.3,,,https://www.transfermarkt.co.uk/fc-rapid-1923/startseite/verein/455
-40812,U Craiova 1948 Club Sportiv SA,RO1,32,25.7,,,https://www.transfermarkt.co.uk/universitatea-craiova/startseite/verein/40812
-8818,Asociația Fotbal Club Botoșani,RO1,32,26.1,,,https://www.transfermarkt.co.uk/fc-botosani/startseite/verein/8818
-938,FC Thun,C1,27,25.6,,,https://www.transfermarkt.co.uk/fc-thun/startseite/verein/938
-26,FC Basel 1893 AG,C1,27,24.6,,,https://www.transfermarkt.co.uk/fc-basel-1893/startseite/verein/26
-952,Asociația Fotbal Club UTA Arad,RO1,29,26.2,,,https://www.transfermarkt.co.uk/uta-arad/startseite/verein/952
-6429,Asociația Sportivă Fotbal Club Universitatea Cluj,RO1,31,27.6,,,https://www.transfermarkt.co.uk/fc-universitatea-cluj/startseite/verein/6429
-58049,Asociația Fotbal Club Hermannstadt,RO1,28,27.6,,,https://www.transfermarkt.co.uk/fc-hermannstadt/startseite/verein/58049
-37255,Asociația Futball Klub Csíkszereda Miercurea Ciuc,RO1,32,25.4,,,https://www.transfermarkt.co.uk/afk-csikszereda-miercurea-ciuc/startseite/verein/37255
-312,SC Dinamo 1948 SA,RO1,27,25.1,,,https://www.transfermarkt.co.uk/fc-dinamo/startseite/verein/312
-29831,F.C.V. Farul Constanța SA,RO1,31,25.4,,,https://www.transfermarkt.co.uk/fc-viitorul-constanta/startseite/verein/29831
-29700,Asociația Fotbal Club Unirea 04 Slobozia,RO1,31,27.5,,,https://www.transfermarkt.co.uk/afc-unirea-04-slobozia/startseite/verein/29700
-4959,SC Oţelul Galaţi,RO1,25,26.5,,,https://www.transfermarkt.co.uk/sc-otelul-galati/startseite/verein/4959
-677,Ipswich Town Football Club,GB2,26,27.8,,,https://www.transfermarkt.co.uk/ipswich-town/startseite/verein/677
-37624,Fotbal Club Metaloglobus București SA,RO1,30,27.7,,,https://www.transfermarkt.co.uk/fc-metaloglobus-bukarest/startseite/verein/37624
-180,Southampton Football Club,GB2,27,26.6,,,https://www.transfermarkt.co.uk/fc-southampton/startseite/verein/180
-41278,Asociația Clubul Sportiv Campionii Fotbal Club Argeș,RO1,25,27.4,,,https://www.transfermarkt.co.uk/acsc-fc-arges/startseite/verein/41278
-1003,Leicester City Football Club,GB2,29,25.9,,,https://www.transfermarkt.co.uk/leicester-city/startseite/verein/1003
 990,Coventry City Football Club,GB2,26,26.5,,,https://www.transfermarkt.co.uk/coventry-city/startseite/verein/990
 641,Middlesbrough Football Club,GB2,29,26.7,,,https://www.transfermarkt.co.uk/fc-middlesbrough/startseite/verein/641
-512,Stoke City Football Club,GB2,27,26.6,,,https://www.transfermarkt.co.uk/stoke-city/startseite/verein/512
-350,Sheffield United Football Club,GB2,31,26.3,,,https://www.transfermarkt.co.uk/sheffield-united/startseite/verein/350
-1028,Millwall Football Club,GB2,31,25.9,,,https://www.transfermarkt.co.uk/fc-millwall/startseite/verein/1028
-698,Bristol City Football Club,GB2,28,26.0,,,https://www.transfermarkt.co.uk/bristol-city/startseite/verein/698
-337,Birmingham City Football Club,GB2,24,27.0,,,https://www.transfermarkt.co.uk/birmingham-city/startseite/verein/337
-1112,Wrexham Association Football Club,GB2,30,27.3,,,https://www.transfermarkt.co.uk/afc-wrexham/startseite/verein/1112
-2288,Swansea City Association Football Club,GB2,26,26.2,,,https://www.transfermarkt.co.uk/swansea-city/startseite/verein/2288
+330,Clube Atlético Mineiro,BRA1,35,25.3,,,https://www.transfermarkt.co.uk/clube-atletico-mineiro/startseite/verein/330
 1123,Norwich City Football Club,GB2,36,24.8,,,https://www.transfermarkt.co.uk/norwich-city/startseite/verein/1123
-3008,Hull City Association Football Club Tigers,GB2,29,26.6,,,https://www.transfermarkt.co.uk/hull-city/startseite/verein/3008
+289,Sunderland Association Football Club,GB1,28,25.0,,,https://www.transfermarkt.co.uk/afc-sunderland/startseite/verein/289
 984,West Bromwich Albion Football Club,GB2,24,25.8,,,https://www.transfermarkt.co.uk/west-bromwich-albion/startseite/verein/984
-1010,Watford Football Club,GB2,27,24.6,,,https://www.transfermarkt.co.uk/fc-watford/startseite/verein/1010
-22,Derby County Football Club,GB2,25,27.4,,,https://www.transfermarkt.co.uk/derby-county/startseite/verein/22
-466,Preston North End Football Club,GB2,27,27.1,,,https://www.transfermarkt.co.uk/preston-north-end/startseite/verein/466
-358,Charlton Athletic Football Club,GB2,28,26.7,,,https://www.transfermarkt.co.uk/charlton-athletic/startseite/verein/358
+1031,Luton Town,GB2,26,27.0,,Rob Edwards,https://www.transfermarkt.co.uk/luton-town/startseite/verein/1031
+1132,Burnley Football Club,GB1,29,27.6,,,https://www.transfermarkt.co.uk/fc-burnley/startseite/verein/1132
+1154,Red Star Football Club,FR2,25,26.8,,,https://www.transfermarkt.co.uk/red-star-fc/startseite/verein/1154
+350,Sheffield United Football Club,GB2,31,26.3,,,https://www.transfermarkt.co.uk/sheffield-united/startseite/verein/350
+698,Bristol City Football Club,GB2,28,26.0,,,https://www.transfermarkt.co.uk/bristol-city/startseite/verein/698
+3008,Hull City Association Football Club Tigers,GB2,29,26.6,,,https://www.transfermarkt.co.uk/hull-city/startseite/verein/3008
+2262,Plymouth Argyle,GB2,27,26.0,,Wayne Rooney,https://www.transfermarkt.co.uk/plymouth-argyle/startseite/verein/2262
 1039,Queens Park Rangers Football Club,GB2,27,25.6,,,https://www.transfermarkt.co.uk/queens-park-rangers/startseite/verein/1039
+2288,Swansea City Association Football Club,GB2,26,26.2,,,https://www.transfermarkt.co.uk/swansea-city/startseite/verein/2288
+603,Cardiff City,GB2,24,24.7,,Erol Bulut,https://www.transfermarkt.co.uk/cardiff-city/startseite/verein/603
+466,Preston North End Football Club,GB2,27,27.1,,,https://www.transfermarkt.co.uk/preston-north-end/startseite/verein/466
 164,Blackburn Rovers Football Club,GB2,29,26.4,,,https://www.transfermarkt.co.uk/blackburn-rovers/startseite/verein/164
+1028,Millwall Football Club,GB2,31,25.9,,,https://www.transfermarkt.co.uk/fc-millwall/startseite/verein/1028
+1010,Watford Football Club,GB2,27,24.6,,,https://www.transfermarkt.co.uk/fc-watford/startseite/verein/1010
 1035,Sheffield Wednesday Football Club,GB2,26,25.1,,,https://www.transfermarkt.co.uk/sheffield-wednesday/startseite/verein/1035
 1020,Portsmouth Football Club,GB2,36,26.3,,,https://www.transfermarkt.co.uk/fc-portsmouth/startseite/verein/1020
-1268,Alles Door Oefening Den Haag,NL2,27,23.9,,,https://www.transfermarkt.co.uk/ado-den-haag/startseite/verein/1268
-1455,Football Club Dordrecht,NL2,32,23.3,,,https://www.transfermarkt.co.uk/fc-dordrecht/startseite/verein/1455
-133,Sportclub Cambuur Leeuwarden,NL2,25,23.0,,,https://www.transfermarkt.co.uk/sc-cambuur-leeuwarden/startseite/verein/133
-11368,Jong AZ Alkmaar,NL2,31,20.2,,,https://www.transfermarkt.co.uk/az-alkmaar-ii/startseite/verein/11368
-9715,Jong PSV Eindhoven,NL2,24,19.4,,,https://www.transfermarkt.co.uk/psv-eindhoven-ii/startseite/verein/9715
+301,SC Fotbal Club FCSB SA,RO1,30,27.1,,,https://www.transfermarkt.co.uk/fcsb/startseite/verein/301
+7769,Fotbal Club CFR 1907 Cluj SA,RO1,33,27.2,,,https://www.transfermarkt.co.uk/cfr-cluj/startseite/verein/7769
+1162,SM Caen,FR2,25,26.6,,Nicolas Seube,https://www.transfermarkt.co.uk/sm-caen/startseite/verein/1162
+22,Derby County Football Club,GB2,25,27.4,,,https://www.transfermarkt.co.uk/derby-county/startseite/verein/22
+988,Oxford United Football Club,GB2,33,26.1,,,https://www.transfermarkt.co.uk/oxford-united/startseite/verein/988
+4959,SC Oţelul Galaţi,RO1,25,26.5,,,https://www.transfermarkt.co.uk/sc-otelul-galati/startseite/verein/4959
+455,Fotbal Club Rapid 1923 SA,RO1,27,25.3,,,https://www.transfermarkt.co.uk/fc-rapid-1923/startseite/verein/455
+288,Club Estudiantes de La Plata,AR1N,28,27.2,,Eduardo Domínguez,https://www.transfermarkt.co.uk/club-estudiantes-de-la-plata/startseite/verein/288
+29831,F.C.V. Farul Constanța SA,RO1,31,25.4,,,https://www.transfermarkt.co.uk/fc-viitorul-constanta/startseite/verein/29831
+54585,Sepsi OSK Sf. Gheorghe,RO1,31,26.7,,Bernd Storck,https://www.transfermarkt.co.uk/sepsi-osk-sf-gheorghe/startseite/verein/54585
+6429,Asociația Sportivă Fotbal Club Universitatea Cluj,RO1,31,27.6,,,https://www.transfermarkt.co.uk/fc-universitatea-cluj/startseite/verein/6429
+8818,Asociația Fotbal Club Botoșani,RO1,32,26.1,,,https://www.transfermarkt.co.uk/fc-botosani/startseite/verein/8818
+33966,ACSM Politehnica Iasi,RO1,25,22.6,,Tony,https://www.transfermarkt.co.uk/acsm-politehnica-iasi/startseite/verein/33966
+312,SC Dinamo 1948 SA,RO1,27,25.1,,,https://www.transfermarkt.co.uk/fc-dinamo/startseite/verein/312
+952,Asociația Fotbal Club UTA Arad,RO1,29,26.2,,,https://www.transfermarkt.co.uk/uta-arad/startseite/verein/952
+58049,Asociația Fotbal Club Hermannstadt,RO1,28,27.6,,,https://www.transfermarkt.co.uk/fc-hermannstadt/startseite/verein/58049
+9465,Fotbal Club Petrolul Ploiești,RO1,33,27.2,,,https://www.transfermarkt.co.uk/petrolul-ploiesti/startseite/verein/9465
+399,Leeds United Association Football Club,GB1,26,27.2,,,https://www.transfermarkt.co.uk/leeds-united/startseite/verein/399
+11380,ASFC Buzau (2016-2025),RO1,0,0.0,,Andrei Prepeliță,https://www.transfermarkt.co.uk/scm-gloria-buzau/startseite/verein/11380
+29700,Asociația Fotbal Club Unirea 04 Slobozia,RO1,31,27.5,,,https://www.transfermarkt.co.uk/afc-unirea-04-slobozia/startseite/verein/29700
+1029,CA Vélez Sarsfield,AR1N,27,25.9,,Sebastián Méndez,https://www.transfermarkt.co.uk/club-atletico-velez-sarsfield/startseite/verein/1029
+512,Stoke City Football Club,GB2,27,26.6,,,https://www.transfermarkt.co.uk/stoke-city/startseite/verein/512
+40812,U Craiova 1948 Club Sportiv SA,RO1,32,25.7,,,https://www.transfermarkt.co.uk/universitatea-craiova/startseite/verein/40812
+6456,GKS GieKSa Katowice Spółka Akcyjna,PL1,32,27.2,,,https://www.transfermarkt.co.uk/gks-katowice/startseite/verein/6456
+2462,Fluminense Football Club,BRA1,35,28.0,,,https://www.transfermarkt.co.uk/fluminense-rio-de-janeiro/startseite/verein/2462
+12454,CA Sarmiento (Junin),AR1N,34,27.0,,Pablo Lavallén,https://www.transfermarkt.co.uk/club-atletico-sarmiento-junin-/startseite/verein/12454
+2919,AC Monza,IT1,29,26.5,,Alessandro Nesta,https://www.transfermarkt.co.uk/ac-monza/startseite/verein/2919
+749,FC Empoli,IT1,33,24.4,,Roberto D'Aversa,https://www.transfermarkt.co.uk/fc-empoli/startseite/verein/749
+607,Venezia FC,IT1,29,26.2,,Eusebio Di Francesco,https://www.transfermarkt.co.uk/venezia-fc/startseite/verein/607
+2921,Delfino Pescara 1936 S.p.A.,IT2,30,26.4,,,https://www.transfermarkt.co.uk/delfino-pescara-1936/startseite/verein/2921
+2331,Unione Sportiva Avellino 1912,IT2,30,27.5,,,https://www.transfermarkt.co.uk/us-avellino-1912/startseite/verein/2331
+3037,Calcio Padova,IT2,32,27.1,,,https://www.transfermarkt.co.uk/calcio-padova/startseite/verein/3037
+20519,Virtus Entella Srl,IT2,28,26.3,,,https://www.transfermarkt.co.uk/virtus-entella/startseite/verein/20519
+10949,Sporting CP B,PO2,29,20.7,,,https://www.transfermarkt.co.uk/sporting-lissabon-b/startseite/verein/10949
+4294,Sporting Clube Farense,PO2,32,26.9,,,https://www.transfermarkt.co.uk/sc-farense/startseite/verein/4294
+8189,Lusitânia de Lourosa Futebol Clube,PO2,27,28.9,,,https://www.transfermarkt.co.uk/lusitania-fc-lourosa/startseite/verein/8189
+472,UD Las Palmas,ES1,27,26.6,,Luis Carrión,https://www.transfermarkt.co.uk/ud-las-palmas/startseite/verein/472
+10718,Futbol Club Andorra,ES2,27,25.2,,,https://www.transfermarkt.co.uk/fc-andorra/startseite/verein/10718
+4542,"Cultural y Deportiva Leonesa, S.A.D.",ES2,27,27.3,,,https://www.transfermarkt.co.uk/cultural-leonesa/startseite/verein/4542
+1244,CD Leganés,ES1,24,27.7,,Borja Jiménez,https://www.transfermarkt.co.uk/cd-leganes/startseite/verein/1244
+9899,Real Sociedad San Sebastián B (Sanse),ES2,25,21.5,,,https://www.transfermarkt.co.uk/real-sociedad-b/startseite/verein/9899
+8568,Agrupación Deportiva Ceuta Fútbol Club,ES2,26,28.3,,,https://www.transfermarkt.co.uk/ad-ceuta/startseite/verein/8568
+80,VfL Bochum,L1,29,25.5,,Peter Zeidler,https://www.transfermarkt.co.uk/vfl-bochum/startseite/verein/80
+2,1. Fußball-Club Kaiserslautern,L2,27,25.5,,,https://www.transfermarkt.co.uk/1-fc-kaiserslautern/startseite/verein/2
+129,Sportgemeinschaft Dynamo Dresden,L2,28,26.6,,,https://www.transfermarkt.co.uk/sg-dynamo-dresden/startseite/verein/129
+618,AS Saint-Étienne,FR1,29,24.1,,Olivier Dall'Oglio,https://www.transfermarkt.co.uk/as-saint-etienne/startseite/verein/618
+10,Deutscher Sportclub Arminia Bielefeld,L2,29,25.8,,,https://www.transfermarkt.co.uk/arminia-bielefeld/startseite/verein/10
+269,Holstein Kiel,L1,29,25.1,,Marcel Rapp,https://www.transfermarkt.co.uk/holstein-kiel/startseite/verein/269
+969,Montpellier HSC,FR1,23,24.3,,Michel Der Zakarian,https://www.transfermarkt.co.uk/montpellier-hsc/startseite/verein/969
+1421,Stade Reims,FR1,24,23.9,,Luka Elsner,https://www.transfermarkt.co.uk/stade-reims/startseite/verein/1421
+1164,Le Mans Football Club,FR2,27,26.1,,,https://www.transfermarkt.co.uk/le-mans-fc/startseite/verein/1164
+1159,Association sportive Nancy-Lorraine,FR2,31,26.0,,,https://www.transfermarkt.co.uk/as-nancy-lorraine/startseite/verein/1159
+7042,Union sportive Boulogne Côte d'Opale,FR2,27,25.5,,,https://www.transfermarkt.co.uk/us-boulogne/startseite/verein/7042
+41274,Koninklijke Beerschot Voetbalclub Antwerpen,BE2,32,26.2,,,https://www.transfermarkt.co.uk/beerschot-v-a-/startseite/verein/41274
+601,Koninklijke Voetbalclub Kortrijk,BE2,27,25.0,,,https://www.transfermarkt.co.uk/kv-kortrijk/startseite/verein/601
+43562,Jong KAA Gent,BE2,30,19.8,,,https://www.transfermarkt.co.uk/kaa-gent-u21/startseite/verein/43562
+3146,Olympic Charleroi,BE2,30,25.5,,,https://www.transfermarkt.co.uk/olympic-club-charleroi-farciennes/startseite/verein/3146
+679,Clube Atlético Paranaense,BRA1,29,25.8,,,https://www.transfermarkt.co.uk/club-athletico-paranaense/startseite/verein/679
+10997,Clube do Remo,BRA1,37,28.6,,,https://www.transfermarkt.co.uk/clube-do-remo-pa-/startseite/verein/10997
+17776,Associação Chapecoense de Futebol,BRA1,38,28.0,,,https://www.transfermarkt.co.uk/chapecoense/startseite/verein/17776
+776,Coritiba Foot Ball Club,BRA1,32,28.2,,,https://www.transfermarkt.co.uk/coritiba-fc/startseite/verein/776
+2118,Wisła Płock Spółka Akcyjna,PL1,31,26.7,,,https://www.transfermarkt.co.uk/wisla-plock/startseite/verein/2118
+6107,Morski Związkowy Klub Sportowy Arka Gdynia Spółka Akcyjna,PL1,24,28.3,,,https://www.transfermarkt.co.uk/arka-gdynia/startseite/verein/6107
+456,HNK Vukovar 1991,KR1,25,26.0,,,https://www.transfermarkt.co.uk/hnk-vukovar-1991/startseite/verein/456
+15906,Termalica Bruk-Bet Nieciecza Klub Sportowy,PL1,25,27.6,,,https://www.transfermarkt.co.uk/bruk-bet-termalica-nieciecza/startseite/verein/15906
+938,FC Thun,C1,27,25.6,,,https://www.transfermarkt.co.uk/fc-thun/startseite/verein/938
+37255,Asociația Futball Klub Csíkszereda Miercurea Ciuc,RO1,32,25.4,,,https://www.transfermarkt.co.uk/afk-csikszereda-miercurea-ciuc/startseite/verein/37255
+677,Ipswich Town,GB1,26,27.8,,Kieran McKenna,https://www.transfermarkt.co.uk/ipswich-town/startseite/verein/677
+37624,Fotbal Club Metaloglobus București SA,RO1,30,27.7,,,https://www.transfermarkt.co.uk/fc-metaloglobus-bukarest/startseite/verein/37624
+180,Southampton FC,GB1,27,26.6,,Russell Martin,https://www.transfermarkt.co.uk/fc-southampton/startseite/verein/180
+41278,Asociația Clubul Sportiv Campionii Fotbal Club Argeș,RO1,25,27.4,,,https://www.transfermarkt.co.uk/acsc-fc-arges/startseite/verein/41278
+1003,Leicester City,GB1,29,25.9,,Steve Cooper,https://www.transfermarkt.co.uk/leicester-city/startseite/verein/1003
+337,Birmingham City Football Club,GB2,24,27.0,,,https://www.transfermarkt.co.uk/birmingham-city/startseite/verein/337
+1112,Wrexham Association Football Club,GB2,30,27.3,,,https://www.transfermarkt.co.uk/afc-wrexham/startseite/verein/1112
+358,Charlton Athletic Football Club,GB2,28,26.7,,,https://www.transfermarkt.co.uk/charlton-athletic/startseite/verein/358
 723,Almere City Football Club,NL2,27,23.8,,,https://www.transfermarkt.co.uk/almere-city-fc/startseite/verein/723
 403,Willem II,NL2,26,24.9,,,https://www.transfermarkt.co.uk/willem-ii-tilburg/startseite/verein/403
-8817,Jong Ajax Amsterdam,NL2,26,19.2,,,https://www.transfermarkt.co.uk/ajax-amsterdam-ii/startseite/verein/8817
-192,Sportvereniging Roda Juliana Combinatie Kerkrade,NL2,29,25.1,,,https://www.transfermarkt.co.uk/roda-jc-kerkrade/startseite/verein/192
-3892,Football Club Eindhoven,NL2,27,24.4,,,https://www.transfermarkt.co.uk/fc-eindhoven/startseite/verein/3892
-642,VBV De Graafschap Doetinchem,NL2,24,22.5,,,https://www.transfermarkt.co.uk/de-graafschap-doetinchem/startseite/verein/642
-988,Oxford United Football Club,GB2,33,26.1,,,https://www.transfermarkt.co.uk/oxford-united/startseite/verein/988
-404,Football Club Den Bosch,NL2,24,24.5,,,https://www.transfermarkt.co.uk/fc-den-bosch/startseite/verein/404
-384,Maatschappelijke Voetbal Vereniging Maastricht,NL2,28,22.7,,,https://www.transfermarkt.co.uk/mvv-maastricht/startseite/verein/384
-1283,Football Club Emmen,NL2,31,23.4,,,https://www.transfermarkt.co.uk/fc-emmen/startseite/verein/1283
 235,Rooms Katholieke Combinatie Waalwijk,NL2,31,24.7,,,https://www.transfermarkt.co.uk/rkc-waalwijk/startseite/verein/235
-409,Fußballclub Red Bull Salzburg,A1,30,22.7,,,https://www.transfermarkt.co.uk/red-bull-salzburg/startseite/verein/409
-170,Sportklub Rapid,A1,31,25.0,,,https://www.transfermarkt.co.uk/sk-rapid-wien/startseite/verein/170
-1228,Tot Ons Plezier Oss,NL2,27,24.3,,,https://www.transfermarkt.co.uk/top-oss/startseite/verein/1228
-413,Linzer Athletik-Sport-Klub,A1,25,24.5,,,https://www.transfermarkt.co.uk/lask/startseite/verein/413
-1426,Venlose Voetbal Vereniging Venlo,NL2,27,23.5,,,https://www.transfermarkt.co.uk/vvv-venlo/startseite/verein/1426
-14,Fußballklub Austria Wien,A1,31,25.2,,,https://www.transfermarkt.co.uk/fk-austria-wien/startseite/verein/14
-366,Real Valladolid Club de Fútbol S.A.D.,ES2,28,25.4,,,https://www.transfermarkt.co.uk/real-valladolid/startseite/verein/366
-4467,Turn- und Sportverein Egger Glas Hartberg,A1,29,23.8,,,https://www.transfermarkt.co.uk/tsv-hartberg/startseite/verein/4467
-122,Sportklub Puntigamer Sturm Graz,A1,26,24.0,,,https://www.transfermarkt.co.uk/sk-sturm-graz/startseite/verein/122
-499,Stichting Betaald Voetbal Vitesse Arnhem,NL2,27,23.2,,,https://www.transfermarkt.co.uk/vitesse-arnheim/startseite/verein/499
-316,Grazer Athletiksport Klub 1902,A1,27,26.2,,,https://www.transfermarkt.co.uk/grazer-ak-1902/startseite/verein/316
-17596,Jong FC Utrecht,NL2,21,20.6,,,https://www.transfermarkt.co.uk/fc-utrecht-ii/startseite/verein/17596
-3551,Sportclub Rheindorf Altach,A1,27,26.2,,,https://www.transfermarkt.co.uk/scr-altach/startseite/verein/3551
+366,Real Valladolid CF,ES1,28,25.4,,Paulo Pezzolano,https://www.transfermarkt.co.uk/real-valladolid/startseite/verein/366
 266,Sportvereinigung Ried im Innkreis 1912,A1,30,25.3,,,https://www.transfermarkt.co.uk/sv-ried/startseite/verein/266
-2446,Wattener Sportgemeinschaft Swarovski Tirol,A1,28,23.8,,,https://www.transfermarkt.co.uk/wsg-tirol/startseite/verein/2446
-2157,Fußballclub Blau-Weiß Linz,A1,30,26.5,,,https://www.transfermarkt.co.uk/fc-blau-weiss-linz/startseite/verein/2157
-4441,RZ Pellets Wolfsberger Athletiksport Club,A1,29,24.8,,,https://www.transfermarkt.co.uk/wolfsberger-ac/startseite/verein/4441
-333,CA Lanús,AR1N,26,27.5,,Frank Darío Kudelka,https://www.transfermarkt.co.uk/club-atletico-lanus/startseite/verein/333
-1029,CA Vélez Sarsfield,AR1N,27,25.9,,Sebastián Méndez,https://www.transfermarkt.co.uk/club-atletico-velez-sarsfield/startseite/verein/1029
-189,CA Boca Juniors,AR1N,36,28.0,,Jorge Almirón,https://www.transfermarkt.co.uk/club-atletico-boca-juniors/startseite/verein/189
-11831,Club Atlético Tigre,AR1N,30,26.0,,Juan Sara,https://www.transfermarkt.co.uk/club-atletico-tigre/startseite/verein/11831
-209,CA River Plate,AR1N,32,26.1,,Martín Demichelis,https://www.transfermarkt.co.uk/club-atletico-river-plate/startseite/verein/209
-3938,CA Talleres,AR1N,28,26.0,,Javier Gandolfi,https://www.transfermarkt.co.uk/club-atletico-talleres/startseite/verein/3938
-1775,CA San Lorenzo de Almagro,AR1N,36,25.4,,Rubén Insúa,https://www.transfermarkt.co.uk/club-atletico-san-lorenzo-de-almagro/startseite/verein/1775
-2402,Defensa y Justicia,AR1N,28,25.8,,Julio Vaccari,https://www.transfermarkt.co.uk/defensa-y-justicia/startseite/verein/2402
-1286,CA Newell's Old Boys,AR1N,33,26.1,,Gabriel Heinze,https://www.transfermarkt.co.uk/club-atletico-newells-old-boys/startseite/verein/1286
-1444,Racing Club,AR1N,28,26.4,,Fernando Gago,https://www.transfermarkt.co.uk/racing-club/startseite/verein/1444
-14554,Club Atlético Tucumán,AR1N,29,26.8,,Sergio Gómez,https://www.transfermarkt.co.uk/club-atletico-tucuman/startseite/verein/14554
-2417,Club Atlético Belgrano,AR1N,24,28.2,,Guillermo Farré,https://www.transfermarkt.co.uk/ca-belgrano/startseite/verein/2417
-830,CA Banfield,AR1N,30,26.0,,Julio César Falcioni,https://www.transfermarkt.co.uk/club-atletico-banfield/startseite/verein/830
-288,Club Estudiantes de La Plata,AR1N,28,27.2,,Eduardo Domínguez,https://www.transfermarkt.co.uk/club-estudiantes-de-la-plata/startseite/verein/288
-1030,AA Argentinos Juniors,AR1N,34,27.0,,Gabriel Milito,https://www.transfermarkt.co.uk/argentinos-juniors/startseite/verein/1030
-2063,CA Huracán,AR1N,30,27.3,,Marcelo Broggi,https://www.transfermarkt.co.uk/club-atletico-huracan/startseite/verein/2063
-928,Club Atlético Platense,AR1N,33,26.1,,Sebastián Grazzini,https://www.transfermarkt.co.uk/club-atletico-platense/startseite/verein/928
-12454,CA Sarmiento (Junin),AR1N,34,27.0,,Pablo Lavallén,https://www.transfermarkt.co.uk/club-atletico-sarmiento-junin-/startseite/verein/12454
-1829,Instituto ACC,AR1N,32,26.7,,Diego Dabove,https://www.transfermarkt.co.uk/instituto-ac-cordoba/startseite/verein/1829
-1418,CA Rosario Central,AR1N,29,27.3,,Miguel Ángel Russo,https://www.transfermarkt.co.uk/club-atletico-rosario-central/startseite/verein/1418
-1106,Club de Gimnasia y Esgrima La Plata,AR1N,31,25.5,,Sebastián Romero,https://www.transfermarkt.co.uk/club-de-gimnasia-y-esgrima-la-plata/startseite/verein/1106
-12179,CS Independiente Rivadavia,AR1N,29,26.4,,Alfredo Berti,https://www.transfermarkt.co.uk/independiente-rivadavia/startseite/verein/12179
-19775,Club Deportivo Riestra,AR1N,33,29.5,,Walter Marchesi,https://www.transfermarkt.co.uk/cd-riestra/startseite/verein/19775
-31284,CA Central Córdoba (SdE),AR1N,26,25.8,,Leonardo Madelón,https://www.transfermarkt.co.uk/club-atletico-central-cordoba-sde-/startseite/verein/31284
-7097,CA Unión (Santa Fe),AR1N,29,26.4,,Kily González,https://www.transfermarkt.co.uk/club-atletico-union/startseite/verein/7097
-12574,CD Godoy Cruz Antonio Tomba,AR1N,32,25.6,,Daniel Oldrá,https://www.transfermarkt.co.uk/club-deportivo-godoy-cruz-antonio-tomba/startseite/verein/12574
-25184,CA Barracas Central,AR1N,30,28.5,,Sergio Rondina,https://www.transfermarkt.co.uk/club-atletico-barracas-central/startseite/verein/25184
-1234,CA Independiente,AR1N,25,28.0,,Ricardo Zielinski,https://www.transfermarkt.co.uk/club-atletico-independiente/startseite/verein/1234
-327,NK Osijek s.d.d.,KR1,28,24.9,,,https://www.transfermarkt.co.uk/nk-osijek/startseite/verein/327
-301,SC Fotbal Club FCSB SA,RO1,30,27.1,,,https://www.transfermarkt.co.uk/fcsb/startseite/verein/301
-9465,Fotbal Club Petrolul Ploiești,RO1,33,27.2,,,https://www.transfermarkt.co.uk/petrolul-ploiesti/startseite/verein/9465
-7769,Fotbal Club CFR 1907 Cluj SA,RO1,33,27.2,,,https://www.transfermarkt.co.uk/cfr-cluj/startseite/verein/7769
-500,Helmond Sport,NL2,25,24.0,,,https://www.transfermarkt.co.uk/helmond-sport/startseite/verein/500
+162,Association sportive de Monaco Football Club,FR1,28,25.7,,,https://www.transfermarkt.co.uk/as-monaco/startseite/verein/162
+583,Paris Saint-Germain Football Club,FR1,24,24.0,,,https://www.transfermarkt.co.uk/fc-paris-saint-germain/startseite/verein/583
+1041,Olympique Lyonnais,FR1,28,25.5,,,https://www.transfermarkt.co.uk/olympique-lyon/startseite/verein/1041
+667,Racing Club de Strasbourg Alsace,FR1,25,22.8,,,https://www.transfermarkt.co.uk/rc-strassburg-alsace/startseite/verein/667
+244,Olympique de Marseille,FR1,24,27.0,,,https://www.transfermarkt.co.uk/olympique-marseille/startseite/verein/244
+1082,Lille Olympique Sporting Club,FR1,27,26.5,,,https://www.transfermarkt.co.uk/losc-lille/startseite/verein/1082
+273,Stade Rennais Football Club,FR1,23,25.3,,,https://www.transfermarkt.co.uk/fc-stade-rennes/startseite/verein/273
+417,Olympique Gymnaste Club Nice Côte d'Azur,FR1,28,25.9,,,https://www.transfermarkt.co.uk/ogc-nizza/startseite/verein/417
+995,Football Club de Nantes,FR1,28,26.9,,,https://www.transfermarkt.co.uk/fc-nantes/startseite/verein/995
+3911,Stade brestois 29,FR1,23,25.3,,,https://www.transfermarkt.co.uk/stade-brest-29/startseite/verein/3911
+826,Racing Club de Lens,FR1,28,26.5,,,https://www.transfermarkt.co.uk/rc-lens/startseite/verein/826
+290,Association de la Jeunesse auxerroise,FR1,29,24.1,,,https://www.transfermarkt.co.uk/aj-auxerre/startseite/verein/290
+738,Le Havre Athletic Club,FR1,27,25.5,,,https://www.transfermarkt.co.uk/ac-le-havre/startseite/verein/738
+1420,Angers Sporting Club de l'Ouest,FR1,24,25.7,,,https://www.transfermarkt.co.uk/sco-angers/startseite/verein/1420
+418,Real Madrid Club de Fútbol,ES1,27,25.8,,,https://www.transfermarkt.co.uk/real-madrid/startseite/verein/418
+131,Futbol Club Barcelona,ES1,24,25.6,,,https://www.transfermarkt.co.uk/fc-barcelona/startseite/verein/131
+13,Club Atlético de Madrid S.A.D.,ES1,23,27.6,,,https://www.transfermarkt.co.uk/atletico-madrid/startseite/verein/13
+621,Athletic Club Bilbao,ES1,28,27.1,,,https://www.transfermarkt.co.uk/athletic-bilbao/startseite/verein/621
+150,Real Betis Balompié S.A.D.,ES1,27,29.0,,,https://www.transfermarkt.co.uk/real-betis-sevilla/startseite/verein/150
+681,Real Sociedad de Fútbol S.A.D.,ES1,25,26.1,,,https://www.transfermarkt.co.uk/real-sociedad-san-sebastian/startseite/verein/681
+368,Sevilla Fútbol Club S.A.D.,ES1,28,27.8,,,https://www.transfermarkt.co.uk/fc-sevilla/startseite/verein/368
+1049,Valencia Club de Fútbol S. A. D.,ES1,27,28.0,,,https://www.transfermarkt.co.uk/fc-valencia/startseite/verein/1049
+415,Toulouse Football Club,FR1,24,23.9,,,https://www.transfermarkt.co.uk/fc-toulouse/startseite/verein/415
+12321,Girona Fútbol Club S. A. D.,ES1,27,28.5,,,https://www.transfermarkt.co.uk/fc-girona/startseite/verein/12321
+940,Real Club Celta de Vigo S. A. D.,ES1,28,26.9,,,https://www.transfermarkt.co.uk/celta-vigo/startseite/verein/940
+1108,Deportivo Alavés S. A. D.,ES1,24,27.9,,,https://www.transfermarkt.co.uk/deportivo-alaves/startseite/verein/1108
+714,Reial Club Deportiu Espanyol de Barcelona S.A.D.,ES1,23,27.3,,,https://www.transfermarkt.co.uk/espanyol-barcelona/startseite/verein/714
+331,Club Atlético Osasuna,ES1,23,27.9,,,https://www.transfermarkt.co.uk/ca-osasuna/startseite/verein/331
+3709,Getafe Club de Fútbol S. A. D. Team Dubai,ES1,25,28.1,,,https://www.transfermarkt.co.uk/fc-getafe/startseite/verein/3709
+237,Real Club Deportivo Mallorca S.A.D.,ES1,26,27.7,,,https://www.transfermarkt.co.uk/rcd-mallorca/startseite/verein/237
+367,Rayo Vallecano de Madrid S. A. D.,ES1,27,28.6,,,https://www.transfermarkt.co.uk/rayo-vallecano/startseite/verein/367
+23826,RasenBallsport Leipzig,L1,31,23.4,,,https://www.transfermarkt.co.uk/rasenballsport-leipzig/startseite/verein/23826
+15,Bayer 04 Leverkusen Fußball,L1,27,26.4,,,https://www.transfermarkt.co.uk/bayer-04-leverkusen/startseite/verein/15
+1050,Villarreal Club de Fútbol S.A.D.,ES1,28,26.1,,,https://www.transfermarkt.co.uk/fc-villarreal/startseite/verein/1050
+16,Borussia Dortmund,L1,25,26.5,,,https://www.transfermarkt.co.uk/borussia-dortmund/startseite/verein/16
+18,Borussia Verein für Leibesübungen 1900 Mönchengladbach,L1,28,25.8,,,https://www.transfermarkt.co.uk/borussia-monchengladbach/startseite/verein/18
+24,Eintracht Frankfurt Fußball AG,L1,29,25.4,,,https://www.transfermarkt.co.uk/eintracht-frankfurt/startseite/verein/24
+533,Turn- und Sportgemeinschaft 1899 Hoffenheim Fußball-Spielbetriebs,L1,29,25.3,,,https://www.transfermarkt.co.uk/tsg-1899-hoffenheim/startseite/verein/533
+39,1. Fußball- und Sportverein Mainz 05,L1,31,27.2,,,https://www.transfermarkt.co.uk/1-fsv-mainz-05/startseite/verein/39
+60,Sport-Club Freiburg,L1,25,27.9,,,https://www.transfermarkt.co.uk/sc-freiburg/startseite/verein/60
+82,Verein für Leibesübungen Wolfsburg,L1,33,25.4,,,https://www.transfermarkt.co.uk/vfl-wolfsburg/startseite/verein/82
+86,Sportverein Werder Bremen von 1899,L1,30,25.3,,,https://www.transfermarkt.co.uk/sv-werder-bremen/startseite/verein/86
+89,1. Fußballclub Union Berlin,L1,26,26.9,,,https://www.transfermarkt.co.uk/1-fc-union-berlin/startseite/verein/89
+2036,1. Fußballclub Heidenheim 1846,L1,29,26.2,,,https://www.transfermarkt.co.uk/1-fc-heidenheim-1846/startseite/verein/2036
+79,Verein für Bewegungsspiele Stuttgart 1893,L1,30,24.7,,,https://www.transfermarkt.co.uk/vfb-stuttgart/startseite/verein/79
+281,Manchester City Football Club,GB1,27,26.0,,,https://www.transfermarkt.co.uk/manchester-city/startseite/verein/281
+167,Fußball-Club Augsburg 1907,L1,28,25.5,,,https://www.transfermarkt.co.uk/fc-augsburg/startseite/verein/167
+27,FC Bayern München,L1,24,27.1,,,https://www.transfermarkt.co.uk/fc-bayern-munchen/startseite/verein/27
+11,Arsenal Football Club,GB1,24,26.4,,,https://www.transfermarkt.co.uk/fc-arsenal/startseite/verein/11
+31,Liverpool Football Club,GB1,28,25.9,,,https://www.transfermarkt.co.uk/fc-liverpool/startseite/verein/31
+985,Manchester United Football Club,GB1,26,26.0,,,https://www.transfermarkt.co.uk/manchester-united/startseite/verein/985
+148,Tottenham Hotspur Football Club,GB1,28,25.8,,,https://www.transfermarkt.co.uk/tottenham-hotspur/startseite/verein/148
+405,Aston Villa Football Club,GB1,25,28.1,,,https://www.transfermarkt.co.uk/aston-villa/startseite/verein/405
+631,Chelsea Football Club,GB1,30,23.5,,,https://www.transfermarkt.co.uk/fc-chelsea/startseite/verein/631
+1237,Brighton and Hove Albion Football Club,GB1,26,27.5,,,https://www.transfermarkt.co.uk/brighton-amp-hove-albion/startseite/verein/1237
+873,Crystal Palace Football Club,GB1,28,26.3,,,https://www.transfermarkt.co.uk/crystal-palace/startseite/verein/873
+703,Nottingham Forest Football Club,GB1,29,26.5,,,https://www.transfermarkt.co.uk/nottingham-forest/startseite/verein/703
+543,Wolverhampton Wanderers Football Club,GB1,23,26.2,,,https://www.transfermarkt.co.uk/wolverhampton-wanderers/startseite/verein/543
+1148,Brentford Football Club,GB1,26,25.3,,,https://www.transfermarkt.co.uk/fc-brentford/startseite/verein/1148
+29,Everton Football Club,GB1,25,26.7,,,https://www.transfermarkt.co.uk/fc-everton/startseite/verein/29
+931,Fulham Football Club,GB1,24,28.1,,,https://www.transfermarkt.co.uk/fc-fulham/startseite/verein/931
+46,Football Club Internazionale Milano S.p.A.,IT1,24,29.2,,,https://www.transfermarkt.co.uk/inter-mailand/startseite/verein/46
+379,West Ham United Football Club,GB1,23,26.8,,,https://www.transfermarkt.co.uk/west-ham-united/startseite/verein/379
+506,Juventus Football Club,IT1,25,27.2,,,https://www.transfermarkt.co.uk/juventus-turin/startseite/verein/506
+800,Atalanta Bergamasca Calcio S.p.a.,IT1,24,27.2,,,https://www.transfermarkt.co.uk/atalanta-bergamo/startseite/verein/800
+5,Associazione Calcio Milan,IT1,23,27.2,,,https://www.transfermarkt.co.uk/ac-mailand/startseite/verein/5
+1025,Bologna Football Club 1909,IT1,27,27.1,,,https://www.transfermarkt.co.uk/fc-bologna/startseite/verein/1025
+989,Association Football Club Bournemouth,GB1,26,25.4,,,https://www.transfermarkt.co.uk/afc-bournemouth/startseite/verein/989
+430,Associazione Calcio Fiorentina,IT1,27,26.1,,,https://www.transfermarkt.co.uk/ac-florenz/startseite/verein/430
+6195,Società Sportiva Calcio Napoli,IT1,26,28.5,,,https://www.transfermarkt.co.uk/ssc-neapel/startseite/verein/6195
+398,Società Sportiva Lazio S.p.A.,IT1,28,27.5,,,https://www.transfermarkt.co.uk/lazio-rom/startseite/verein/398
+12,Associazione Sportiva Roma,IT1,27,26.1,,,https://www.transfermarkt.co.uk/as-rom/startseite/verein/12
+1047,Calcio Como,IT1,27,26.2,,,https://www.transfermarkt.co.uk/como-1907/startseite/verein/1047
+416,Torino Calcio,IT1,30,26.2,,,https://www.transfermarkt.co.uk/fc-turin/startseite/verein/416
+1005,Unione Sportiva Lecce,IT1,27,25.1,,,https://www.transfermarkt.co.uk/us-lecce/startseite/verein/1005
+276,Verona Hellas Football Club,IT1,30,25.8,,,https://www.transfermarkt.co.uk/hellas-verona/startseite/verein/276
+35,Fußball-Club St. Pauli von 1910,L1,30,26.1,,,https://www.transfermarkt.co.uk/fc-st-pauli/startseite/verein/35
+762,Newcastle United Football Club,GB1,26,28.0,,,https://www.transfermarkt.co.uk/newcastle-united/startseite/verein/762
+1390,Cagliari Calcio,IT1,27,25.4,,,https://www.transfermarkt.co.uk/cagliari-calcio/startseite/verein/1390
+252,Genoa Cricket and Football Club,IT1,26,26.5,,,https://www.transfermarkt.co.uk/genua-cfc/startseite/verein/252
+410,Udinese Calcio,IT1,26,26.1,,,https://www.transfermarkt.co.uk/udinese-calcio/startseite/verein/410
+130,Parma Calcio 1913,IT1,25,24.5,,,https://www.transfermarkt.co.uk/parma-calcio-1913/startseite/verein/130
