@@ -143,6 +143,7 @@ jobs:
           echo "Spelers nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/players.json)"
 
       - name: Stap 2b - Marktwaarden ophalen
+        if: false
         timeout-minutes: 30
         continue-on-error: true
         run: |
@@ -223,6 +224,7 @@ jobs:
 
 
       - name: Stap 2c - Transferhistorie ophalen via API
+        if: false
         timeout-minutes: 30
         continue-on-error: true
         run: |
@@ -295,6 +297,7 @@ jobs:
           echo "Transfers: $(wc -l < $GITHUB_WORKSPACE/data/raw/transfers.json 2>/dev/null || echo 0)"
 
       - name: Stap 2d - Historische marktwaarden ophalen via API
+        if: false
         timeout-minutes: 30
         continue-on-error: true
         run: |
@@ -367,6 +370,7 @@ jobs:
           echo "Valuations: $(wc -l < $GITHUB_WORKSPACE/data/raw/valuations.json 2>/dev/null || echo 0)"
 
       - name: Stap 3 - Optredens scrapen
+        if: false
         timeout-minutes: 120
         continue-on-error: true
         run: |
@@ -384,6 +388,7 @@ jobs:
           echo "Optredens nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/appearances.json)"
 
       - name: Stap 4 - Wedstrijden scrapen
+        if: false
         timeout-minutes: 60
         run: |
           cd /tmp/scraper
@@ -497,9 +502,10 @@ jobs:
           existing_club_ids = {r['club_id'] for r in existing_clubs}
           merged_clubs = existing_clubs + [r for r in new_club_rows if str(r['club_id']) not in existing_club_ids]
           # Update bestaande met nieuwe data (nieuwste wint)
-          club_id_map = {r['club_id']: r for r in existing_clubs}
+          club_id_map = {r['club_id']: r for r in existing_clubs if r.get('club_id')}
           for r in new_club_rows:
-              club_id_map[str(r['club_id'])] = r
+              if r.get('club_id'):
+                  club_id_map[str(r['club_id'])] = r
           merged_clubs = list(club_id_map.values())
 
           if merged_clubs:
@@ -574,9 +580,10 @@ jobs:
 
           # Samenvoegen met bestaande spelers (nieuwste wint op player_id)
           existing_players = load_csv_existing(OUT / 'players.csv')
-          player_id_map = {r['player_id']: r for r in existing_players}
+          player_id_map = {r['player_id']: r for r in existing_players if r.get('player_id')}
           for r in new_player_rows:
-              player_id_map[str(r['player_id'])] = r
+              if r.get('player_id'):
+                  player_id_map[str(r['player_id'])] = r
           merged_players = list(player_id_map.values())
 
           if merged_players:
