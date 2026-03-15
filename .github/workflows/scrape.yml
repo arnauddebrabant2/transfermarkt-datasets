@@ -154,34 +154,151 @@ jobs:
           PYEOF
           echo "Marktwaarden: $(wc -c < $GITHUB_WORKSPACE/data/raw/market_values.json 2>/dev/null || echo 0) bytes"
 
-      - name: Stap 2c - Transferhistorie scrapen
+
+
+      - name: Stap 2c - Transferhistorie ophalen via API
         timeout-minutes: 30
         continue-on-error: true
         run: |
-          cd /tmp/scraper
-          for SEASON in 2024 2025; do
-            echo "=== Transfers seizoen $SEASON ==="
-            python -m tfmkt transfers \
-              -p $GITHUB_WORKSPACE/data/raw/players.json \
-              -s $SEASON \
-              >> $GITHUB_WORKSPACE/data/raw/transfers.json || true
-          done
+          python3 << 'PYEOF'
+          import json, asyncio, aiohttp
+          from pathlib import Path
+
+          RAW = Path('data/raw')
+          PLAYERS_FILE = RAW / 'players.json'
+          TRANSFERS_FILE = RAW / 'transfers.json'
+          TRANSFERS_API = "https://www.transfermarkt.co.uk/ceapi/transferHistory/list/"
+          HEADERS = {
+              "User-Agent": "transfermarkt-datasets/1.0",
+              "Accept": "application/json",
+          }
+
+          def get_player_ids():
+              ids, seen = [], set()
+              if not PLAYERS_FILE.exists(): return ids
+              with open(PLAYERS_FILE, encoding='utf-8') as f:
+                  for line in f:
+                      line = line.strip()
+                      if not line: continue
+                      try:
+                          p = json.loads(line)
+                          href = p.get('href', '')
+                          parts = href.rstrip('/').split('/')
+                          if 'spieler' in parts:
+                              pid = parts[parts.index('spieler') + 1]
+                              if pid and pid not in seen:
+                                  ids.append(pid); seen.add(pid)
+                      except: pass
+              return ids
+
+          async def fetch_transfers(session, player_id, semaphore):
+              async with semaphore:
+                  url = f"{TRANSFERS_API}{player_id}"
+                  try:
+                      async with session.get(url, headers=HEADERS, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                          if resp.status == 200:
+                              data = await resp.json(content_type=None)
+                              transfers = data.get('transfers', [])
+                              return player_id, transfers
+                  except: pass
+                  return player_id, []
+
+          async def main():
+              player_ids = get_player_ids()
+              print(f"Transfers ophalen voor {len(player_ids)} spelers...")
+              semaphore = asyncio.Semaphore(10)
+              all_transfers = []
+              async with aiohttp.ClientSession() as session:
+                  tasks = [fetch_transfers(session, pid, semaphore) for pid in player_ids]
+                  done = 0
+                  for coro in asyncio.as_completed(tasks):
+                      pid, transfers = await coro
+                      for t in transfers:
+                          t['player_id'] = pid
+                          all_transfers.append(t)
+                      done += 1
+                      if done % 500 == 0:
+                          print(f"  {done}/{len(player_ids)} verwerkt, {len(all_transfers)} transfers")
+              print(f"Klaar: {len(all_transfers)} transfers gevonden")
+              with open(TRANSFERS_FILE, 'w', encoding='utf-8') as f:
+                  for t in all_transfers:
+                      f.write(json.dumps(t) + '\n')
+
+          asyncio.run(main())
+          PYEOF
           echo "Transfers: $(wc -l < $GITHUB_WORKSPACE/data/raw/transfers.json 2>/dev/null || echo 0)"
 
-      - name: Stap 2d - Historische marktwaarden scrapen
+      - name: Stap 2d - Historische marktwaarden ophalen via API
         timeout-minutes: 30
         continue-on-error: true
         run: |
-          cd /tmp/scraper
-          for SEASON in 2024 2025; do
-            echo "=== Valuations seizoen $SEASON ==="
-            python -m tfmkt valuations \
-              -p $GITHUB_WORKSPACE/data/raw/players.json \
-              -s $SEASON \
-              >> $GITHUB_WORKSPACE/data/raw/valuations.json || true
-          done
-          echo "Valuations: $(wc -l < $GITHUB_WORKSPACE/data/raw/valuations.json 2>/dev/null || echo 0)"
+          python3 << 'PYEOF'
+          import json, asyncio, aiohttp
+          from pathlib import Path
 
+          RAW = Path('data/raw')
+          PLAYERS_FILE = RAW / 'players.json'
+          VALUATIONS_FILE = RAW / 'valuations.json'
+          MV_API = "https://www.transfermarkt.com/ceapi/marketValueDevelopment/graph/"
+          HEADERS = {
+              "User-Agent": "transfermarkt-datasets/1.0",
+              "Accept": "application/json",
+          }
+
+          def get_player_ids():
+              ids, seen = [], set()
+              if not PLAYERS_FILE.exists(): return ids
+              with open(PLAYERS_FILE, encoding='utf-8') as f:
+                  for line in f:
+                      line = line.strip()
+                      if not line: continue
+                      try:
+                          p = json.loads(line)
+                          href = p.get('href', '')
+                          parts = href.rstrip('/').split('/')
+                          if 'spieler' in parts:
+                              pid = parts[parts.index('spieler') + 1]
+                              if pid and pid not in seen:
+                                  ids.append(pid); seen.add(pid)
+                      except: pass
+              return ids
+
+          async def fetch_valuations(session, player_id, semaphore):
+              async with semaphore:
+                  url = f"{MV_API}{player_id}"
+                  try:
+                      async with session.get(url, headers=HEADERS, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                          if resp.status == 200:
+                              data = await resp.json(content_type=None)
+                              values = data.get('list', [])
+                              return player_id, values
+                  except: pass
+                  return player_id, []
+
+          async def main():
+              player_ids = get_player_ids()
+              print(f"Valuations ophalen voor {len(player_ids)} spelers...")
+              semaphore = asyncio.Semaphore(10)
+              all_vals = []
+              async with aiohttp.ClientSession() as session:
+                  tasks = [fetch_valuations(session, pid, semaphore) for pid in player_ids]
+                  done = 0
+                  for coro in asyncio.as_completed(tasks):
+                      pid, values = await coro
+                      for v in values:
+                          v['player_id'] = pid
+                          all_vals.append(v)
+                      done += 1
+                      if done % 500 == 0:
+                          print(f"  {done}/{len(player_ids)} verwerkt, {len(all_vals)} waardes")
+              print(f"Klaar: {len(all_vals)} marktwaarden gevonden")
+              with open(VALUATIONS_FILE, 'w', encoding='utf-8') as f:
+                  for v in all_vals:
+                      f.write(json.dumps(v) + '\n')
+
+          asyncio.run(main())
+          PYEOF
+          echo "Valuations: $(wc -l < $GITHUB_WORKSPACE/data/raw/valuations.json 2>/dev/null || echo 0)"
 
       - name: Stap 3 - Optredens scrapen
         timeout-minutes: 120
@@ -508,27 +625,21 @@ jobs:
               print(f'games.csv: {len(merged_games)} rijen (was {len(existing_games)}, +{len(merged_games)-len(existing_games)} nieuw)')
 
           # ── TRANSFERS ──
-          transfers = load_jsonl(RAW / 'transfers.json')
+          transfers_raw = load_jsonl(RAW / 'transfers.json')
           new_transfer_rows = []
-          for t in transfers:
-              parent = t.get('parent') or {}
-              player_href = parent.get('href', '')
-              player_id = extract_id(player_href)
-              from_href = (t.get('from_club') or {}).get('href', '')
-              to_href   = (t.get('to_club')   or {}).get('href', '')
+          for t in transfers_raw:
+              player_id = str(t.get('player_id', ''))
               new_transfer_rows.append({
-                  'player_id':       player_id,
-                  'transfer_date':   t.get('date', ''),
-                  'transfer_season': t.get('season', ''),
-                  'from_club_id':    extract_id(from_href),
-                  'from_club_name':  (t.get('from_club') or {}).get('name', ''),
-                  'to_club_id':      extract_id(to_href),
-                  'to_club_name':    (t.get('to_club') or {}).get('name', ''),
-                  'transfer_fee':    t.get('fee', ''),
-                  'market_value_at_transfer': t.get('market_value', ''),
+                  'player_id':                player_id,
+                  'transfer_date':            t.get('date', '') or t.get('transferDate', ''),
+                  'transfer_season':          t.get('season', ''),
+                  'from_club_name':           t.get('from', '') or t.get('fromClubName', ''),
+                  'to_club_name':             t.get('to', '') or t.get('toClubName', ''),
+                  'transfer_fee':             t.get('fee', '') or t.get('transferFee', ''),
+                  'market_value_at_transfer': t.get('mv', '') or t.get('marketValue', ''),
               })
           existing_transfers = load_csv_existing(OUT / 'transfers.csv')
-          transfer_key = lambda r: f"{r.get('player_id','')}_{r.get('transfer_date','')}_{r.get('to_club_id','')}"
+          transfer_key = lambda r: f"{r.get('player_id','')}_{r.get('transfer_date','')}_{r.get('to_club_name','')}"
           transfer_map = {transfer_key(r): r for r in existing_transfers}
           for r in new_transfer_rows:
               transfer_map[transfer_key(r)] = r
@@ -540,18 +651,18 @@ jobs:
               print(f'transfers.csv: {len(merged_transfers)} rijen (was {len(existing_transfers)}, +{len(merged_transfers)-len(existing_transfers)} nieuw)')
 
           # ── VALUATIONS ──
-          valuations = load_jsonl(RAW / 'valuations.json')
+          valuations_raw = load_jsonl(RAW / 'valuations.json')
           new_val_rows = []
-          for v in valuations:
-              parent = v.get('parent') or {}
-              player_href = parent.get('href', '')
-              player_id = extract_id(player_href)
+          for v in valuations_raw:
+              player_id = str(v.get('player_id', ''))
+              mv_raw = v.get('market_value', '') or v.get('mw', '')
               new_val_rows.append({
-                  'player_id':             player_id,
-                  'date':                  v.get('date', ''),
-                  'market_value_in_eur':   parse_market_value(v.get('market_value', '')),
-                  'current_club_id':       extract_id((v.get('current_club') or {}).get('href', '')),
-                  'player_club_domestic_competition_id': v.get('competition_code', ''),
+                  'player_id':           player_id,
+                  'date':                v.get('datum_mw', ''),
+                  'date_timestamp':      v.get('date_x', ''),
+                  'market_value_in_eur': parse_market_value(str(mv_raw)) if mv_raw else '',
+                  'club_name':           v.get('verein', ''),
+                  'age':                 v.get('age', ''),
               })
           existing_vals = load_csv_existing(OUT / 'player_valuations.csv')
           val_key = lambda r: f"{r.get('player_id','')}_{r.get('date','')}"
@@ -578,7 +689,7 @@ jobs:
           git config user.name "ScoutAI Bot"
           git config user.email "actions@users.noreply.github.com"
           gzip -f data/csv/appearances.csv
-          git add data/csv/ data/csv/transfers.csv data/csv/player_valuations.csv
+          git add data/csv/
           TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
           BATCH=$(basename $(cat $GITHUB_WORKSPACE/data/competitions.json | python3 -c "import sys,json; lines=[json.loads(l) for l in sys.stdin if l.strip()]; codes=[l.get('country_code','') for l in lines[:3]]; print('+'.join(codes))" 2>/dev/null) 2>/dev/null || echo "batch")
           git commit -m "ScoutAI data update: ${TIMESTAMP} [${BATCH}...]" || echo "Geen wijzigingen"
