@@ -268,6 +268,20 @@ jobs:
                   'coach_name': c.get('coach_name', ''),
                   'url': f"https://www.transfermarkt.co.uk{c.get('href', '')}",
               })
+          # Debug: tel clubs met lege ID
+          empty_id = sum(1 for r in new_club_rows if not r.get('club_id'))
+          print(f"Clubs gescraped: {len(new_club_rows)}, met lege club_id: {empty_id}")
+          for r in new_club_rows:
+              if not r.get('club_id'):
+                  print(f"  Lege club: naam={r.get('name')} url={r.get('url')}")
+                  break
+          # Toon competities in raw data
+          from collections import Counter
+          comp_counts = Counter(r.get('domestic_competition_id','') for r in new_club_rows)
+          print("Clubs per competitie (raw):")
+          for k, v in sorted(comp_counts.items()):
+              print(f"  {k}: {v}")
+
           existing_clubs = load_csv_existing(OUT / 'clubs.csv')
           club_id_map = {r['club_id']: r for r in existing_clubs if r.get('club_id')}
           for r in new_club_rows:
