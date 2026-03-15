@@ -34,7 +34,7 @@ jobs:
       - name: Maak output map aan
         run: mkdir -p data/raw data/csv
 
-      - name: Stap 0 - Bestaande CSV data inladen (accumulate)
+      - name: Stap 0 - Bestaande CSV data inladen
         run: |
           python3 << 'PYEOF'
           import gzip, shutil
@@ -49,7 +49,7 @@ jobs:
                       shutil.copyfileobj(f_in, f_out)
               print("  → Gedecomprimeerd naar appearances_existing.csv")
           else:
-              print("Geen bestaande appearances.csv.gz gevonden — eerste run")
+              print("Geen bestaande appearances.csv.gz — eerste run")
           PYEOF
 
       - name: Stap 1 - Clubs scrapen
@@ -76,107 +76,239 @@ jobs:
           done
           echo "Spelers nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/players.json)"
 
-      # - name: Stap 2b - Marktwaarden ophalen
-      #   timeout-minutes: 30
-      #   continue-on-error: true
-      #   run: |
-      #     python3 << 'PYEOF'
-      #     import json, asyncio, aiohttp
-      #     from pathlib import Path
-      #     RAW = Path('data/raw')
-      #     PLAYERS_FILE = RAW / 'players.json'
-      #     MV_FILE = RAW / 'market_values.json'
-      #     MARKET_VALUES_API = "https://www.transfermarkt.com/ceapi/marketValueDevelopment/graph/"
-      #     HEADERS = {"User-Agent": "transfermarkt-datasets/1.0", "Accept": "application/json"}
-      #     def get_player_ids():
-      #         ids, seen = [], set()
-      #         if not PLAYERS_FILE.exists(): return ids
-      #         with open(PLAYERS_FILE, encoding='utf-8') as f:
-      #             for line in f:
-      #                 line = line.strip()
-      #                 if not line: continue
-      #                 try:
-      #                     p = json.loads(line)
-      #                     href = p.get('href', '')
-      #                     parts = href.rstrip('/').split('/')
-      #                     if 'spieler' in parts:
-      #                         pid = parts[parts.index('spieler') + 1]
-      #                         if pid and pid not in seen:
-      #                             ids.append(pid); seen.add(pid)
-      #                 except: pass
-      #         return ids
-      #     async def fetch_mv(session, player_id, semaphore):
-      #         async with semaphore:
-      #             url = f"{MARKET_VALUES_API}{player_id}"
-      #             try:
-      #                 async with session.get(url, headers=HEADERS, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-      #                     if resp.status == 200:
-      #                         data = await resp.json(content_type=None)
-      #                         values = data.get('list', [])
-      #                         if values:
-      #                             return player_id, values[-1].get('mw', '')
-      #             except: pass
-      #             return player_id, None
-      #     async def main():
-      #         player_ids = get_player_ids()
-      #         print(f"Marktwaarden ophalen voor {len(player_ids)} spelers...")
-      #         semaphore = asyncio.Semaphore(10)
-      #         results = {}
-      #         async with aiohttp.ClientSession() as session:
-      #             tasks = [fetch_mv(session, pid, semaphore) for pid in player_ids]
-      #             done = 0
-      #             for coro in asyncio.as_completed(tasks):
-      #                 pid, mv = await coro
-      #                 if mv: results[pid] = mv
-      #                 done += 1
-      #                 if done % 500 == 0:
-      #                     print(f"  {done}/{len(player_ids)} verwerkt, {len(results)} met waarde")
-      #         print(f"Klaar: {len(results)} marktwaarden gevonden")
-      #         with open(MV_FILE, 'w', encoding='utf-8') as f:
-      #             json.dump(results, f)
-      #     asyncio.run(main())
-      #     PYEOF
+      - name: Stap 2b - Marktwaarden ophalen
+        timeout-minutes: 30
+        continue-on-error: true
+        run: |
+          python3 << 'PYEOF'
+          import json, asyncio, aiohttp
+          from pathlib import Path
 
-      # - name: Stap 2c - Transferhistorie ophalen via API
-      #   timeout-minutes: 30
-      #   continue-on-error: true
-      #   run: |
-      #     python3 << 'PYEOF'
-      #     ... (zelfde structuur als 2b maar voor transfers)
-      #     PYEOF
+          RAW = Path('data/raw')
+          PLAYERS_FILE = RAW / 'players.json'
+          MV_FILE = RAW / 'market_values.json'
+          MARKET_VALUES_API = "https://www.transfermarkt.com/ceapi/marketValueDevelopment/graph/"
+          HEADERS = {"User-Agent": "transfermarkt-datasets/1.0", "Accept": "application/json"}
 
-      # - name: Stap 2d - Historische marktwaarden ophalen via API
-      #   timeout-minutes: 30
-      #   continue-on-error: true
-      #   run: |
-      #     python3 << 'PYEOF'
-      #     ... (zelfde structuur als 2b maar voor valuations)
-      #     PYEOF
+          def get_player_ids():
+              ids, seen = [], set()
+              if not PLAYERS_FILE.exists(): return ids
+              with open(PLAYERS_FILE, encoding='utf-8') as f:
+                  for line in f:
+                      line = line.strip()
+                      if not line: continue
+                      try:
+                          p = json.loads(line)
+                          href = p.get('href', '')
+                          parts = href.rstrip('/').split('/')
+                          if 'spieler' in parts:
+                              pid = parts[parts.index('spieler') + 1]
+                              if pid and pid not in seen:
+                                  ids.append(pid); seen.add(pid)
+                      except: pass
+              return ids
 
-      # - name: Stap 3 - Optredens scrapen
-      #   timeout-minutes: 120
-      #   continue-on-error: true
-      #   run: |
-      #     cd /tmp/scraper
-      #     for SEASON in 2024 2025; do
-      #       python -m tfmkt appearances \
-      #         -p $GITHUB_WORKSPACE/data/raw/players.json \
-      #         -s $SEASON \
-      #         >> $GITHUB_WORKSPACE/data/raw/appearances.json || true
-      #     done
+          async def fetch_mv(session, player_id, semaphore):
+              async with semaphore:
+                  url = f"{MARKET_VALUES_API}{player_id}"
+                  try:
+                      async with session.get(url, headers=HEADERS, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                          if resp.status == 200:
+                              data = await resp.json(content_type=None)
+                              values = data.get('list', [])
+                              if values:
+                                  return player_id, values[-1].get('mw', '')
+                  except: pass
+                  return player_id, None
 
-      # - name: Stap 4 - Wedstrijden scrapen
-      #   timeout-minutes: 60
-      #   run: |
-      #     cd /tmp/scraper
-      #     for SEASON in 2024 2025; do
-      #       python -m tfmkt games \
-      #         -p $GITHUB_WORKSPACE/data/competitions.json \
-      #         -s $SEASON \
-      #         >> $GITHUB_WORKSPACE/data/raw/games.json || true
-      #     done
+          async def main():
+              player_ids = get_player_ids()
+              print(f"Marktwaarden ophalen voor {len(player_ids)} spelers...")
+              semaphore = asyncio.Semaphore(10)
+              results = {}
+              async with aiohttp.ClientSession() as session:
+                  tasks = [fetch_mv(session, pid, semaphore) for pid in player_ids]
+                  done = 0
+                  for coro in asyncio.as_completed(tasks):
+                      pid, mv = await coro
+                      if mv: results[pid] = mv
+                      done += 1
+                      if done % 500 == 0:
+                          print(f"  {done}/{len(player_ids)} verwerkt, {len(results)} met waarde")
+              print(f"Klaar: {len(results)} marktwaarden gevonden")
+              with open(MV_FILE, 'w', encoding='utf-8') as f:
+                  json.dump(results, f)
 
-      - name: Stap 5 - JSON naar CSV omzetten en samenvoegen met bestaande data
+          asyncio.run(main())
+          PYEOF
+          echo "Marktwaarden: $(wc -c < $GITHUB_WORKSPACE/data/raw/market_values.json 2>/dev/null || echo 0) bytes"
+
+      - name: Stap 2c - Transferhistorie ophalen via API
+        timeout-minutes: 30
+        continue-on-error: true
+        run: |
+          python3 << 'PYEOF'
+          import json, asyncio, aiohttp
+          from pathlib import Path
+
+          RAW = Path('data/raw')
+          PLAYERS_FILE = RAW / 'players.json'
+          TRANSFERS_FILE = RAW / 'transfers.json'
+          TRANSFERS_API = "https://www.transfermarkt.co.uk/ceapi/transferHistory/list/"
+          HEADERS = {"User-Agent": "transfermarkt-datasets/1.0", "Accept": "application/json"}
+
+          def get_player_ids():
+              ids, seen = [], set()
+              if not PLAYERS_FILE.exists(): return ids
+              with open(PLAYERS_FILE, encoding='utf-8') as f:
+                  for line in f:
+                      line = line.strip()
+                      if not line: continue
+                      try:
+                          p = json.loads(line)
+                          href = p.get('href', '')
+                          parts = href.rstrip('/').split('/')
+                          if 'spieler' in parts:
+                              pid = parts[parts.index('spieler') + 1]
+                              if pid and pid not in seen:
+                                  ids.append(pid); seen.add(pid)
+                      except: pass
+              return ids
+
+          async def fetch_transfers(session, player_id, semaphore):
+              async with semaphore:
+                  url = f"{TRANSFERS_API}{player_id}"
+                  try:
+                      async with session.get(url, headers=HEADERS, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                          if resp.status == 200:
+                              data = await resp.json(content_type=None)
+                              transfers = data.get('transfers', [])
+                              return player_id, transfers
+                  except: pass
+                  return player_id, []
+
+          async def main():
+              player_ids = get_player_ids()
+              print(f"Transfers ophalen voor {len(player_ids)} spelers...")
+              semaphore = asyncio.Semaphore(10)
+              all_transfers = []
+              async with aiohttp.ClientSession() as session:
+                  tasks = [fetch_transfers(session, pid, semaphore) for pid in player_ids]
+                  done = 0
+                  for coro in asyncio.as_completed(tasks):
+                      pid, transfers = await coro
+                      for t in transfers:
+                          t['player_id'] = pid
+                          all_transfers.append(t)
+                      done += 1
+                      if done % 500 == 0:
+                          print(f"  {done}/{len(player_ids)} verwerkt, {len(all_transfers)} transfers")
+              print(f"Klaar: {len(all_transfers)} transfers gevonden")
+              with open(TRANSFERS_FILE, 'w', encoding='utf-8') as f:
+                  for t in all_transfers:
+                      f.write(json.dumps(t) + '\n')
+
+          asyncio.run(main())
+          PYEOF
+          echo "Transfers: $(wc -l < $GITHUB_WORKSPACE/data/raw/transfers.json 2>/dev/null || echo 0)"
+
+      - name: Stap 2d - Historische marktwaarden ophalen via API
+        timeout-minutes: 30
+        continue-on-error: true
+        run: |
+          python3 << 'PYEOF'
+          import json, asyncio, aiohttp
+          from pathlib import Path
+
+          RAW = Path('data/raw')
+          PLAYERS_FILE = RAW / 'players.json'
+          VALUATIONS_FILE = RAW / 'valuations.json'
+          MV_API = "https://www.transfermarkt.com/ceapi/marketValueDevelopment/graph/"
+          HEADERS = {"User-Agent": "transfermarkt-datasets/1.0", "Accept": "application/json"}
+
+          def get_player_ids():
+              ids, seen = [], set()
+              if not PLAYERS_FILE.exists(): return ids
+              with open(PLAYERS_FILE, encoding='utf-8') as f:
+                  for line in f:
+                      line = line.strip()
+                      if not line: continue
+                      try:
+                          p = json.loads(line)
+                          href = p.get('href', '')
+                          parts = href.rstrip('/').split('/')
+                          if 'spieler' in parts:
+                              pid = parts[parts.index('spieler') + 1]
+                              if pid and pid not in seen:
+                                  ids.append(pid); seen.add(pid)
+                      except: pass
+              return ids
+
+          async def fetch_valuations(session, player_id, semaphore):
+              async with semaphore:
+                  url = f"{MV_API}{player_id}"
+                  try:
+                      async with session.get(url, headers=HEADERS, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                          if resp.status == 200:
+                              data = await resp.json(content_type=None)
+                              values = data.get('list', [])
+                              return player_id, values
+                  except: pass
+                  return player_id, []
+
+          async def main():
+              player_ids = get_player_ids()
+              print(f"Valuations ophalen voor {len(player_ids)} spelers...")
+              semaphore = asyncio.Semaphore(10)
+              all_vals = []
+              async with aiohttp.ClientSession() as session:
+                  tasks = [fetch_valuations(session, pid, semaphore) for pid in player_ids]
+                  done = 0
+                  for coro in asyncio.as_completed(tasks):
+                      pid, values = await coro
+                      for v in values:
+                          v['player_id'] = pid
+                          all_vals.append(v)
+                      done += 1
+                      if done % 500 == 0:
+                          print(f"  {done}/{len(player_ids)} verwerkt, {len(all_vals)} waardes")
+              print(f"Klaar: {len(all_vals)} marktwaarden gevonden")
+              with open(VALUATIONS_FILE, 'w', encoding='utf-8') as f:
+                  for v in all_vals:
+                      f.write(json.dumps(v) + '\n')
+
+          asyncio.run(main())
+          PYEOF
+          echo "Valuations: $(wc -l < $GITHUB_WORKSPACE/data/raw/valuations.json 2>/dev/null || echo 0)"
+
+      - name: Stap 3 - Optredens scrapen
+        timeout-minutes: 120
+        continue-on-error: true
+        run: |
+          cd /tmp/scraper
+          for SEASON in 2024 2025; do
+            echo "=== Optredens seizoen $SEASON ==="
+            python -m tfmkt appearances \
+              -p $GITHUB_WORKSPACE/data/raw/players.json \
+              -s $SEASON \
+              >> $GITHUB_WORKSPACE/data/raw/appearances.json || true
+          done
+          echo "Optredens nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/appearances.json)"
+
+      - name: Stap 4 - Wedstrijden scrapen
+        timeout-minutes: 60
+        run: |
+          cd /tmp/scraper
+          for SEASON in 2024 2025; do
+            echo "=== Wedstrijden seizoen $SEASON ==="
+            python -m tfmkt games \
+              -p $GITHUB_WORKSPACE/data/competitions.json \
+              -s $SEASON \
+              >> $GITHUB_WORKSPACE/data/raw/games.json || true
+          done
+          echo "Wedstrijden nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/games.json)"
+
+      - name: Stap 5 - JSON naar CSV omzetten en samenvoegen
         run: |
           python3 << 'PYEOF'
           import json, csv
@@ -188,8 +320,7 @@ jobs:
 
           def load_jsonl(path):
               items = []
-              if not path.exists():
-                  return items
+              if not path.exists(): return items
               with open(path, encoding='utf-8') as f:
                   for line in f:
                       line = line.strip()
@@ -200,8 +331,7 @@ jobs:
 
           def load_csv_existing(path):
               rows = []
-              if not path.exists():
-                  return rows
+              if not path.exists(): return rows
               with open(path, encoding='utf-8') as f:
                   reader = csv.DictReader(f)
                   for row in reader:
@@ -209,36 +339,29 @@ jobs:
               return rows
 
           def extract_id(href):
-              if not href:
-                  return ''
+              if not href: return ''
               parts = href.rstrip('/').split('/')
-              if 'wettbewerb' in parts:
-                  return parts[parts.index('wettbewerb') + 1]
-              if 'verein' in parts:
-                  return parts[parts.index('verein') + 1]
-              if 'spieler' in parts:
-                  return parts[parts.index('spieler') + 1]
-              if 'spielbericht' in parts:
-                  return parts[parts.index('spielbericht') + 1]
+              if 'wettbewerb' in parts: return parts[parts.index('wettbewerb') + 1]
+              if 'verein' in parts: return parts[parts.index('verein') + 1]
+              if 'spieler' in parts: return parts[parts.index('spieler') + 1]
+              if 'spielbericht' in parts: return parts[parts.index('spielbericht') + 1]
               return parts[-1]
 
           def parse_market_value(mv_str):
-              if not mv_str:
-                  return ''
+              if not mv_str: return ''
               mv_str = str(mv_str).strip()
               try:
                   multiplier = 1
                   if 'm' in mv_str.lower():
                       multiplier = 1_000_000
-                      mv_str = mv_str.lower().replace('m', '').replace('€', '').replace('£', '').strip()
+                      mv_str = mv_str.lower().replace('m','').replace('€','').replace('£','').strip()
                   elif 'k' in mv_str.lower() or 'th.' in mv_str.lower():
                       multiplier = 1_000
-                      mv_str = mv_str.lower().replace('k', '').replace('th.', '').replace('€', '').replace('£', '').strip()
+                      mv_str = mv_str.lower().replace('k','').replace('th.','').replace('€','').replace('£','').strip()
                   else:
-                      mv_str = mv_str.replace('€', '').replace('£', '').replace(',', '').strip()
+                      mv_str = mv_str.replace('€','').replace('£','').replace(',','').strip()
                   return int(float(mv_str) * multiplier)
-              except:
-                  return ''
+              except: return ''
 
           # Laad marktwaarden
           mv_lookup = {}
@@ -268,20 +391,6 @@ jobs:
                   'coach_name': c.get('coach_name', ''),
                   'url': f"https://www.transfermarkt.co.uk{c.get('href', '')}",
               })
-          # Debug: tel clubs met lege ID
-          empty_id = sum(1 for r in new_club_rows if not r.get('club_id'))
-          print(f"Clubs gescraped: {len(new_club_rows)}, met lege club_id: {empty_id}")
-          for r in new_club_rows:
-              if not r.get('club_id'):
-                  print(f"  Lege club: naam={r.get('name')} url={r.get('url')}")
-                  break
-          # Toon competities in raw data
-          from collections import Counter
-          comp_counts = Counter(r.get('domestic_competition_id','') for r in new_club_rows)
-          print("Clubs per competitie (raw):")
-          for k, v in sorted(comp_counts.items()):
-              print(f"  {k}: {v}")
-
           existing_clubs = load_csv_existing(OUT / 'clubs.csv')
           club_id_map = {r['club_id']: r for r in existing_clubs if r.get('club_id')}
           for r in new_club_rows:
@@ -302,10 +411,8 @@ jobs:
               club_info = club_lookup.get(club_href, {})
               player_id = p.get('id') or extract_id(p.get('href', ''))
               height_raw = p.get('height', '') or ''
-              try:
-                  height_cm = int(float(height_raw.replace('m','').replace(',','.').strip()) * 100)
-              except:
-                  height_cm = ''
+              try: height_cm = int(float(height_raw.replace('m','').replace(',','.').strip()) * 100)
+              except: height_cm = ''
               pos = p.get('position', '') or ''
               pos_map = {
                   'goalkeeper': 'Goalkeeper',
@@ -317,15 +424,11 @@ jobs:
               mv = mv_lookup.get(str(player_id), '')
               if not mv:
                   mv_raw = p.get('current_market_value') or ''
-                  try:
-                      mv = int(str(mv_raw).replace('€','').replace(',','').strip()) if mv_raw else ''
-                  except:
-                      mv = ''
+                  try: mv = int(str(mv_raw).replace('€','').replace(',','').strip()) if mv_raw else ''
+                  except: mv = ''
               mv_high_raw = p.get('highest_market_value') or ''
-              try:
-                  mv_high = int(str(mv_high_raw).replace('€','').replace(',','').strip()) if mv_high_raw else ''
-              except:
-                  mv_high = ''
+              try: mv_high = int(str(mv_high_raw).replace('€','').replace(',','').strip()) if mv_high_raw else ''
+              except: mv_high = ''
               first_name = p.get('name', '') or ''
               last_name = p.get('last_name', '') or ''
               full_name = f"{first_name} {last_name}".strip() or first_name
@@ -368,25 +471,18 @@ jobs:
           new_app_rows = []
           for a in appearances:
               parent = a.get('parent') or {}
-              player_href = parent.get('href', '')
-              player_id = extract_id(player_href)
-              club_href = (parent.get('current_club') or {}).get('href', '')
-              player_club_id = extract_id(club_href)
+              player_id = extract_id(parent.get('href', ''))
+              player_club_id = extract_id((parent.get('current_club') or {}).get('href', ''))
               result_raw = a.get('result')
-              if isinstance(result_raw, dict):
-                  result_href = result_raw.get('href', '')
-              elif isinstance(result_raw, str):
-                  result_href = result_raw
-              else:
-                  result_href = ''
+              if isinstance(result_raw, dict): result_href = result_raw.get('href', '')
+              elif isinstance(result_raw, str): result_href = result_raw
+              else: result_href = ''
               game_id = extract_id(result_href)
               date = a.get('date', '')
               appearance_id = f"{player_id}_{date.replace('/', '')}" if player_id and date else ''
               min_raw = a.get('minutes_played', '') or ''
-              try:
-                  minutes_played = int(str(min_raw).replace("'", "").strip())
-              except:
-                  minutes_played = 0
+              try: minutes_played = int(str(min_raw).replace("'", "").strip())
+              except: minutes_played = 0
               def card_count(val):
                   if val is None or val == '' or val == 0: return 0
                   return 1
@@ -426,14 +522,10 @@ jobs:
               result = g.get('result', '') or ''
               try:
                   home_goals, away_goals = result.split(':')
-                  home_goals = home_goals.strip()
-                  away_goals = away_goals.strip()
-              except:
-                  home_goals, away_goals = '', ''
-              home_href = (g.get('home_club') or {}).get('href', '')
-              away_href = (g.get('away_club') or {}).get('href', '')
-              home_id = extract_id(home_href)
-              away_id = extract_id(away_href)
+                  home_goals = home_goals.strip(); away_goals = away_goals.strip()
+              except: home_goals, away_goals = '', ''
+              home_id = extract_id((g.get('home_club') or {}).get('href', ''))
+              away_id = extract_id((g.get('away_club') or {}).get('href', ''))
               comp_id = (g.get('parent') or {}).get('country_code', '') or \
                         extract_id((g.get('parent') or {}).get('href', ''))
               new_game_rows.append({
@@ -517,8 +609,7 @@ jobs:
 
           # Ruim tijdelijk bestand op
           tmp = Path('data/csv/appearances_existing.csv')
-          if tmp.exists():
-              tmp.unlink()
+          if tmp.exists(): tmp.unlink()
 
           print('Conversie en samenvoegen klaar!')
           PYEOF
