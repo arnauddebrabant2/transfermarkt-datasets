@@ -32,6 +32,22 @@ jobs:
           echo 'ROBOTSTXT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"' >> /tmp/scraper/tfmkt/settings.py
           echo "Settings.py na aanpassing:"
           cat /tmp/scraper/tfmkt/settings.py
+          # Verwijder hardcoded request limiet (100) uit crawlee broncode
+          echo "=== Verwijder crawlee request limiet ==="
+          find /opt/hostedtoolcache/Python -name "_basic_crawler.py" 2>/dev/null | while read f; do
+            echo "Aanpassen: $f"
+            sed -i 's/max_requests_per_crawl: int | None = 100/max_requests_per_crawl: int | None = None/g' "$f" || true
+            sed -i 's/max_requests_per_crawl=100,/max_requests_per_crawl=None,/g' "$f" || true
+            sed -i 's/max_requests_per_crawl: int = 100/max_requests_per_crawl: int | None = None/g' "$f" || true
+            grep -n "max_requests_per_crawl" "$f" | head -5
+          done
+          find /tmp/scraper -name "*.py" 2>/dev/null | xargs grep -l "max_requests" 2>/dev/null | while read f; do
+            echo "Scraper bestand: $f"
+            sed -i 's/max_requests_per_crawl=100/max_requests_per_crawl=None/g' "$f" || true
+            sed -i 's/max_requests=100/max_requests=None/g' "$f" || true
+            grep -n "max_requests" "$f" | head -5
+          done
+          echo "=== Limiet verwijdering klaar ===" 
 
       - name: Zoek en verwijder crawlee limieten
         run: |
