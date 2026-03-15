@@ -49,6 +49,21 @@ jobs:
           done
           echo "=== Limiet verwijdering klaar ===" 
 
+      - name: Debug crawlee limiet
+        run: |
+          cd /tmp/scraper
+          echo "=== tfmkt help ==="
+          python -m tfmkt --help || true
+          echo "=== clubs help ==="
+          python -m tfmkt clubs --help || true
+          echo "=== Zoek max_requests in crawlee ==="
+          find /opt/hostedtoolcache/Python -name "_basic_crawler.py" 2>/dev/null | while read f; do
+            echo "FILE: $f"
+            grep -n "max_requests\|100\|limit\|LIMIT" "$f" | head -30
+          done
+          echo "=== Zoek in tfmkt broncode ==="
+          find /tmp/scraper -name "*.py" | xargs grep -n "max_requests\|100\|limit" 2>/dev/null | grep -i "max\|limit\|100" | head -30
+
       - name: Zoek en verwijder crawlee limieten
         run: |
           echo "=== Zoek max_requests in scraper ==="
