@@ -61,8 +61,14 @@ jobs:
             echo "FILE: $f"
             grep -n "max_requests\|100\|limit\|LIMIT" "$f" | head -30
           done
-          echo "=== Zoek in tfmkt broncode ==="
-          find /tmp/scraper -name "*.py" | xargs grep -n "max_requests\|100\|limit" 2>/dev/null | grep -i "max\|limit\|100" | head -30
+          echo "=== Zoek limit in tfmkt broncode ==="
+          find /tmp/scraper -name "*.py" | xargs grep -n "limit\|max_requests\|100" 2>/dev/null | grep -v ".pyc" | head -50
+          echo "=== Check clubs spider ==="
+          cat /tmp/scraper/tfmkt/spiders/clubs.py 2>/dev/null || echo "niet gevonden"
+          echo "=== Check common.py ==="
+          cat /tmp/scraper/tfmkt/common.py 2>/dev/null | head -100 || echo "niet gevonden"
+          echo "=== Check __main__.py ==="
+          cat /tmp/scraper/tfmkt/__main__.py 2>/dev/null || echo "niet gevonden" 
 
       - name: Zoek en verwijder crawlee limieten
         run: |
