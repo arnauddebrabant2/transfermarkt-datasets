@@ -27,6 +27,11 @@ jobs:
           poetry config virtualenvs.create false
           poetry install --without dev
           pip install aiohttp asyncio
+          # Stel User-Agent in zodat Transfermarkt requests accepteert
+          echo 'USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"' >> /tmp/scraper/tfmkt/settings.py
+          echo 'ROBOTSTXT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"' >> /tmp/scraper/tfmkt/settings.py
+          echo "Settings.py na aanpassing:"
+          cat /tmp/scraper/tfmkt/settings.py
 
       - name: Zoek en verwijder crawlee limieten
         run: |
@@ -718,7 +723,7 @@ jobs:
         run: |
           git config user.name "ScoutAI Bot"
           git config user.email "actions@users.noreply.github.com"
-          gzip -f data/csv/appearances.csv
+          gzip -f data/csv/appearances.csv || true
           git add data/csv/
           TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
           BATCH=$(basename $(cat $GITHUB_WORKSPACE/data/competitions.json | python3 -c "import sys,json; lines=[json.loads(l) for l in sys.stdin if l.strip()]; codes=[l.get('country_code','') for l in lines[:3]]; print('+'.join(codes))" 2>/dev/null) 2>/dev/null || echo "batch")
