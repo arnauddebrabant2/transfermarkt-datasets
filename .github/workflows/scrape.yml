@@ -30,15 +30,6 @@ jobs:
           # Stel User-Agent in zodat Transfermarkt requests accepteert
           echo 'USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"' >> /tmp/scraper/tfmkt/settings.py
           echo 'ROBOTSTXT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"' >> /tmp/scraper/tfmkt/settings.py
-          # Patch appearances.py bug: full_stats_href kan None zijn
-          echo 'import pathlib' > /tmp/fix_app.py
-          echo 'p = pathlib.Path("/tmp/scraper/tfmkt/crawlers/appearances.py")' >> /tmp/fix_app.py
-          echo 'code = p.read_text()' >> /tmp/fix_app.py
-          echo 'old = "        seasoned_full_stats_href = full_stats_href + f\"/plus/0?saison={season}\""' >> /tmp/fix_app.py
-          echo 'fix = "        if not full_stats_href:\n            return\n        seasoned_full_stats_href = full_stats_href + f\"/plus/0?saison={season}\""' >> /tmp/fix_app.py
-          echo 'p.write_text(code.replace(old, fix)) if old in code else print("niet gevonden")' >> /tmp/fix_app.py
-          python3 /tmp/fix_app.py && echo "Patch OK"
-
       - name: Maak output map aan
         run: mkdir -p data/raw data/csv
 
@@ -47,21 +38,15 @@ jobs:
           python3 << 'PYEOF'
           import gzip, shutil
           from pathlib import Path
-
           CSV = Path('data/csv')
-          # Decomprimeer alle .csv.gz bestanden
-          import os
+          # Decomprimeer alle .csv.gz bestanden naar hun gewone naam
           for gz_file in sorted(CSV.glob('*.csv.gz')):
-              csv_name = gz_file.stem  # bv appearances.csv
-              # appearances.csv.gz → appearances_existing.csv (speciaal geval)
-              out_name = 'appearances_existing.csv' if csv_name == 'appearances.csv' else csv_name
-              out_path = CSV / out_name
-              print(f"Decomprimeer {gz_file.name} → {out_name} ({gz_file.stat().st_size // 1024} KB)")
+              out_path = CSV / gz_file.stem  # bv appearances.csv.gz → appearances.csv
+              print(f"Decomprimeer {gz_file.name} → {out_path.name} ({gz_file.stat().st_size // 1024} KB)")
               with gzip.open(gz_file, 'rb') as f_in:
                   with open(out_path, 'wb') as f_out:
                       shutil.copyfileobj(f_in, f_out)
           PYEOF
-
       - name: Stap 1 - Clubs scrapen
         run: |
           cd /tmp/scraper
@@ -73,7 +58,6 @@ jobs:
               >> $GITHUB_WORKSPACE/data/raw/clubs.json || true
           done
           echo "Clubs nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/clubs.json)"
-
       - name: Stap 2 - Spelers scrapen
         run: |
           cd /tmp/scraper
@@ -85,7 +69,6 @@ jobs:
               >> $GITHUB_WORKSPACE/data/raw/players.json || true
           done
           echo "Spelers nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/players.json)"
-
       - name: Stap 2b - Marktwaarden ophalen
         timeout-minutes: 30
         continue-on-error: true
@@ -93,13 +76,11 @@ jobs:
           python3 << 'PYEOF'
           import json, asyncio, aiohttp
           from pathlib import Path
-
           RAW = Path('data/raw')
           PLAYERS_FILE = RAW / 'players.json'
           MV_FILE = RAW / 'market_values.json'
           MARKET_VALUES_API = "https://www.transfermarkt.com/ceapi/marketValueDevelopment/graph/"
           HEADERS = {"User-Agent": "transfermarkt-datasets/1.0", "Accept": "application/json"}
-
           def get_player_ids():
               ids, seen = [], set()
               if not PLAYERS_FILE.exists(): return ids
@@ -117,7 +98,6 @@ jobs:
                                   ids.append(pid); seen.add(pid)
                       except: pass
               return ids
-
           async def fetch_mv(session, player_id, semaphore):
               async with semaphore:
                   url = f"{MARKET_VALUES_API}{player_id}"
@@ -130,7 +110,6 @@ jobs:
                                   return player_id, values[-1].get('mw', '')
                   except: pass
                   return player_id, None
-
           async def main():
               player_ids = get_player_ids()
               print(f"Marktwaarden ophalen voor {len(player_ids)} spelers...")
@@ -148,11 +127,9 @@ jobs:
               print(f"Klaar: {len(results)} marktwaarden gevonden")
               with open(MV_FILE, 'w', encoding='utf-8') as f:
                   json.dump(results, f)
-
           asyncio.run(main())
           PYEOF
           echo "Marktwaarden: $(wc -c < $GITHUB_WORKSPACE/data/raw/market_values.json 2>/dev/null || echo 0) bytes"
-
       - name: Stap 2c - Transferhistorie ophalen via API
         timeout-minutes: 30
         continue-on-error: true
@@ -160,13 +137,11 @@ jobs:
           python3 << 'PYEOF'
           import json, asyncio, aiohttp
           from pathlib import Path
-
           RAW = Path('data/raw')
           PLAYERS_FILE = RAW / 'players.json'
           TRANSFERS_FILE = RAW / 'transfers.json'
           TRANSFERS_API = "https://www.transfermarkt.co.uk/ceapi/transferHistory/list/"
           HEADERS = {"User-Agent": "transfermarkt-datasets/1.0", "Accept": "application/json"}
-
           def get_player_ids():
               ids, seen = [], set()
               if not PLAYERS_FILE.exists(): return ids
@@ -184,7 +159,6 @@ jobs:
                                   ids.append(pid); seen.add(pid)
                       except: pass
               return ids
-
           async def fetch_transfers(session, player_id, semaphore):
               async with semaphore:
                   url = f"{TRANSFERS_API}{player_id}"
@@ -196,7 +170,6 @@ jobs:
                               return player_id, transfers
                   except: pass
                   return player_id, []
-
           async def main():
               player_ids = get_player_ids()
               print(f"Transfers ophalen voor {len(player_ids)} spelers...")
@@ -217,11 +190,9 @@ jobs:
               with open(TRANSFERS_FILE, 'w', encoding='utf-8') as f:
                   for t in all_transfers:
                       f.write(json.dumps(t) + '\n')
-
           asyncio.run(main())
           PYEOF
           echo "Transfers: $(wc -l < $GITHUB_WORKSPACE/data/raw/transfers.json 2>/dev/null || echo 0)"
-
       - name: Stap 2d - Historische marktwaarden ophalen via API
         timeout-minutes: 30
         continue-on-error: true
@@ -229,13 +200,11 @@ jobs:
           python3 << 'PYEOF'
           import json, asyncio, aiohttp
           from pathlib import Path
-
           RAW = Path('data/raw')
           PLAYERS_FILE = RAW / 'players.json'
           VALUATIONS_FILE = RAW / 'valuations.json'
           MV_API = "https://www.transfermarkt.com/ceapi/marketValueDevelopment/graph/"
           HEADERS = {"User-Agent": "transfermarkt-datasets/1.0", "Accept": "application/json"}
-
           def get_player_ids():
               ids, seen = [], set()
               if not PLAYERS_FILE.exists(): return ids
@@ -253,7 +222,6 @@ jobs:
                                   ids.append(pid); seen.add(pid)
                       except: pass
               return ids
-
           async def fetch_valuations(session, player_id, semaphore):
               async with semaphore:
                   url = f"{MV_API}{player_id}"
@@ -265,7 +233,6 @@ jobs:
                               return player_id, values
                   except: pass
                   return player_id, []
-
           async def main():
               player_ids = get_player_ids()
               print(f"Valuations ophalen voor {len(player_ids)} spelers...")
@@ -286,11 +253,9 @@ jobs:
               with open(VALUATIONS_FILE, 'w', encoding='utf-8') as f:
                   for v in all_vals:
                       f.write(json.dumps(v) + '\n')
-
           asyncio.run(main())
           PYEOF
           echo "Valuations: $(wc -l < $GITHUB_WORKSPACE/data/raw/valuations.json 2>/dev/null || echo 0)"
-
       - name: Stap 3 - Optredens scrapen
         timeout-minutes: 120
         continue-on-error: true
@@ -304,7 +269,6 @@ jobs:
               >> $GITHUB_WORKSPACE/data/raw/appearances.json || true
           done
           echo "Optredens nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/appearances.json)"
-
       - name: Stap 4 - Wedstrijden scrapen
         timeout-minutes: 60
         run: |
@@ -317,17 +281,14 @@ jobs:
               >> $GITHUB_WORKSPACE/data/raw/games.json || true
           done
           echo "Wedstrijden nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/games.json)"
-
       - name: Stap 5 - JSON naar CSV omzetten en samenvoegen
         run: |
           python3 << 'PYEOF'
           import json, csv
           from pathlib import Path
-
           RAW = Path('data/raw')
           OUT = Path('data/csv')
           OUT.mkdir(exist_ok=True)
-
           def load_jsonl(path):
               items = []
               if not path.exists(): return items
@@ -338,7 +299,6 @@ jobs:
                           try: items.append(json.loads(line))
                           except: pass
               return items
-
           def load_csv_existing(path):
               rows = []
               if not path.exists(): return rows
@@ -347,7 +307,6 @@ jobs:
                   for row in reader:
                       rows.append(row)
               return rows
-
           def extract_id(href):
               if not href: return ''
               parts = href.rstrip('/').split('/')
@@ -356,7 +315,6 @@ jobs:
               if 'spieler' in parts: return parts[parts.index('spieler') + 1]
               if 'spielbericht' in parts: return parts[parts.index('spielbericht') + 1]
               return parts[-1]
-
           def parse_market_value(mv_str):
               if not mv_str: return ''
               mv_str = str(mv_str).strip()
@@ -372,7 +330,6 @@ jobs:
                       mv_str = mv_str.replace('€','').replace('£','').replace(',','').strip()
                   return int(float(mv_str) * multiplier)
               except: return ''
-
           # Laad marktwaarden
           mv_lookup = {}
           mv_file = RAW / 'market_values.json'
@@ -382,7 +339,6 @@ jobs:
                   for pid, mv in mv_raw.items():
                       mv_lookup[str(pid)] = parse_market_value(mv)
               print(f"Marktwaarden geladen: {len(mv_lookup)}")
-
           # ── CLUBS ──
           clubs = load_jsonl(RAW / 'clubs.json')
           club_lookup = {}
@@ -412,7 +368,6 @@ jobs:
                   w = csv.DictWriter(f, fieldnames=list(merged_clubs[0].keys()))
                   w.writeheader(); w.writerows(merged_clubs)
               print(f'clubs.csv: {len(merged_clubs)} rijen (was {len(existing_clubs)}, +{len(merged_clubs)-len(existing_clubs)} nieuw)')
-
           # ── SPELERS ──
           players = load_jsonl(RAW / 'players.json')
           new_player_rows = []
@@ -475,7 +430,6 @@ jobs:
                   w = csv.DictWriter(f, fieldnames=list(merged_players[0].keys()))
                   w.writeheader(); w.writerows(merged_players)
               print(f'players.csv: {len(merged_players)} rijen (was {len(existing_players)}, +{len(merged_players)-len(existing_players)} nieuw)')
-
           # ── OPTREDENS ──
           appearances = load_jsonl(RAW / 'appearances.json')
           new_app_rows = []
@@ -513,7 +467,7 @@ jobs:
                   'assists': safe_int(a.get('assists')),
                   'minutes_played': minutes_played,
               })
-          existing_apps = load_csv_existing(OUT / 'appearances_existing.csv')
+          existing_apps = load_csv_existing(OUT / 'appearances.csv')
           app_id_map = {r['appearance_id']: r for r in existing_apps}
           for r in new_app_rows:
               if r['appearance_id']:
@@ -524,7 +478,6 @@ jobs:
                   w = csv.DictWriter(f, fieldnames=list(merged_apps[0].keys()))
                   w.writeheader(); w.writerows(merged_apps)
               print(f'appearances.csv: {len(merged_apps)} rijen (was {len(existing_apps)}, +{len(merged_apps)-len(existing_apps)} nieuw)')
-
           # ── WEDSTRIJDEN ──
           games = load_jsonl(RAW / 'games.json')
           new_game_rows = []
@@ -564,13 +517,9 @@ jobs:
                   w = csv.DictWriter(f, fieldnames=list(merged_games[0].keys()))
                   w.writeheader(); w.writerows(merged_games)
               print(f'games.csv: {len(merged_games)} rijen (was {len(existing_games)}, +{len(merged_games)-len(existing_games)} nieuw)')
-
-
           def _fix_encoding(s):
-              """Fix â‚¬ → € encoding issue."""
               if not s: return s
               return str(s).replace('â\x82\xac', '€').replace('Â', '').replace('â‚¬', '€')
-
           def _club_name(val):
               if not val: return ''
               import ast as _ast
@@ -583,9 +532,6 @@ jobs:
                       try: return _ast.literal_eval(s).get('clubName', s)
                       except: pass
               return s
-
-
-
           # ── TRANSFERS ──
           transfers_raw = load_jsonl(RAW / 'transfers.json')
           new_transfer_rows = []
@@ -611,7 +557,6 @@ jobs:
                   w = csv.DictWriter(f, fieldnames=list(merged_transfers[0].keys()))
                   w.writeheader(); w.writerows(merged_transfers)
               print(f'transfers.csv: {len(merged_transfers)} rijen (was {len(existing_transfers)}, +{len(merged_transfers)-len(existing_transfers)} nieuw)')
-
           # ── VALUATIONS ──
           valuations_raw = load_jsonl(RAW / 'valuations.json')
           new_val_rows = []
@@ -637,25 +582,18 @@ jobs:
                   w = csv.DictWriter(f, fieldnames=list(merged_vals[0].keys()))
                   w.writeheader(); w.writerows(merged_vals)
               print(f'player_valuations.csv: {len(merged_vals)} rijen (was {len(existing_vals)}, +{len(merged_vals)-len(existing_vals)} nieuw)')
-
-          # Ruim tijdelijk bestand op
-          tmp = Path('data/csv/appearances_existing.csv')
-          if tmp.exists(): tmp.unlink()
-
           print('Conversie en samenvoegen klaar!')
           PYEOF
-
       - name: Commit en push CSV's
         run: |
           git config user.name "ScoutAI Bot"
           git config user.email "actions@users.noreply.github.com"
-          find data/csv/ -name "*.csv" ! -name "*.gz" -exec gzip -f {} \;
+          for f in data/csv/*.csv; do [ -f "$f" ] && gzip -f "$f"; done || true
           git add data/csv/
           TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
           BATCH=$(cat $GITHUB_WORKSPACE/data/competitions.json | python3 -c "import sys,json; lines=[json.loads(l) for l in sys.stdin if l.strip()]; codes=[l.get('country_code','') for l in lines[:3]]; print('+'.join(codes))" 2>/dev/null || echo "batch")
           git commit -m "ScoutAI data update: ${TIMESTAMP} [${BATCH}...]" || echo "Geen wijzigingen"
           git push
-
       - name: Samenvatting
         run: |
           echo "=== SCRAPING KLAAR ==="
