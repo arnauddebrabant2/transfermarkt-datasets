@@ -31,9 +31,13 @@ jobs:
           echo 'USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"' >> /tmp/scraper/tfmkt/settings.py
           echo 'ROBOTSTXT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"' >> /tmp/scraper/tfmkt/settings.py
           # Patch appearances.py bug: full_stats_href kan None zijn
-          sed -i 's/seasoned_full_stats_href = full_stats_href + f"\/plus\/0?saison={season}"/if not full_stats_href: return\n        seasoned_full_stats_href = full_stats_href + f"\/plus\/0?saison={season}"/' /tmp/scraper/tfmkt/crawlers/appearances.py || true
-          echo "appearances.py patch toegepast"
-          grep -n "full_stats_href" /tmp/scraper/tfmkt/crawlers/appearances.py | head -5
+          echo 'import pathlib' > /tmp/fix_app.py
+          echo 'p = pathlib.Path("/tmp/scraper/tfmkt/crawlers/appearances.py")' >> /tmp/fix_app.py
+          echo 'code = p.read_text()' >> /tmp/fix_app.py
+          echo 'old = "        seasoned_full_stats_href = full_stats_href + f\"/plus/0?saison={season}\""' >> /tmp/fix_app.py
+          echo 'fix = "        if not full_stats_href:\n            return\n        seasoned_full_stats_href = full_stats_href + f\"/plus/0?saison={season}\""' >> /tmp/fix_app.py
+          echo 'p.write_text(code.replace(old, fix)) if old in code else print("niet gevonden")' >> /tmp/fix_app.py
+          python3 /tmp/fix_app.py && echo "Patch OK"
 
       - name: Maak output map aan
         run: mkdir -p data/raw data/csv
