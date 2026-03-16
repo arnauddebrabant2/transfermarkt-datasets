@@ -31,23 +31,9 @@ jobs:
           echo 'USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"' >> /tmp/scraper/tfmkt/settings.py
           echo 'ROBOTSTXT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"' >> /tmp/scraper/tfmkt/settings.py
           # Patch appearances.py bug: full_stats_href kan None zijn
-          python3 - << 'PYEOF'
-import re
-path = '/tmp/scraper/tfmkt/crawlers/appearances.py'
-with open(path, 'r') as f:
-    code = f.read()
-# Vervang de problematische regel met een None-check
-old_line = 'seasoned_full_stats_href = full_stats_href + f"/plus/0?saison={season}"'
-new_line = 'if not full_stats_href: return\n        seasoned_full_stats_href = full_stats_href + f"/plus/0?saison={season}"'
-if old_line in code:
-    code = code.replace(old_line, new_line)
-    with open(path, 'w') as f:
-        f.write(code)
-    print("appearances.py gepatcht")
-else:
-    print("Patroon niet gevonden, controleer handmatig")
-    print(open(path).read()[:500])
-PYEOF
+          sed -i 's/seasoned_full_stats_href = full_stats_href + f"\/plus\/0?saison={season}"/if not full_stats_href: return\n        seasoned_full_stats_href = full_stats_href + f"\/plus\/0?saison={season}"/' /tmp/scraper/tfmkt/crawlers/appearances.py || true
+          echo "appearances.py patch toegepast"
+          grep -n "full_stats_href" /tmp/scraper/tfmkt/crawlers/appearances.py | head -5
 
       - name: Maak output map aan
         run: mkdir -p data/raw data/csv
