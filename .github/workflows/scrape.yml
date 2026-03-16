@@ -41,15 +41,17 @@ jobs:
           from pathlib import Path
 
           CSV = Path('data/csv')
-          gz = CSV / 'appearances.csv.gz'
-          if gz.exists():
-              print(f"Bestaande appearances.csv.gz gevonden ({gz.stat().st_size // 1024} KB)")
-              with gzip.open(gz, 'rb') as f_in:
-                  with open(CSV / 'appearances_existing.csv', 'wb') as f_out:
+          # Decomprimeer alle .csv.gz bestanden
+          import os
+          for gz_file in sorted(CSV.glob('*.csv.gz')):
+              csv_name = gz_file.stem  # bv appearances.csv
+              # appearances.csv.gz → appearances_existing.csv (speciaal geval)
+              out_name = 'appearances_existing.csv' if csv_name == 'appearances.csv' else csv_name
+              out_path = CSV / out_name
+              print(f"Decomprimeer {gz_file.name} → {out_name} ({gz_file.stat().st_size // 1024} KB)")
+              with gzip.open(gz_file, 'rb') as f_in:
+                  with open(out_path, 'wb') as f_out:
                       shutil.copyfileobj(f_in, f_out)
-              print("  → Gedecomprimeerd naar appearances_existing.csv")
-          else:
-              print("Geen bestaande appearances.csv.gz — eerste run")
           PYEOF
 
       - name: Stap 1 - Clubs scrapen
@@ -639,7 +641,7 @@ jobs:
         run: |
           git config user.name "ScoutAI Bot"
           git config user.email "actions@users.noreply.github.com"
-          gzip -f data/csv/appearances.csv || true
+          find data/csv/ -name "*.csv" ! -name "*.gz" -exec gzip -f {} \;
           git add data/csv/
           TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
           BATCH=$(cat $GITHUB_WORKSPACE/data/competitions.json | python3 -c "import sys,json; lines=[json.loads(l) for l in sys.stdin if l.strip()]; codes=[l.get('country_code','') for l in lines[:3]]; print('+'.join(codes))" 2>/dev/null || echo "batch")
