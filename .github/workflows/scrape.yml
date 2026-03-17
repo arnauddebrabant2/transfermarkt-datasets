@@ -27,91 +27,30 @@ jobs:
           poetry config virtualenvs.create false
           poetry install --without dev
           pip install aiohttp asyncio
-          # Stel User-Agent in zodat Transfermarkt requests accepteert
           echo 'USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"' >> /tmp/scraper/tfmkt/settings.py
           echo 'ROBOTSTXT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"' >> /tmp/scraper/tfmkt/settings.py
-          echo "Settings.py na aanpassing:"
-          cat /tmp/scraper/tfmkt/settings.py
-          # Verwijder hardcoded request limiet (100) uit crawlee broncode
-          echo "=== Verwijder crawlee request limiet ==="
-          find /opt/hostedtoolcache/Python -name "_basic_crawler.py" 2>/dev/null | while read f; do
-            echo "Aanpassen: $f"
-            sed -i 's/max_requests_per_crawl: int | None = 100/max_requests_per_crawl: int | None = None/g' "$f" || true
-            sed -i 's/max_requests_per_crawl=100,/max_requests_per_crawl=None,/g' "$f" || true
-            sed -i 's/max_requests_per_crawl: int = 100/max_requests_per_crawl: int | None = None/g' "$f" || true
-            grep -n "max_requests_per_crawl" "$f" | head -5
-          done
-          find /tmp/scraper -name "*.py" 2>/dev/null | xargs grep -l "max_requests" 2>/dev/null | while read f; do
-            echo "Scraper bestand: $f"
-            sed -i 's/max_requests_per_crawl=100/max_requests_per_crawl=None/g' "$f" || true
-            sed -i 's/max_requests=100/max_requests=None/g' "$f" || true
-            grep -n "max_requests" "$f" | head -5
-          done
-          echo "=== Limiet verwijdering klaar ===" 
-      - name: Debug crawlee limiet
-        run: |
-          cd /tmp/scraper
-          echo "=== tfmkt help ==="
-          python -m tfmkt --help || true
-          echo "=== clubs help ==="
-          python -m tfmkt clubs --help || true
-          echo "=== Zoek max_requests in crawlee ==="
-          find /opt/hostedtoolcache/Python -name "_basic_crawler.py" 2>/dev/null | while read f; do
-            echo "FILE: $f"
-            grep -n "max_requests\|100\|limit\|LIMIT" "$f" | head -30
-          done
-          echo "=== Zoek limit in tfmkt broncode ==="
-          find /tmp/scraper -name "*.py" | xargs grep -n "limit\|max_requests\|100" 2>/dev/null | grep -v ".pyc" | head -50
-          echo "=== Check clubs spider ==="
-          cat /tmp/scraper/tfmkt/spiders/clubs.py 2>/dev/null || echo "niet gevonden"
-          echo "=== Check common.py ==="
-          cat /tmp/scraper/tfmkt/common.py 2>/dev/null | head -100 || echo "niet gevonden"
-          echo "=== Check __main__.py ==="
-          cat /tmp/scraper/tfmkt/__main__.py 2>/dev/null || echo "niet gevonden" 
-      - name: Zoek en verwijder crawlee limieten
-        run: |
-          echo "=== Zoek max_requests in scraper ==="
-          grep -rn "max_requests\|MAX_REQUESTS\|maxRequestsPerCrawl\|max_crawls" /tmp/scraper/ 2>/dev/null || echo "Niet gevonden via grep"
-          echo "=== Pas settings.py aan ==="
-          # Verhoog limiet in settings als die bestaat
-          if [ -f /tmp/scraper/tfmkt/settings.py ]; then
-            cat /tmp/scraper/tfmkt/settings.py
-            sed -i 's/CLOSESPIDER_ITEMCOUNT.*/CLOSESPIDER_ITEMCOUNT = 0/' /tmp/scraper/tfmkt/settings.py || true
-            sed -i 's/CLOSESPIDER_PAGECOUNT.*/CLOSESPIDER_PAGECOUNT = 0/' /tmp/scraper/tfmkt/settings.py || true
-            echo "Settings na aanpassing:"
-            cat /tmp/scraper/tfmkt/settings.py
-          fi
-          echo "=== Stel environment variabelen in ==="
-          echo "CRAWLEE_MAX_REQUESTS_PER_CRAWL=999999" >> $GITHUB_ENV
-          echo "SCRAPY_CLOSESPIDER_ITEMCOUNT=0" >> $GITHUB_ENV
-          echo "SCRAPY_CLOSESPIDER_PAGECOUNT=0" >> $GITHUB_ENV
-      - name: Maak output map aan
+      - name: Maak output mappen aan
         run: mkdir -p data/raw data/csv
 
-      - name: Stap 0 - Bestaande CSV data inladen (accumulate)
+      - name: Stap 0 - Alle bestaande CSV.gz decomprimeren
         run: |
           python3 << 'PYEOF'
           import gzip, shutil
           from pathlib import Path
           CSV = Path('data/csv')
-          RAW = Path('data/raw')
-          # Als er al een appearances.csv.gz is, decomprimeer die naar raw
-          gz = CSV / 'appearances.csv.gz'
-          if gz.exists():
-              print(f"Bestaande appearances.csv.gz gevonden ({gz.stat().st_size // 1024} KB)")
-              with gzip.open(gz, 'rb') as f_in:
-                  with open(CSV / 'appearances_existing.csv', 'wb') as f_out:
-                      shutil.copyfileobj(f_in, f_out)
-              print("  → Gedecomprimeerd naar appearances_existing.csv")
-          else:
-              print("Geen bestaande appearances.csv.gz gevonden — eerste run")
+          CSV.mkdir(exist_ok=True)
+          gz_files = list(CSV.glob('*.csv.gz'))
+          if not gz_files:
+              print("Geen bestaande .csv.gz bestanden gevonden — eerste run")
+          for gz in gz_files:
+              out = gz.with_suffix('')  # data/csv/foo.csv.gz -> data/csv/foo.csv
+              with gzip.open(gz, 'rb') as f_in, open(out, 'wb') as f_out:
+                  shutil.copyfileobj(f_in, f_out)
+              print(f"Gedecomprimeerd: {gz.name} ({gz.stat().st_size // 1024} KB)")
           PYEOF
       - name: Stap 1 - Clubs scrapen
         run: |
           cd /tmp/scraper
-          export CRAWLEE_MAX_REQUESTS_PER_CRAWL=999999
-          export SCRAPY_CLOSESPIDER_ITEMCOUNT=0
-          export SCRAPY_CLOSESPIDER_PAGECOUNT=0
           for SEASON in 2024 2025; do
             echo "=== Clubs seizoen $SEASON ==="
             python -m tfmkt clubs \
@@ -123,9 +62,6 @@ jobs:
       - name: Stap 2 - Spelers scrapen
         run: |
           cd /tmp/scraper
-          export CRAWLEE_MAX_REQUESTS_PER_CRAWL=999999
-          export SCRAPY_CLOSESPIDER_ITEMCOUNT=0
-          export SCRAPY_CLOSESPIDER_PAGECOUNT=0
           for SEASON in 2024 2025; do
             echo "=== Spelers seizoen $SEASON ==="
             python -m tfmkt players \
@@ -145,29 +81,23 @@ jobs:
           PLAYERS_FILE = RAW / 'players.json'
           MV_FILE = RAW / 'market_values.json'
           MARKET_VALUES_API = "https://www.transfermarkt.com/ceapi/marketValueDevelopment/graph/"
-          HEADERS = {
-              "User-Agent": "transfermarkt-datasets/1.0 (https://github.com/arnauddebrabant2/transfermarkt-datasets)",
-              "Accept": "application/json",
-          }
+          HEADERS = {"User-Agent": "transfermarkt-datasets/1.0", "Accept": "application/json"}
           def get_player_ids():
-              ids = []
-              if not PLAYERS_FILE.exists():
-                  return ids
+              ids, seen = [], set()
+              if not PLAYERS_FILE.exists(): return ids
               with open(PLAYERS_FILE, encoding='utf-8') as f:
                   for line in f:
                       line = line.strip()
-                      if not line:
-                          continue
+                      if not line: continue
                       try:
                           p = json.loads(line)
                           href = p.get('href', '')
                           parts = href.rstrip('/').split('/')
                           if 'spieler' in parts:
                               pid = parts[parts.index('spieler') + 1]
-                              if pid:
-                                  ids.append(pid)
-                      except:
-                          pass
+                              if pid and pid not in seen:
+                                  ids.append(pid); seen.add(pid)
+                      except: pass
               return ids
           async def fetch_mv(session, player_id, semaphore):
               async with semaphore:
@@ -178,11 +108,8 @@ jobs:
                               data = await resp.json(content_type=None)
                               values = data.get('list', [])
                               if values:
-                                  latest = values[-1]
-                                  mv = latest.get('mw', '')
-                                  return player_id, mv
-                  except:
-                      pass
+                                  return player_id, values[-1].get('mw', '')
+                  except: pass
                   return player_id, None
           async def main():
               player_ids = get_player_ids()
@@ -194,8 +121,7 @@ jobs:
                   done = 0
                   for coro in asyncio.as_completed(tasks):
                       pid, mv = await coro
-                      if mv:
-                          results[pid] = mv
+                      if mv: results[pid] = mv
                       done += 1
                       if done % 500 == 0:
                           print(f"  {done}/{len(player_ids)} verwerkt, {len(results)} met waarde")
@@ -216,10 +142,7 @@ jobs:
           PLAYERS_FILE = RAW / 'players.json'
           TRANSFERS_FILE = RAW / 'transfers.json'
           TRANSFERS_API = "https://www.transfermarkt.co.uk/ceapi/transferHistory/list/"
-          HEADERS = {
-              "User-Agent": "transfermarkt-datasets/1.0",
-              "Accept": "application/json",
-          }
+          HEADERS = {"User-Agent": "transfermarkt-datasets/1.0", "Accept": "application/json"}
           def get_player_ids():
               ids, seen = [], set()
               if not PLAYERS_FILE.exists(): return ids
@@ -282,10 +205,7 @@ jobs:
           PLAYERS_FILE = RAW / 'players.json'
           VALUATIONS_FILE = RAW / 'valuations.json'
           MV_API = "https://www.transfermarkt.com/ceapi/marketValueDevelopment/graph/"
-          HEADERS = {
-              "User-Agent": "transfermarkt-datasets/1.0",
-              "Accept": "application/json",
-          }
+          HEADERS = {"User-Agent": "transfermarkt-datasets/1.0", "Accept": "application/json"}
           def get_player_ids():
               ids, seen = [], set()
               if not PLAYERS_FILE.exists(): return ids
@@ -342,9 +262,6 @@ jobs:
         continue-on-error: true
         run: |
           cd /tmp/scraper
-          export CRAWLEE_MAX_REQUESTS_PER_CRAWL=999999
-          export SCRAPY_CLOSESPIDER_ITEMCOUNT=0
-          export SCRAPY_CLOSESPIDER_PAGECOUNT=0
           for SEASON in 2024 2025; do
             echo "=== Optredens seizoen $SEASON ==="
             python -m tfmkt appearances \
@@ -357,9 +274,6 @@ jobs:
         timeout-minutes: 60
         run: |
           cd /tmp/scraper
-          export CRAWLEE_MAX_REQUESTS_PER_CRAWL=999999
-          export SCRAPY_CLOSESPIDER_ITEMCOUNT=0
-          export SCRAPY_CLOSESPIDER_PAGECOUNT=0
           for SEASON in 2024 2025; do
             echo "=== Wedstrijden seizoen $SEASON ==="
             python -m tfmkt games \
@@ -368,7 +282,7 @@ jobs:
               >> $GITHUB_WORKSPACE/data/raw/games.json || true
           done
           echo "Wedstrijden nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/games.json)"
-      - name: Stap 5 - JSON naar CSV omzetten en samenvoegen met bestaande data
+      - name: Stap 5 - JSON naar CSV omzetten en samenvoegen
         run: |
           python3 << 'PYEOF'
           import json, csv
@@ -378,8 +292,7 @@ jobs:
           OUT.mkdir(exist_ok=True)
           def load_jsonl(path):
               items = []
-              if not path.exists():
-                  return items
+              if not path.exists(): return items
               with open(path, encoding='utf-8') as f:
                   for line in f:
                       line = line.strip()
@@ -388,44 +301,40 @@ jobs:
                           except: pass
               return items
           def load_csv_existing(path):
+              """Laad bestaande CSV (al gedecomprimeerd door Stap 0)"""
               rows = []
-              if not path.exists():
-                  return rows
+              if not path.exists(): return rows
               with open(path, encoding='utf-8') as f:
                   reader = csv.DictReader(f)
                   for row in reader:
                       rows.append(row)
               return rows
           def extract_id(href):
-              if not href:
-                  return ''
+              if not href: return ''
               parts = href.rstrip('/').split('/')
-              if 'wettbewerb' in parts:
-                  return parts[parts.index('wettbewerb') + 1]
-              if 'verein' in parts:
-                  return parts[parts.index('verein') + 1]
-              if 'spieler' in parts:
-                  return parts[parts.index('spieler') + 1]
-              if 'spielbericht' in parts:
-                  return parts[parts.index('spielbericht') + 1]
+              if 'wettbewerb' in parts: return parts[parts.index('wettbewerb') + 1]
+              if 'verein' in parts: return parts[parts.index('verein') + 1]
+              if 'spieler' in parts: return parts[parts.index('spieler') + 1]
+              if 'spielbericht' in parts: return parts[parts.index('spielbericht') + 1]
               return parts[-1]
           def parse_market_value(mv_str):
-              if not mv_str:
-                  return ''
+              if not mv_str: return ''
               mv_str = str(mv_str).strip()
               try:
                   multiplier = 1
                   if 'm' in mv_str.lower():
                       multiplier = 1_000_000
-                      mv_str = mv_str.lower().replace('m', '').replace('€', '').replace('£', '').strip()
+                      mv_str = mv_str.lower().replace('m','').replace('€','').replace('£','').strip()
                   elif 'k' in mv_str.lower() or 'th.' in mv_str.lower():
                       multiplier = 1_000
-                      mv_str = mv_str.lower().replace('k', '').replace('th.', '').replace('€', '').replace('£', '').strip()
+                      mv_str = mv_str.lower().replace('k','').replace('th.','').replace('€','').replace('£','').strip()
                   else:
-                      mv_str = mv_str.replace('€', '').replace('£', '').replace(',', '').strip()
+                      mv_str = mv_str.replace('€','').replace('£','').replace(',','').strip()
                   return int(float(mv_str) * multiplier)
-              except:
-                  return ''
+              except: return ''
+          def _fix_encoding(s):
+              if not s: return s
+              return str(s).replace('â\x82\xac', '€').replace('Â', '').replace('â‚¬', '€')
           # Laad marktwaarden
           mv_lookup = {}
           mv_file = RAW / 'market_values.json'
@@ -445,7 +354,8 @@ jobs:
               club_id = c.get('id') or extract_id(c.get('href', ''))
               club_lookup[c.get('href', '')] = {'club_id': club_id, 'name': c.get('name', ''), 'competition_id': comp_id}
               new_club_rows.append({
-                  'club_id': club_id, 'name': c.get('name', ''),
+                  'club_id': club_id,
+                  'name': c.get('name', ''),
                   'domestic_competition_id': comp_id,
                   'squad_size': c.get('squad_size', ''),
                   'average_age': c.get('average_age', ''),
@@ -453,14 +363,11 @@ jobs:
                   'coach_name': c.get('coach_name', ''),
                   'url': f"https://www.transfermarkt.co.uk{c.get('href', '')}",
               })
-          # Samenvoegen met bestaande clubs (op club_id)
           existing_clubs = load_csv_existing(OUT / 'clubs.csv')
-          existing_club_ids = {r['club_id'] for r in existing_clubs}
-          merged_clubs = existing_clubs + [r for r in new_club_rows if str(r['club_id']) not in existing_club_ids]
-          # Update bestaande met nieuwe data (nieuwste wint)
-          club_id_map = {r['club_id']: r for r in existing_clubs}
+          club_id_map = {r['club_id']: r for r in existing_clubs if r.get('club_id')}
           for r in new_club_rows:
-              club_id_map[str(r['club_id'])] = r
+              if r.get('club_id'):
+                  club_id_map[str(r['club_id'])] = r
           merged_clubs = list(club_id_map.values())
           if merged_clubs:
               with open(OUT / 'clubs.csv', 'w', newline='', encoding='utf-8') as f:
@@ -475,10 +382,8 @@ jobs:
               club_info = club_lookup.get(club_href, {})
               player_id = p.get('id') or extract_id(p.get('href', ''))
               height_raw = p.get('height', '') or ''
-              try:
-                  height_cm = int(float(height_raw.replace('m','').replace(',','.').strip()) * 100)
-              except:
-                  height_cm = ''
+              try: height_cm = int(float(height_raw.replace('m','').replace(',','.').strip()) * 100)
+              except: height_cm = ''
               pos = p.get('position', '') or ''
               pos_map = {
                   'goalkeeper': 'Goalkeeper',
@@ -490,15 +395,11 @@ jobs:
               mv = mv_lookup.get(str(player_id), '')
               if not mv:
                   mv_raw = p.get('current_market_value') or ''
-                  try:
-                      mv = int(str(mv_raw).replace('€','').replace(',','').strip()) if mv_raw else ''
-                  except:
-                      mv = ''
+                  try: mv = int(str(mv_raw).replace('€','').replace(',','').strip()) if mv_raw else ''
+                  except: mv = ''
               mv_high_raw = p.get('highest_market_value') or ''
-              try:
-                  mv_high = int(str(mv_high_raw).replace('€','').replace(',','').strip()) if mv_high_raw else ''
-              except:
-                  mv_high = ''
+              try: mv_high = int(str(mv_high_raw).replace('€','').replace(',','').strip()) if mv_high_raw else ''
+              except: mv_high = ''
               first_name = p.get('name', '') or ''
               last_name = p.get('last_name', '') or ''
               full_name = f"{first_name} {last_name}".strip() or first_name
@@ -524,11 +425,11 @@ jobs:
                   'image_url': p.get('image_url', ''),
                   'url': f"https://www.transfermarkt.co.uk{p.get('href', '')}",
               })
-          # Samenvoegen met bestaande spelers (nieuwste wint op player_id)
           existing_players = load_csv_existing(OUT / 'players.csv')
-          player_id_map = {r['player_id']: r for r in existing_players}
+          player_id_map = {r['player_id']: r for r in existing_players if r.get('player_id')}
           for r in new_player_rows:
-              player_id_map[str(r['player_id'])] = r
+              if r.get('player_id'):
+                  player_id_map[str(r['player_id'])] = r
           merged_players = list(player_id_map.values())
           if merged_players:
               with open(OUT / 'players.csv', 'w', newline='', encoding='utf-8') as f:
@@ -540,25 +441,18 @@ jobs:
           new_app_rows = []
           for a in appearances:
               parent = a.get('parent') or {}
-              player_href = parent.get('href', '')
-              player_id = extract_id(player_href)
-              club_href = (parent.get('current_club') or {}).get('href', '')
-              player_club_id = extract_id(club_href)
+              player_id = extract_id(parent.get('href', ''))
+              player_club_id = extract_id((parent.get('current_club') or {}).get('href', ''))
               result_raw = a.get('result')
-              if isinstance(result_raw, dict):
-                  result_href = result_raw.get('href', '')
-              elif isinstance(result_raw, str):
-                  result_href = result_raw
-              else:
-                  result_href = ''
+              if isinstance(result_raw, dict): result_href = result_raw.get('href', '')
+              elif isinstance(result_raw, str): result_href = result_raw
+              else: result_href = ''
               game_id = extract_id(result_href)
               date = a.get('date', '')
               appearance_id = f"{player_id}_{date.replace('/', '')}" if player_id and date else ''
               min_raw = a.get('minutes_played', '') or ''
-              try:
-                  minutes_played = int(str(min_raw).replace("'", "").strip())
-              except:
-                  minutes_played = 0
+              try: minutes_played = int(str(min_raw).replace("'", "").strip())
+              except: minutes_played = 0
               def card_count(val):
                   if val is None or val == '' or val == 0: return 0
                   return 1
@@ -579,8 +473,7 @@ jobs:
                   'assists': safe_int(a.get('assists')),
                   'minutes_played': minutes_played,
               })
-          # Samenvoegen met bestaande appearances (op appearance_id)
-          existing_apps = load_csv_existing(OUT / 'appearances_existing.csv')
+          existing_apps = load_csv_existing(OUT / 'appearances.csv')
           app_id_map = {r['appearance_id']: r for r in existing_apps}
           for r in new_app_rows:
               if r['appearance_id']:
@@ -598,14 +491,10 @@ jobs:
               result = g.get('result', '') or ''
               try:
                   home_goals, away_goals = result.split(':')
-                  home_goals = home_goals.strip()
-                  away_goals = away_goals.strip()
-              except:
-                  home_goals, away_goals = '', ''
-              home_href = (g.get('home_club') or {}).get('href', '')
-              away_href = (g.get('away_club') or {}).get('href', '')
-              home_id = extract_id(home_href)
-              away_id = extract_id(away_href)
+                  home_goals = home_goals.strip(); away_goals = away_goals.strip()
+              except: home_goals, away_goals = '', ''
+              home_id = extract_id((g.get('home_club') or {}).get('href', ''))
+              away_id = extract_id((g.get('away_club') or {}).get('href', ''))
               comp_id = (g.get('parent') or {}).get('country_code', '') or \
                         extract_id((g.get('parent') or {}).get('href', ''))
               new_game_rows.append({
@@ -623,7 +512,6 @@ jobs:
                   'attendance': g.get('attendance', ''),
                   'url': f"https://www.transfermarkt.co.uk{g.get('href', '')}",
               })
-          # Samenvoegen met bestaande games (op game_id)
           existing_games = load_csv_existing(OUT / 'games.csv')
           game_id_map = {r['game_id']: r for r in existing_games}
           for r in new_game_rows:
@@ -644,10 +532,10 @@ jobs:
                   'player_id':                player_id,
                   'transfer_date':            t.get('date', '') or t.get('transferDate', ''),
                   'transfer_season':          t.get('season', ''),
-                  'from_club_name':           t.get('from', '') or t.get('fromClubName', ''),
-                  'to_club_name':             t.get('to', '') or t.get('toClubName', ''),
-                  'transfer_fee':             t.get('fee', '') or t.get('transferFee', ''),
-                  'market_value_at_transfer': t.get('mv', '') or t.get('marketValue', ''),
+                  'from_club_name':           str(t.get('from', '') or t.get('fromClubName', '')),
+                  'to_club_name':             str(t.get('to', '') or t.get('toClubName', '')),
+                  'transfer_fee':             _fix_encoding(t.get('fee', '') or t.get('transferFee', '')),
+                  'market_value_at_transfer': _fix_encoding(t.get('mv', '') or t.get('marketValue', '')),
               })
           existing_transfers = load_csv_existing(OUT / 'transfers.csv')
           transfer_key = lambda r: f"{r.get('player_id','')}_{r.get('transfer_date','')}_{r.get('to_club_name','')}"
@@ -685,25 +573,39 @@ jobs:
                   w = csv.DictWriter(f, fieldnames=list(merged_vals[0].keys()))
                   w.writeheader(); w.writerows(merged_vals)
               print(f'player_valuations.csv: {len(merged_vals)} rijen (was {len(existing_vals)}, +{len(merged_vals)-len(existing_vals)} nieuw)')
-          # Ruim tijdelijk bestand op
-          tmp = Path('data/csv/appearances_existing.csv')
-          if tmp.exists():
-              tmp.unlink()
           print('Conversie en samenvoegen klaar!')
           PYEOF
-      - name: Commit en push CSV's
+      - name: Stap 6 - Alle CSV's comprimeren naar .gz
+        run: |
+          python3 << 'PYEOF'
+          import gzip, shutil
+          from pathlib import Path
+          CSV = Path('data/csv')
+          csv_files = list(CSV.glob('*.csv'))
+          if not csv_files:
+              print("Geen CSV bestanden gevonden om te comprimeren")
+          for csv_file in csv_files:
+              gz_file = csv_file.with_suffix('.csv.gz')
+              with open(csv_file, 'rb') as f_in, gzip.open(gz_file, 'wb') as f_out:
+                  shutil.copyfileobj(f_in, f_out)
+              orig_kb = csv_file.stat().st_size // 1024
+              gz_kb = gz_file.stat().st_size // 1024
+              csv_file.unlink()  # verwijder plain CSV, behoud alleen .gz
+              print(f"  {csv_file.name} → {gz_file.name} ({orig_kb} KB → {gz_kb} KB)")
+          print(f"Klaar: {len(csv_files)} bestanden gecomprimeerd")
+          PYEOF
+      - name: Commit en push CSV.gz bestanden
         run: |
           git config user.name "ScoutAI Bot"
           git config user.email "actions@users.noreply.github.com"
-          gzip -f data/csv/appearances.csv || true
           git add data/csv/
           TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
-          BATCH=$(basename $(cat $GITHUB_WORKSPACE/data/competitions.json | python3 -c "import sys,json; lines=[json.loads(l) for l in sys.stdin if l.strip()]; codes=[l.get('country_code','') for l in lines[:3]]; print('+'.join(codes))" 2>/dev/null) 2>/dev/null || echo "batch")
+          BATCH=$(cat $GITHUB_WORKSPACE/data/competitions.json | python3 -c "import sys,json; lines=[json.loads(l) for l in sys.stdin if l.strip()]; codes=[l.get('country_code','') for l in lines[:3]]; print('+'.join(codes))" 2>/dev/null || echo "batch")
           git commit -m "ScoutAI data update: ${TIMESTAMP} [${BATCH}...]" || echo "Geen wijzigingen"
           git push
       - name: Samenvatting
         run: |
           echo "=== SCRAPING KLAAR ==="
-          for f in data/csv/*; do
-            echo "$f: $(wc -c < $f) bytes"
+          for f in data/csv/*.csv.gz; do
+            echo "$f: $(wc -c < $f) bytes gecomprimeerd"
           done
