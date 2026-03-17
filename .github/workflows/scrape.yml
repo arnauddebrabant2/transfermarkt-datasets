@@ -192,8 +192,21 @@ jobs:
                               data = await resp.json(content_type=None)
                               transfers = data.get('transfers', [])
                               return player_id, transfers
-                  except: pass
+                          else:
+                              return player_id, [f"STATUS:{resp.status}"]
+                  except Exception as e:
+                      return player_id, [f"ERROR:{str(e)[:50]}"]
                   return player_id, []
+
+          # Debug: test eerste speler
+          import asyncio as _aio
+          async def _debug():
+              async with aiohttp.ClientSession() as s:
+                  r = await s.get(f"{TRANSFERS_API}346289", headers=HEADERS, timeout=aiohttp.ClientTimeout(total=10))
+                  print(f"DEBUG status: {r.status}")
+                  text = await r.text()
+                  print(f"DEBUG response: {text[:200]}")
+          _aio.run(_debug())
           async def main():
               player_ids = get_player_ids()
               print(f"Transfers ophalen voor {len(player_ids)} spelers...")
