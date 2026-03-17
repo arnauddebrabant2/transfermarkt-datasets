@@ -27,27 +27,41 @@ jobs:
           poetry config virtualenvs.create false
           poetry install --without dev
           pip install aiohttp asyncio
+          # Stel User-Agent in zodat Transfermarkt requests accepteert
           echo 'USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"' >> /tmp/scraper/tfmkt/settings.py
           echo 'ROBOTSTXT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"' >> /tmp/scraper/tfmkt/settings.py
-      - name: Maak output mappen aan
+          # Patch appearances.py bug (full_stats_href kan None zijn)
+          python3 $GITHUB_WORKSPACE/patch_scraper.py
+
+      - name: Maak output map aan
         run: mkdir -p data/raw data/csv
 
-      - name: Stap 0 - Alle bestaande CSV.gz decomprimeren
+      - name: Stap 0 - Bestaande CSV data inladen
         run: |
           python3 << 'PYEOF'
           import gzip, shutil
           from pathlib import Path
           CSV = Path('data/csv')
-          CSV.mkdir(exist_ok=True)
-          gz_files = list(CSV.glob('*.csv.gz'))
-          if not gz_files:
-              print("Geen bestaande .csv.gz bestanden gevonden — eerste run")
-          for gz in gz_files:
-              out = gz.with_suffix('')  # data/csv/foo.csv.gz -> data/csv/foo.csv
-              with gzip.open(gz, 'rb') as f_in, open(out, 'wb') as f_out:
-                  shutil.copyfileobj(f_in, f_out)
-              print(f"Gedecomprimeerd: {gz.name} ({gz.stat().st_size // 1024} KB)")
+          gz = CSV / 'appearances.csv.gz'
+          if gz.exists():
+              print(f"Bestaande appearances.csv.gz gevonden ({gz.stat().st_size // 1024} KB)")
+              with gzip.open(gz, 'rb') as f_in:
+                  with open(CSV / 'appearances_existing.csv', 'wb') as f_out:
+                      shutil.copyfileobj(f_in, f_out)
+              print("  → Gedecomprimeerd naar appearances_existing.csv")
+          else:
+              print("Geen bestaande appearances.csv.gz — eerste run")
+          gz2 = CSV / 'transfers.csv.gz'
+          if gz2.exists():
+              print(f"Bestaande transfers.csv.gz gevonden ({gz2.stat().st_size // 1024} KB)")
+              with gzip.open(gz2, 'rb') as f_in:
+                  with open(CSV / 'transfers.csv', 'wb') as f_out:
+                      shutil.copyfileobj(f_in, f_out)
+              print("  → Gedecomprimeerd naar transfers.csv")
+          else:
+              print("Geen bestaande transfers.csv.gz — eerste run")
           PYEOF
+
       - name: Stap 1 - Clubs scrapen
         run: |
           cd /tmp/scraper
@@ -59,6 +73,7 @@ jobs:
               >> $GITHUB_WORKSPACE/data/raw/clubs.json || true
           done
           echo "Clubs nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/clubs.json)"
+
       - name: Stap 2 - Spelers scrapen
         run: |
           cd /tmp/scraper
@@ -70,6 +85,7 @@ jobs:
               >> $GITHUB_WORKSPACE/data/raw/players.json || true
           done
           echo "Spelers nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/players.json)"
+
       - name: Stap 2b - Marktwaarden ophalen
         timeout-minutes: 30
         continue-on-error: true
@@ -81,7 +97,7 @@ jobs:
           PLAYERS_FILE = RAW / 'players.json'
           MV_FILE = RAW / 'market_values.json'
           MARKET_VALUES_API = "https://www.transfermarkt.com/ceapi/marketValueDevelopment/graph/"
-          HEADERS = {"User-Agent": "transfermarkt-datasets/1.0", "Accept": "application/json"}
+          HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", "Accept": "application/json"}
           def get_player_ids():
               ids, seen = [], set()
               if not PLAYERS_FILE.exists(): return ids
@@ -114,7 +130,7 @@ jobs:
           async def main():
               player_ids = get_player_ids()
               print(f"Marktwaarden ophalen voor {len(player_ids)} spelers...")
-              semaphore = asyncio.Semaphore(10)
+              semaphore = asyncio.Semaphore(3)
               results = {}
               async with aiohttp.ClientSession() as session:
                   tasks = [fetch_mv(session, pid, semaphore) for pid in player_ids]
@@ -131,6 +147,13 @@ jobs:
           asyncio.run(main())
           PYEOF
           echo "Marktwaarden: $(wc -c < $GITHUB_WORKSPACE/data/raw/market_values.json 2>/dev/null || echo 0) bytes"
+
+      - name: Wacht na marktwaarden (IP cooldown)
+        run: |
+          echo "Wachten 5 minuten om IP-ban te vermijden..."
+          sleep 300
+          echo "Klaar met wachten"
+
       - name: Stap 2c - Transferhistorie ophalen via API
         timeout-minutes: 30
         continue-on-error: true
@@ -194,6 +217,12 @@ jobs:
           asyncio.run(main())
           PYEOF
           echo "Transfers: $(wc -l < $GITHUB_WORKSPACE/data/raw/transfers.json 2>/dev/null || echo 0)"
+
+      - name: Wacht na transfers (IP cooldown)
+        run: |
+          echo "Wachten 3 minuten..."
+          sleep 180
+
       - name: Stap 2d - Historische marktwaarden ophalen via API
         timeout-minutes: 30
         continue-on-error: true
@@ -257,6 +286,7 @@ jobs:
           asyncio.run(main())
           PYEOF
           echo "Valuations: $(wc -l < $GITHUB_WORKSPACE/data/raw/valuations.json 2>/dev/null || echo 0)"
+
       - name: Stap 3 - Optredens scrapen
         timeout-minutes: 120
         continue-on-error: true
@@ -270,6 +300,7 @@ jobs:
               >> $GITHUB_WORKSPACE/data/raw/appearances.json || true
           done
           echo "Optredens nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/appearances.json)"
+
       - name: Stap 4 - Wedstrijden scrapen
         timeout-minutes: 60
         run: |
@@ -282,6 +313,7 @@ jobs:
               >> $GITHUB_WORKSPACE/data/raw/games.json || true
           done
           echo "Wedstrijden nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/games.json)"
+
       - name: Stap 5 - JSON naar CSV omzetten en samenvoegen
         run: |
           python3 << 'PYEOF'
@@ -301,7 +333,6 @@ jobs:
                           except: pass
               return items
           def load_csv_existing(path):
-              """Laad bestaande CSV (al gedecomprimeerd door Stap 0)"""
               rows = []
               if not path.exists(): return rows
               with open(path, encoding='utf-8') as f:
@@ -332,9 +363,6 @@ jobs:
                       mv_str = mv_str.replace('€','').replace('£','').replace(',','').strip()
                   return int(float(mv_str) * multiplier)
               except: return ''
-          def _fix_encoding(s):
-              if not s: return s
-              return str(s).replace('â\x82\xac', '€').replace('Â', '').replace('â‚¬', '€')
           # Laad marktwaarden
           mv_lookup = {}
           mv_file = RAW / 'market_values.json'
@@ -354,8 +382,7 @@ jobs:
               club_id = c.get('id') or extract_id(c.get('href', ''))
               club_lookup[c.get('href', '')] = {'club_id': club_id, 'name': c.get('name', ''), 'competition_id': comp_id}
               new_club_rows.append({
-                  'club_id': club_id,
-                  'name': c.get('name', ''),
+                  'club_id': club_id, 'name': c.get('name', ''),
                   'domestic_competition_id': comp_id,
                   'squad_size': c.get('squad_size', ''),
                   'average_age': c.get('average_age', ''),
@@ -473,7 +500,7 @@ jobs:
                   'assists': safe_int(a.get('assists')),
                   'minutes_played': minutes_played,
               })
-          existing_apps = load_csv_existing(OUT / 'appearances.csv')
+          existing_apps = load_csv_existing(OUT / 'appearances_existing.csv')
           app_id_map = {r['appearance_id']: r for r in existing_apps}
           for r in new_app_rows:
               if r['appearance_id']:
@@ -523,6 +550,21 @@ jobs:
                   w = csv.DictWriter(f, fieldnames=list(merged_games[0].keys()))
                   w.writeheader(); w.writerows(merged_games)
               print(f'games.csv: {len(merged_games)} rijen (was {len(existing_games)}, +{len(merged_games)-len(existing_games)} nieuw)')
+          def _fix_encoding(s):
+              if not s: return s
+              return str(s).replace('â\x82\xac', '€').replace('Â', '').replace('â‚¬', '€')
+          def _club_name(val):
+              if not val: return ''
+              import ast as _ast
+              s = str(val).strip()
+              if s.startswith('{'):
+                  try:
+                      import json as _j
+                      return _j.loads(s.replace("'",'"')).get('clubName', s)
+                  except:
+                      try: return _ast.literal_eval(s).get('clubName', s)
+                      except: pass
+              return s
           # ── TRANSFERS ──
           transfers_raw = load_jsonl(RAW / 'transfers.json')
           new_transfer_rows = []
@@ -573,39 +615,27 @@ jobs:
                   w = csv.DictWriter(f, fieldnames=list(merged_vals[0].keys()))
                   w.writeheader(); w.writerows(merged_vals)
               print(f'player_valuations.csv: {len(merged_vals)} rijen (was {len(existing_vals)}, +{len(merged_vals)-len(existing_vals)} nieuw)')
+          # Ruim tijdelijk bestand op
+          tmp = Path('data/csv/appearances_existing.csv')
+          if tmp.exists(): tmp.unlink()
           print('Conversie en samenvoegen klaar!')
           PYEOF
-      - name: Stap 6 - Alle CSV's comprimeren naar .gz
-        run: |
-          python3 << 'PYEOF'
-          import gzip, shutil
-          from pathlib import Path
-          CSV = Path('data/csv')
-          csv_files = list(CSV.glob('*.csv'))
-          if not csv_files:
-              print("Geen CSV bestanden gevonden om te comprimeren")
-          for csv_file in csv_files:
-              gz_file = csv_file.with_suffix('.csv.gz')
-              with open(csv_file, 'rb') as f_in, gzip.open(gz_file, 'wb') as f_out:
-                  shutil.copyfileobj(f_in, f_out)
-              orig_kb = csv_file.stat().st_size // 1024
-              gz_kb = gz_file.stat().st_size // 1024
-              csv_file.unlink()  # verwijder plain CSV, behoud alleen .gz
-              print(f"  {csv_file.name} → {gz_file.name} ({orig_kb} KB → {gz_kb} KB)")
-          print(f"Klaar: {len(csv_files)} bestanden gecomprimeerd")
-          PYEOF
-      - name: Commit en push CSV.gz bestanden
+
+      - name: Commit en push CSV's
         run: |
           git config user.name "ScoutAI Bot"
           git config user.email "actions@users.noreply.github.com"
+          gzip -f data/csv/appearances.csv || true
+          gzip -f data/csv/transfers.csv || true
           git add data/csv/
           TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
           BATCH=$(cat $GITHUB_WORKSPACE/data/competitions.json | python3 -c "import sys,json; lines=[json.loads(l) for l in sys.stdin if l.strip()]; codes=[l.get('country_code','') for l in lines[:3]]; print('+'.join(codes))" 2>/dev/null || echo "batch")
           git commit -m "ScoutAI data update: ${TIMESTAMP} [${BATCH}...]" || echo "Geen wijzigingen"
           git push
+
       - name: Samenvatting
         run: |
           echo "=== SCRAPING KLAAR ==="
-          for f in data/csv/*.csv.gz; do
-            echo "$f: $(wc -c < $f) bytes gecomprimeerd"
+          for f in data/csv/*; do
+            echo "$f: $(wc -c < $f) bytes"
           done
