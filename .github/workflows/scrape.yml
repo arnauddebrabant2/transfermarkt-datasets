@@ -42,24 +42,14 @@ jobs:
           import gzip, shutil
           from pathlib import Path
           CSV = Path('data/csv')
-          gz = CSV / 'appearances.csv.gz'
-          if gz.exists():
-              print(f"Bestaande appearances.csv.gz gevonden ({gz.stat().st_size // 1024} KB)")
-              with gzip.open(gz, 'rb') as f_in:
-                  with open(CSV / 'appearances_existing.csv', 'wb') as f_out:
+          for gz_file in sorted(CSV.glob('*.csv.gz')):
+              stem = gz_file.stem  # bv appearances.csv
+              out_name = 'appearances_existing.csv' if stem == 'appearances.csv' else stem
+              out_path = CSV / out_name
+              print(f"Decomprimeer {gz_file.name} → {out_name} ({gz_file.stat().st_size // 1024} KB)")
+              with gzip.open(gz_file, 'rb') as f_in:
+                  with open(out_path, 'wb') as f_out:
                       shutil.copyfileobj(f_in, f_out)
-              print("  → Gedecomprimeerd naar appearances_existing.csv")
-          else:
-              print("Geen bestaande appearances.csv.gz — eerste run")
-          gz2 = CSV / 'transfers.csv.gz'
-          if gz2.exists():
-              print(f"Bestaande transfers.csv.gz gevonden ({gz2.stat().st_size // 1024} KB)")
-              with gzip.open(gz2, 'rb') as f_in:
-                  with open(CSV / 'transfers.csv', 'wb') as f_out:
-                      shutil.copyfileobj(f_in, f_out)
-              print("  → Gedecomprimeerd naar transfers.csv")
-          else:
-              print("Geen bestaande transfers.csv.gz — eerste run")
           PYEOF
 
       - name: Stap 1 - Clubs scrapen
@@ -625,8 +615,7 @@ jobs:
         run: |
           git config user.name "ScoutAI Bot"
           git config user.email "actions@users.noreply.github.com"
-          gzip -f data/csv/appearances.csv || true
-          gzip -f data/csv/transfers.csv || true
+          for f in data/csv/*.csv; do [ -f "$f" ] && gzip -f "$f" || true; done
           git add data/csv/
           TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
           BATCH=$(cat $GITHUB_WORKSPACE/data/competitions.json | python3 -c "import sys,json; lines=[json.loads(l) for l in sys.stdin if l.strip()]; codes=[l.get('country_code','') for l in lines[:3]]; print('+'.join(codes))" 2>/dev/null || echo "batch")
