@@ -64,232 +64,232 @@ jobs:
           done
           echo "Clubs nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/clubs.json)"
 
-      # - name: Stap 2 - Spelers scrapen
-      #   run: |
-      #     cd /tmp/scraper
-      #     for SEASON in 2024 2025; do
-      #       echo "=== Spelers seizoen $SEASON ==="
-      #       python -m tfmkt players \
-      #         -p $GITHUB_WORKSPACE/data/raw/clubs.json \
-      #         -s $SEASON \
-      #         >> $GITHUB_WORKSPACE/data/raw/players.json || true
-      #     done
-      #     echo "Spelers nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/players.json)"
+      - name: Stap 2 - Spelers scrapen
+        run: |
+          cd /tmp/scraper
+          for SEASON in 2024 2025; do
+            echo "=== Spelers seizoen $SEASON ==="
+            python -m tfmkt players \
+              -p $GITHUB_WORKSPACE/data/raw/clubs.json \
+              -s $SEASON \
+              >> $GITHUB_WORKSPACE/data/raw/players.json || true
+          done
+          echo "Spelers nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/players.json)"
 
-      # - name: Stap 2b - Marktwaarden ophalen
-      #   timeout-minutes: 30
-      #   continue-on-error: true
-      #   run: |
-      #     python3 << 'PYEOF'
-      #     import json, asyncio, aiohttp
-      #     from pathlib import Path
-      #     RAW = Path('data/raw')
-      #     PLAYERS_FILE = RAW / 'players.json'
-      #     MV_FILE = RAW / 'market_values.json'
-      #     MARKET_VALUES_API = "https://www.transfermarkt.com/ceapi/marketValueDevelopment/graph/"
-      #     HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", "Accept": "application/json"}
-      #     def get_player_ids():
-      #         ids, seen = [], set()
-      #         if not PLAYERS_FILE.exists(): return ids
-      #         with open(PLAYERS_FILE, encoding='utf-8') as f:
-      #             for line in f:
-      #                 line = line.strip()
-      #                 if not line: continue
-      #                 try:
-      #                     p = json.loads(line)
-      #                     href = p.get('href', '')
-      #                     parts = href.rstrip('/').split('/')
-      #                     if 'spieler' in parts:
-      #                         pid = parts[parts.index('spieler') + 1]
-      #                         if pid and pid not in seen:
-      #                             ids.append(pid); seen.add(pid)
-      #                 except: pass
-      #         return ids
-      #     async def fetch_mv(session, player_id, semaphore):
-      #         async with semaphore:
-      #             url = f"{MARKET_VALUES_API}{player_id}"
-      #             try:
-      #                 async with session.get(url, headers=HEADERS, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-      #                     if resp.status == 200:
-      #                         data = await resp.json(content_type=None)
-      #                         values = data.get('list', [])
-      #                         if values:
-      #                             return player_id, values[-1].get('mw', '')
-      #             except: pass
-      #             return player_id, None
-      #     async def main():
-      #         player_ids = get_player_ids()
-      #         print(f"Marktwaarden ophalen voor {len(player_ids)} spelers...")
-      #         semaphore = asyncio.Semaphore(3)
-      #         results = {}
-      #         async with aiohttp.ClientSession() as session:
-      #             tasks = [fetch_mv(session, pid, semaphore) for pid in player_ids]
-      #             done = 0
-      #             for coro in asyncio.as_completed(tasks):
-      #                 pid, mv = await coro
-      #                 if mv: results[pid] = mv
-      #                 done += 1
-      #                 if done % 500 == 0:
-      #                     print(f"  {done}/{len(player_ids)} verwerkt, {len(results)} met waarde")
-      #         print(f"Klaar: {len(results)} marktwaarden gevonden")
-      #         with open(MV_FILE, 'w', encoding='utf-8') as f:
-      #             json.dump(results, f)
-      #     asyncio.run(main())
-      #     PYEOF
-      #     echo "Marktwaarden: $(wc -c < $GITHUB_WORKSPACE/data/raw/market_values.json 2>/dev/null || echo 0) bytes"
+      - name: Stap 2b - Marktwaarden ophalen
+        timeout-minutes: 30
+        continue-on-error: true
+        run: |
+          python3 << 'PYEOF'
+          import json, asyncio, aiohttp
+          from pathlib import Path
+          RAW = Path('data/raw')
+          PLAYERS_FILE = RAW / 'players.json'
+          MV_FILE = RAW / 'market_values.json'
+          MARKET_VALUES_API = "https://www.transfermarkt.com/ceapi/marketValueDevelopment/graph/"
+          HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", "Accept": "application/json"}
+          def get_player_ids():
+              ids, seen = [], set()
+              if not PLAYERS_FILE.exists(): return ids
+              with open(PLAYERS_FILE, encoding='utf-8') as f:
+                  for line in f:
+                      line = line.strip()
+                      if not line: continue
+                      try:
+                          p = json.loads(line)
+                          href = p.get('href', '')
+                          parts = href.rstrip('/').split('/')
+                          if 'spieler' in parts:
+                              pid = parts[parts.index('spieler') + 1]
+                              if pid and pid not in seen:
+                                  ids.append(pid); seen.add(pid)
+                      except: pass
+              return ids
+          async def fetch_mv(session, player_id, semaphore):
+              async with semaphore:
+                  url = f"{MARKET_VALUES_API}{player_id}"
+                  try:
+                      async with session.get(url, headers=HEADERS, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                          if resp.status == 200:
+                              data = await resp.json(content_type=None)
+                              values = data.get('list', [])
+                              if values:
+                                  return player_id, values[-1].get('mw', '')
+                  except: pass
+                  return player_id, None
+          async def main():
+              player_ids = get_player_ids()
+              print(f"Marktwaarden ophalen voor {len(player_ids)} spelers...")
+              semaphore = asyncio.Semaphore(3)
+              results = {}
+              async with aiohttp.ClientSession() as session:
+                  tasks = [fetch_mv(session, pid, semaphore) for pid in player_ids]
+                  done = 0
+                  for coro in asyncio.as_completed(tasks):
+                      pid, mv = await coro
+                      if mv: results[pid] = mv
+                      done += 1
+                      if done % 500 == 0:
+                          print(f"  {done}/{len(player_ids)} verwerkt, {len(results)} met waarde")
+              print(f"Klaar: {len(results)} marktwaarden gevonden")
+              with open(MV_FILE, 'w', encoding='utf-8') as f:
+                  json.dump(results, f)
+          asyncio.run(main())
+          PYEOF
+          echo "Marktwaarden: $(wc -c < $GITHUB_WORKSPACE/data/raw/market_values.json 2>/dev/null || echo 0) bytes"
 
-      # - name: Wacht na marktwaarden (IP cooldown)
-      #   run: |
-      #     echo "Wachten 5 minuten om IP-ban te vermijden..."
-      #     sleep 300
-      #     echo "Klaar met wachten"
+      - name: Wacht na marktwaarden (IP cooldown)
+        run: |
+          echo "Wachten 5 minuten om IP-ban te vermijden..."
+          sleep 300
+          echo "Klaar met wachten"
 
-      # - name: Stap 2c - Transferhistorie ophalen via API
-      #   timeout-minutes: 30
-      #   continue-on-error: true
-      #   run: |
-      #     python3 << 'PYEOF'
-      #     import json, asyncio, aiohttp
-      #     from pathlib import Path
-      #     RAW = Path('data/raw')
-      #     PLAYERS_FILE = RAW / 'players.json'
-      #     TRANSFERS_FILE = RAW / 'transfers.json'
-      #     TRANSFERS_API = "https://www.transfermarkt.co.uk/ceapi/transferHistory/list/"
-      #     HEADERS = {"User-Agent": "transfermarkt-datasets/1.0", "Accept": "application/json"}
-      #     def get_player_ids():
-      #         ids, seen = [], set()
-      #         if not PLAYERS_FILE.exists(): return ids
-      #         with open(PLAYERS_FILE, encoding='utf-8') as f:
-      #             for line in f:
-      #                 line = line.strip()
-      #                 if not line: continue
-      #                 try:
-      #                     p = json.loads(line)
-      #                     href = p.get('href', '')
-      #                     parts = href.rstrip('/').split('/')
-      #                     if 'spieler' in parts:
-      #                         pid = parts[parts.index('spieler') + 1]
-      #                         if pid and pid not in seen:
-      #                             ids.append(pid); seen.add(pid)
-      #                 except: pass
-      #         return ids
-      #     async def fetch_transfers(session, player_id, semaphore):
-      #         async with semaphore:
-      #             url = f"{TRANSFERS_API}{player_id}"
-      #             try:
-      #                 async with session.get(url, headers=HEADERS, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-      #                     if resp.status == 200:
-      #                         data = await resp.json(content_type=None)
-      #                         transfers = data.get('transfers', [])
-      #                         return player_id, transfers
-      #             except: pass
-      #             return player_id, []
-      #     async def main():
-      #         player_ids = get_player_ids()
-      #         print(f"Transfers ophalen voor {len(player_ids)} spelers...")
-      #         semaphore = asyncio.Semaphore(10)
-      #         all_transfers = []
-      #         async with aiohttp.ClientSession() as session:
-      #             tasks = [fetch_transfers(session, pid, semaphore) for pid in player_ids]
-      #             done = 0
-      #             for coro in asyncio.as_completed(tasks):
-      #                 pid, transfers = await coro
-      #                 for t in transfers:
-      #                     t['player_id'] = pid
-      #                     all_transfers.append(t)
-      #                 done += 1
-      #                 if done % 500 == 0:
-      #                     print(f"  {done}/{len(player_ids)} verwerkt, {len(all_transfers)} transfers")
-      #         print(f"Klaar: {len(all_transfers)} transfers gevonden")
-      #         with open(TRANSFERS_FILE, 'w', encoding='utf-8') as f:
-      #             for t in all_transfers:
-      #                 f.write(json.dumps(t) + '\n')
-      #     asyncio.run(main())
-      #     PYEOF
-      #     echo "Transfers: $(wc -l < $GITHUB_WORKSPACE/data/raw/transfers.json 2>/dev/null || echo 0)"
+      - name: Stap 2c - Transferhistorie ophalen via API
+        timeout-minutes: 30
+        continue-on-error: true
+        run: |
+          python3 << 'PYEOF'
+          import json, asyncio, aiohttp
+          from pathlib import Path
+          RAW = Path('data/raw')
+          PLAYERS_FILE = RAW / 'players.json'
+          TRANSFERS_FILE = RAW / 'transfers.json'
+          TRANSFERS_API = "https://www.transfermarkt.co.uk/ceapi/transferHistory/list/"
+          HEADERS = {"User-Agent": "transfermarkt-datasets/1.0", "Accept": "application/json"}
+          def get_player_ids():
+              ids, seen = [], set()
+              if not PLAYERS_FILE.exists(): return ids
+              with open(PLAYERS_FILE, encoding='utf-8') as f:
+                  for line in f:
+                      line = line.strip()
+                      if not line: continue
+                      try:
+                          p = json.loads(line)
+                          href = p.get('href', '')
+                          parts = href.rstrip('/').split('/')
+                          if 'spieler' in parts:
+                              pid = parts[parts.index('spieler') + 1]
+                              if pid and pid not in seen:
+                                  ids.append(pid); seen.add(pid)
+                      except: pass
+              return ids
+          async def fetch_transfers(session, player_id, semaphore):
+              async with semaphore:
+                  url = f"{TRANSFERS_API}{player_id}"
+                  try:
+                      async with session.get(url, headers=HEADERS, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                          if resp.status == 200:
+                              data = await resp.json(content_type=None)
+                              transfers = data.get('transfers', [])
+                              return player_id, transfers
+                  except: pass
+                  return player_id, []
+          async def main():
+              player_ids = get_player_ids()
+              print(f"Transfers ophalen voor {len(player_ids)} spelers...")
+              semaphore = asyncio.Semaphore(10)
+              all_transfers = []
+              async with aiohttp.ClientSession() as session:
+                  tasks = [fetch_transfers(session, pid, semaphore) for pid in player_ids]
+                  done = 0
+                  for coro in asyncio.as_completed(tasks):
+                      pid, transfers = await coro
+                      for t in transfers:
+                          t['player_id'] = pid
+                          all_transfers.append(t)
+                      done += 1
+                      if done % 500 == 0:
+                          print(f"  {done}/{len(player_ids)} verwerkt, {len(all_transfers)} transfers")
+              print(f"Klaar: {len(all_transfers)} transfers gevonden")
+              with open(TRANSFERS_FILE, 'w', encoding='utf-8') as f:
+                  for t in all_transfers:
+                      f.write(json.dumps(t) + '\n')
+          asyncio.run(main())
+          PYEOF
+          echo "Transfers: $(wc -l < $GITHUB_WORKSPACE/data/raw/transfers.json 2>/dev/null || echo 0)"
 
-      # - name: Wacht na transfers (IP cooldown)
-      #   run: |
-      #     echo "Wachten 3 minuten..."
-      #     sleep 180
+      - name: Wacht na transfers (IP cooldown)
+        run: |
+          echo "Wachten 3 minuten..."
+          sleep 180
 
-      # - name: Stap 2d - Historische marktwaarden ophalen via API
-      #   timeout-minutes: 30
-      #   continue-on-error: true
-      #   run: |
-      #     python3 << 'PYEOF'
-      #     import json, asyncio, aiohttp
-      #     from pathlib import Path
-      #     RAW = Path('data/raw')
-      #     PLAYERS_FILE = RAW / 'players.json'
-      #     VALUATIONS_FILE = RAW / 'valuations.json'
-      #     MV_API = "https://www.transfermarkt.com/ceapi/marketValueDevelopment/graph/"
-      #     HEADERS = {"User-Agent": "transfermarkt-datasets/1.0", "Accept": "application/json"}
-      #     def get_player_ids():
-      #         ids, seen = [], set()
-      #         if not PLAYERS_FILE.exists(): return ids
-      #         with open(PLAYERS_FILE, encoding='utf-8') as f:
-      #             for line in f:
-      #                 line = line.strip()
-      #                 if not line: continue
-      #                 try:
-      #                     p = json.loads(line)
-      #                     href = p.get('href', '')
-      #                     parts = href.rstrip('/').split('/')
-      #                     if 'spieler' in parts:
-      #                         pid = parts[parts.index('spieler') + 1]
-      #                         if pid and pid not in seen:
-      #                             ids.append(pid); seen.add(pid)
-      #                 except: pass
-      #         return ids
-      #     async def fetch_valuations(session, player_id, semaphore):
-      #         async with semaphore:
-      #             url = f"{MV_API}{player_id}"
-      #             try:
-      #                 async with session.get(url, headers=HEADERS, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-      #                     if resp.status == 200:
-      #                         data = await resp.json(content_type=None)
-      #                         values = data.get('list', [])
-      #                         return player_id, values
-      #             except: pass
-      #             return player_id, []
-      #     async def main():
-      #         player_ids = get_player_ids()
-      #         print(f"Valuations ophalen voor {len(player_ids)} spelers...")
-      #         semaphore = asyncio.Semaphore(10)
-      #         all_vals = []
-      #         async with aiohttp.ClientSession() as session:
-      #             tasks = [fetch_valuations(session, pid, semaphore) for pid in player_ids]
-      #             done = 0
-      #             for coro in asyncio.as_completed(tasks):
-      #                 pid, values = await coro
-      #                 for v in values:
-      #                     v['player_id'] = pid
-      #                     all_vals.append(v)
-      #                 done += 1
-      #                 if done % 500 == 0:
-      #                     print(f"  {done}/{len(player_ids)} verwerkt, {len(all_vals)} waardes")
-      #         print(f"Klaar: {len(all_vals)} marktwaarden gevonden")
-      #         with open(VALUATIONS_FILE, 'w', encoding='utf-8') as f:
-      #             for v in all_vals:
-      #                 f.write(json.dumps(v) + '\n')
-      #     asyncio.run(main())
-      #     PYEOF
-      #     echo "Valuations: $(wc -l < $GITHUB_WORKSPACE/data/raw/valuations.json 2>/dev/null || echo 0)"
+      - name: Stap 2d - Historische marktwaarden ophalen via API
+        timeout-minutes: 30
+        continue-on-error: true
+        run: |
+          python3 << 'PYEOF'
+          import json, asyncio, aiohttp
+          from pathlib import Path
+          RAW = Path('data/raw')
+          PLAYERS_FILE = RAW / 'players.json'
+          VALUATIONS_FILE = RAW / 'valuations.json'
+          MV_API = "https://www.transfermarkt.com/ceapi/marketValueDevelopment/graph/"
+          HEADERS = {"User-Agent": "transfermarkt-datasets/1.0", "Accept": "application/json"}
+          def get_player_ids():
+              ids, seen = [], set()
+              if not PLAYERS_FILE.exists(): return ids
+              with open(PLAYERS_FILE, encoding='utf-8') as f:
+                  for line in f:
+                      line = line.strip()
+                      if not line: continue
+                      try:
+                          p = json.loads(line)
+                          href = p.get('href', '')
+                          parts = href.rstrip('/').split('/')
+                          if 'spieler' in parts:
+                              pid = parts[parts.index('spieler') + 1]
+                              if pid and pid not in seen:
+                                  ids.append(pid); seen.add(pid)
+                      except: pass
+              return ids
+          async def fetch_valuations(session, player_id, semaphore):
+              async with semaphore:
+                  url = f"{MV_API}{player_id}"
+                  try:
+                      async with session.get(url, headers=HEADERS, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                          if resp.status == 200:
+                              data = await resp.json(content_type=None)
+                              values = data.get('list', [])
+                              return player_id, values
+                  except: pass
+                  return player_id, []
+          async def main():
+              player_ids = get_player_ids()
+              print(f"Valuations ophalen voor {len(player_ids)} spelers...")
+              semaphore = asyncio.Semaphore(10)
+              all_vals = []
+              async with aiohttp.ClientSession() as session:
+                  tasks = [fetch_valuations(session, pid, semaphore) for pid in player_ids]
+                  done = 0
+                  for coro in asyncio.as_completed(tasks):
+                      pid, values = await coro
+                      for v in values:
+                          v['player_id'] = pid
+                          all_vals.append(v)
+                      done += 1
+                      if done % 500 == 0:
+                          print(f"  {done}/{len(player_ids)} verwerkt, {len(all_vals)} waardes")
+              print(f"Klaar: {len(all_vals)} marktwaarden gevonden")
+              with open(VALUATIONS_FILE, 'w', encoding='utf-8') as f:
+                  for v in all_vals:
+                      f.write(json.dumps(v) + '\n')
+          asyncio.run(main())
+          PYEOF
+          echo "Valuations: $(wc -l < $GITHUB_WORKSPACE/data/raw/valuations.json 2>/dev/null || echo 0)"
 
-      # - name: Stap 3 - Optredens scrapen
-      #   timeout-minutes: 120
-      #   continue-on-error: true
-      #   run: |
-      #     cd /tmp/scraper
-      #     for SEASON in 2024 2025; do
-      #       echo "=== Optredens seizoen $SEASON ==="
-      #       python -m tfmkt appearances \
-      #         -p $GITHUB_WORKSPACE/data/raw/players.json \
-      #         -s $SEASON \
-      #         >> $GITHUB_WORKSPACE/data/raw/appearances.json || true
-      #     done
-      #     echo "Optredens nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/appearances.json)"
+      - name: Stap 3 - Optredens scrapen
+        timeout-minutes: 120
+        continue-on-error: true
+        run: |
+          cd /tmp/scraper
+          for SEASON in 2024 2025; do
+            echo "=== Optredens seizoen $SEASON ==="
+            python -m tfmkt appearances \
+              -p $GITHUB_WORKSPACE/data/raw/players.json \
+              -s $SEASON \
+              >> $GITHUB_WORKSPACE/data/raw/appearances.json || true
+          done
+          echo "Optredens nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/appearances.json)"
 
       - name: Stap 4 - Wedstrijden scrapen
         timeout-minutes: 60
