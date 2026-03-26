@@ -1,13 +1,12 @@
-{"type": "competition", "country_name": "Netherlands", "country_code": "NL2", "competition_type": "first_tier", "href": "/eerste-divisie/startseite/wettbewerb/NL2"}
-{"type": "competition", "country_name": "Belgium", "country_code": "BE1", "competition_type": "first_tier", "href": "/jupiler-pro-league/startseite/wettbewerb/BE1"}
-{"type": "competition", "country_name": "Belgium", "country_code": "BE2", "competition_type": "first_tier", "href": "/challenger-pro-league/startseite/wettbewerb/BE2"}
-{"type": "competition", "country_name": "Portugal", "country_code": "PO1", "competition_type": "first_tier", "href": "/liga-portugal-bwin/startseite/wettbewerb/PO1"}
-{"type": "competition", "country_name": "Portugal", "country_code": "PO2", "competition_type": "first_tier", "href": "/liga-portugal-sabseg/startseite/wettbewerb/PO2"}
-{"type": "competition", "country_name": "Turkey", "country_code": "TR1", "competition_type": "first_tier", "href": "/super-lig/startseite/wettbewerb/TR1"}
-{"type": "competition", "country_name": "Turkey", "country_code": "TR2", "competition_type": "first_tier", "href": "/tff-1-lig/startseite/wettbewerb/TR2"}
-{"type": "competition", "country_name": "Greece", "country_code": "GR1", "competition_type": "first_tier", "href": "/super-league-1/startseite/wettbewerb/GR1"}
-{"type": "competition", "country_name": "Greece", "country_code": "GR2", "competition_type": "first_tier", "href": "/super-league-2/startseite/wettbewerb/GR2"}
-{"type": "competition", "country_name": "Austria", "country_code": "A1", "competition_type": "first_tier", "href": "/bundesliga/startseite/wettbewerb/A1"}
-{"type": "competition", "country_name": "Austria", "country_code": "A2", "competition_type": "first_tier", "href": "/2-liga/startseite/wettbewerb/A2"}
-{"type": "competition", "country_name": "Switzerland", "country_code": "C1", "competition_type": "first_tier", "href": "/super-league/startseite/wettbewerb/C1"}
-{"type": "competition", "country_name": "Switzerland", "country_code": "C2", "competition_type": "first_tier", "href": "/challenge-league/startseite/wettbewerb/C2"}
+{"type": "competition", "country_name": "Ukraine", "country_code": "UKR1", "competition_type": "first_tier", "href": "/premier-liga/startseite/wettbewerb/UKR1"}
+{"type": "competition", "country_name": "Poland", "country_code": "PL1", "competition_type": "first_tier", "href": "/ekstraklasa/startseite/wettbewerb/PL1"}
+{"type": "competition", "country_name": "Poland", "country_code": "PL2", "competition_type": "first_tier", "href": "/i-liga/startseite/wettbewerb/PL2"}
+{"type": "competition", "country_name": "Romania", "country_code": "RO1", "competition_type": "first_tier", "href": "/superliga/startseite/wettbewerb/RO1"}
+{"type": "competition", "country_name": "Romania", "country_code": "RO2", "competition_type": "first_tier", "href": "/liga-ii/startseite/wettbewerb/RO2"}
+{"type": "competition", "country_name": "Czech Republic", "country_code": "TS1", "competition_type": "first_tier", "href": "/fortuna-liga/startseite/wettbewerb/TS1"}
+{"type": "competition", "country_name": "Czech Republic", "country_code": "TS2", "competition_type": "first_tier", "href": "/fnl/startseite/wettbewerb/TS2"}
+{"type": "competition", "country_name": "Hungary", "country_code": "UNG1", "competition_type": "first_tier", "href": "/nb-i/startseite/wettbewerb/UNG1"}
+{"type": "competition", "country_name": "Hungary", "country_code": "UNG2", "competition_type": "first_tier", "href": "/nb-ii/startseite/wettbewerb/UNG2"}
+{"type": "competition", "country_name": "Serbia", "country_code": "SER1", "competition_type": "first_tier", "href": "/superliga/startseite/wettbewerb/SER1"}
+{"type": "competition", "country_name": "Serbia", "country_code": "SER2", "competition_type": "first_tier", "href": "/prva-liga/startseite/wettbewerb/SER2"}
+{"type": "competition", "country_name": "Slovakia", "country_code": "SLO1", "competition_type": "first_tier", "href": "/nike-liga/startseite/wettbewerb/SLO1"}
