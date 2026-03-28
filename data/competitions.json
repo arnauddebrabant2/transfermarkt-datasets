@@ -1,14 +1,10 @@
-{"type": "competition", "country_name": "Finland", "country_code": "FI1", "competition_type": "first_tier", "href": "/veikkausliiga/startseite/wettbewerb/FI1"}
-{"type": "competition", "country_name": "Iceland", "country_code": "IS1", "competition_type": "first_tier", "href": "/urvalsdeild/startseite/wettbewerb/IS1"}
-{"type": "competition", "country_name": "Ireland", "country_code": "IR1", "competition_type": "first_tier", "href": "/league-of-ireland-premier-division/startseite/wettbewerb/IR1"}
-{"type": "competition", "country_name": "Northern Ireland", "country_code": "NIR1", "competition_type": "first_tier", "href": "/nifl-premiership/startseite/wettbewerb/NIR1"}
-{"type": "competition", "country_name": "Wales", "country_code": "WAL1", "competition_type": "first_tier", "href": "/cymru-premier/startseite/wettbewerb/WAL1"}
-{"type": "competition", "country_name": "Georgia", "country_code": "GEO1", "competition_type": "first_tier", "href": "/erovnuli-liga/startseite/wettbewerb/GEO1"}
-{"type": "competition", "country_name": "Azerbaijan", "country_code": "AZE1", "competition_type": "first_tier", "href": "/premyer-liqa/startseite/wettbewerb/AZE1"}
-{"type": "competition", "country_name": "Armenia", "country_code": "ARM1", "competition_type": "first_tier", "href": "/armenian-premier-league/startseite/wettbewerb/ARM1"}
-{"type": "competition", "country_name": "Kazakhstan", "country_code": "KAS1", "competition_type": "first_tier", "href": "/premier-liga/startseite/wettbewerb/KAS1"}
-{"type": "competition", "country_name": "Belarus", "country_code": "WER1", "competition_type": "first_tier", "href": "/vysheyshaya-liga/startseite/wettbewerb/WER1"}
-{"type": "competition", "country_name": "Moldova", "country_code": "MOL1", "competition_type": "first_tier", "href": "/divizia-nationala/startseite/wettbewerb/MOL1"}
+{"type": "competition", "country_name": "Bulgaria", "country_code": "BUL1", "competition_type": "first_tier", "href": "/parva-liga/startseite/wettbewerb/BUL1"}
+{"type": "competition", "country_name": "Kosovo", "country_code": "KOS1", "competition_type": "first_tier", "href": "/superliga/startseite/wettbewerb/KOS1"}
+{"type": "competition", "country_name": "Israel", "country_code": "ISR1", "competition_type": "first_tier", "href": "/ligat-haal/startseite/wettbewerb/ISR1"}
+{"type": "competition", "country_name": "Cyprus", "country_code": "ZYP1", "competition_type": "first_tier", "href": "/1-division/startseite/wettbewerb/ZYP1"}
+{"type": "competition", "country_name": "Luxembourg", "country_code": "LUX1", "competition_type": "first_tier", "href": "/bgl-ligue/startseite/wettbewerb/LUX1"}
+{"type": "competition", "country_name": "Malta", "country_code": "MLT1", "competition_type": "first_tier", "href": "/premier-league/startseite/wettbewerb/MLT1"}
+{"type": "competition", "country_name": "Faroe Islands", "country_code": "FRO1", "competition_type": "first_tier", "href": "/faroese-premier-league/startseite/wettbewerb/FRO1"}
 {"type": "competition", "country_name": "Lithuania", "country_code": "LIT1", "competition_type": "first_tier", "href": "/a-lyga/startseite/wettbewerb/LIT1"}
 {"type": "competition", "country_name": "Latvia", "country_code": "LV1", "competition_type": "first_tier", "href": "/virsliga/startseite/wettbewerb/LV1"}
 {"type": "competition", "country_name": "Estonia", "country_code": "EST1", "competition_type": "first_tier", "href": "/meistriliiga/startseite/wettbewerb/EST1"}
