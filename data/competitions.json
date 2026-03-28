@@ -1,12 +1,14 @@
-{"type": "competition", "country_name": "Ukraine", "country_code": "UKR1", "competition_type": "first_tier", "href": "/premier-liga/startseite/wettbewerb/UKR1"}
-{"type": "competition", "country_name": "Poland", "country_code": "PL1", "competition_type": "first_tier", "href": "/ekstraklasa/startseite/wettbewerb/PL1"}
-{"type": "competition", "country_name": "Poland", "country_code": "PL2", "competition_type": "first_tier", "href": "/i-liga/startseite/wettbewerb/PL2"}
-{"type": "competition", "country_name": "Romania", "country_code": "RO1", "competition_type": "first_tier", "href": "/superliga/startseite/wettbewerb/RO1"}
-{"type": "competition", "country_name": "Romania", "country_code": "RO2", "competition_type": "first_tier", "href": "/liga-ii/startseite/wettbewerb/RO2"}
-{"type": "competition", "country_name": "Czech Republic", "country_code": "TS1", "competition_type": "first_tier", "href": "/fortuna-liga/startseite/wettbewerb/TS1"}
-{"type": "competition", "country_name": "Czech Republic", "country_code": "TS2", "competition_type": "first_tier", "href": "/fnl/startseite/wettbewerb/TS2"}
-{"type": "competition", "country_name": "Hungary", "country_code": "UNG1", "competition_type": "first_tier", "href": "/nb-i/startseite/wettbewerb/UNG1"}
-{"type": "competition", "country_name": "Hungary", "country_code": "UNG2", "competition_type": "first_tier", "href": "/nb-ii/startseite/wettbewerb/UNG2"}
-{"type": "competition", "country_name": "Serbia", "country_code": "SER1", "competition_type": "first_tier", "href": "/superliga/startseite/wettbewerb/SER1"}
-{"type": "competition", "country_name": "Serbia", "country_code": "SER2", "competition_type": "first_tier", "href": "/prva-liga/startseite/wettbewerb/SER2"}
-{"type": "competition", "country_name": "Slovakia", "country_code": "SLO1", "competition_type": "first_tier", "href": "/nike-liga/startseite/wettbewerb/SLO1"}
+{"type": "competition", "country_name": "Scotland", "country_code": "SC1", "competition_type": "first_tier", "href": "/scottish-premiership/startseite/wettbewerb/SC1"}
+{"type": "competition", "country_name": "Scotland", "country_code": "SC2", "competition_type": "first_tier", "href": "/scottish-championship/startseite/wettbewerb/SC2"}
+{"type": "competition", "country_name": "Denmark", "country_code": "DK1", "competition_type": "first_tier", "href": "/superligaen/startseite/wettbewerb/DK1"}
+{"type": "competition", "country_name": "Denmark", "country_code": "DK2", "competition_type": "first_tier", "href": "/1-division/startseite/wettbewerb/DK2"}
+{"type": "competition", "country_name": "Sweden", "country_code": "SE1", "competition_type": "first_tier", "href": "/allsvenskan/startseite/wettbewerb/SE1"}
+{"type": "competition", "country_name": "Sweden", "country_code": "SE2", "competition_type": "first_tier", "href": "/superettan/startseite/wettbewerb/SE2"}
+{"type": "competition", "country_name": "Norway", "country_code": "NO1", "competition_type": "first_tier", "href": "/eliteserien/startseite/wettbewerb/NO1"}
+{"type": "competition", "country_name": "Norway", "country_code": "NO2", "competition_type": "first_tier", "href": "/obos-ligaen/startseite/wettbewerb/NO2"}
+{"type": "competition", "country_name": "Croatia", "country_code": "KR1", "competition_type": "first_tier", "href": "/hnl/startseite/wettbewerb/KR1"}
+{"type": "competition", "country_name": "Slovenia", "country_code": "SLN1", "competition_type": "first_tier", "href": "/prva-liga/startseite/wettbewerb/SLN1"}
+{"type": "competition", "country_name": "Albania", "country_code": "ALB1", "competition_type": "first_tier", "href": "/kategoria-superiore/startseite/wettbewerb/ALB1"}
+{"type": "competition", "country_name": "Bosnia-Herzegovina", "country_code": "BOS1", "competition_type": "first_tier", "href": "/premijer-liga/startseite/wettbewerb/BOS1"}
+{"type": "competition", "country_name": "North Macedonia", "country_code": "MKD1", "competition_type": "first_tier", "href": "/prva-fudbalska-liga/startseite/wettbewerb/MKD1"}
+{"type": "competition", "country_name": "Montenegro", "country_code": "MNE1", "competition_type": "first_tier", "href": "/prva-crnogorska-liga/startseite/wettbewerb/MNE1"}
