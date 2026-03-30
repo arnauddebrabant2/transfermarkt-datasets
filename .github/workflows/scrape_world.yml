@@ -60,7 +60,7 @@ jobs:
                           return r
                       if r.status_code == 403:
                           wait = 60 * (i + 1)
-                          print(f"  403 — wacht {wait}s...")
+                          print(f"  403 - wacht {wait}s...")
                           time.sleep(wait)
                       else:
                           time.sleep(3)
@@ -74,9 +74,9 @@ jobs:
               s = str(name).strip()
               try: s = s.encode('latin-1').decode('utf-8')
               except: pass
-              for bad, good in [('Ã¼','ü'),('Ã¶','ö'),('Ã¤','ä'),
-                                 ('Ã©','é'),('Ã ','à'),('Ã§','ç'),('Ã±','n'),
-                                 ("â€™","'"),("â€"","–")]:
+              for bad, good in [('\u00c3\u00bc','\u00fc'),('\u00c3\u00b6','\u00f6'),('\u00c3\u00a4','\u00e4'),
+                                 ('\u00c3\u00a9','\u00e9'),('\u00c3\u00a0','\u00e0'),('\u00c3\u00a7','\u00e7'),('\u00c3\u00b1','n'),
+                                 ("\u00e2\u0080\u0099","'"),("\u00e2\u0080\u0093","-")]:
                   s = s.replace(bad, good)
               for suffix in [r'\s+Fussball$',r'\s+Football\s+Club$',
                               r'\s+Football\s+Club\b',r'\s+e\.V\.$',r'\s+a\.s\.$']:
@@ -112,7 +112,7 @@ jobs:
                       img = row.find('img', class_=re.compile('flagge|flag'))
                       if img:
                           country = img.get('title','') or img.get('alt','')
-                          # Haal country_id uit src bv /images/flagge/verysmall/40.png → 40
+                          # Haal country_id uit src
                           src = img.get('src','')
                           cm = re.search(r'/(\d+)\.(?:png|jpg|gif)', src)
                           if cm: country_id = cm.group(1)
@@ -202,7 +202,7 @@ jobs:
                           return r
                       if r.status_code == 403:
                           wait = 60 * (i + 1)
-                          print(f"  403 — wacht {wait}s...")
+                          print(f"  403 - wacht {wait}s...")
                           time.sleep(wait)
                       else:
                           time.sleep(3)
@@ -216,9 +216,9 @@ jobs:
               s = str(name).strip()
               try: s = s.encode('latin-1').decode('utf-8')
               except: pass
-              for bad, good in [('Ã¼','ü'),('Ã¶','ö'),('Ã¤','ä'),
-                                 ('Ã©','é'),('Ã ','à'),('Ã§','ç'),('Ã±','n'),
-                                 ("â€™","'"),("â€"","–")]:
+              for bad, good in [('\u00c3\u00bc','\u00fc'),('\u00c3\u00b6','\u00f6'),('\u00c3\u00a4','\u00e4'),
+                                 ('\u00c3\u00a9','\u00e9'),('\u00c3\u00a0','\u00e0'),('\u00c3\u00a7','\u00e7'),('\u00c3\u00b1','n'),
+                                 ("\u00e2\u0080\u0099","'"),("\u00e2\u0080\u0093","-")]:
                   s = s.replace(bad, good)
               for suffix in [r'\s+Fussball$',r'\s+Football\s+Club$',
                               r'\s+Football\s+Club\b',r'\s+e\.V\.$',r'\s+a\.s\.$']:
@@ -265,7 +265,7 @@ jobs:
 
               r = get(comp_url)
               if not r:
-                  print("❌")
+                  print("SKIP")
                   continue
 
               soup = BeautifulSoup(r.text, 'html.parser')
@@ -306,7 +306,7 @@ jobs:
                                   squad_size = txt
                               if re.match(r'^[\d]+[,.][\d]+$', txt) and float(txt.replace(',','.')) < 40:
                                   avg_age = txt
-                              if re.match(r'^[€£]?\d+[\.,]\d+[mkMK]?$', txt):
+                              if re.match(r'^[??]?\d+[\.,]\d+[mkMK]?$', txt):
                                   market_val = txt
 
                           clubs[club_id] = {
@@ -336,7 +336,7 @@ jobs:
                       w.writeheader()
                       for row in clubs.values():
                           w.writerow({k: row.get(k,'') for k in CLUB_FIELDS})
-                  print(f"  💾 Opgeslagen: {len(clubs)} clubs")
+                  print(f"  [SAVE] Opgeslagen: {len(clubs)} clubs")
 
               time.sleep(1.2 + random.uniform(0, 0.8))
 
@@ -354,14 +354,14 @@ jobs:
           git config user.name "ScoutAI Bot"
           git config user.email "actions@users.noreply.github.com"
 
-          # competitions_new.csv → competitions.csv.gz
+          # competitions_new.csv -> competitions.csv.gz
           if [ -f data/csv/competitions_new.csv ]; then
             gzip -c data/csv/competitions_new.csv > data/csv/competitions.csv.gz
             rm data/csv/competitions_new.csv
             echo "competitions.csv.gz: $(wc -c < data/csv/competitions.csv.gz) bytes"
           fi
 
-          # clubs2.csv → clubs2.csv.gz
+          # clubs2.csv -> clubs2.csv.gz
           if [ -f data/csv/clubs2.csv ]; then
             gzip -f data/csv/clubs2.csv
             echo "clubs2.csv.gz: $(wc -c < data/csv/clubs2.csv.gz) bytes"
