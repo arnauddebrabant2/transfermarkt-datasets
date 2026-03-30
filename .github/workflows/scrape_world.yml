@@ -1,4 +1,4 @@
-name: Scrape World - Alle Competities en Clubs
+name: Scrape World Full - Alle Divisies en Clubs
 
 on:
   workflow_dispatch:
@@ -23,31 +23,94 @@ jobs:
       - name: Maak output map aan
         run: mkdir -p data/csv
 
-      - name: Stap 1 - Alle competities scrapen
+      - name: Stap 1 - Alle competities per land scrapen
         run: |
           python3 << 'PYEOF'
-          import requests, csv, time, re, random
+          import requests, csv, time, re, random, json
           from pathlib import Path
           from bs4 import BeautifulSoup
 
           DATA = Path('data/csv')
           BASE = 'https://www.transfermarkt.co.uk'
           HEADERS = {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
               'Accept-Language': 'en-GB,en;q=0.9',
               'Accept': 'text/html,application/xhtml+xml',
               'Referer': 'https://www.transfermarkt.co.uk/',
           }
 
-          # Continent IDs en namen
-          CONTINENTS = [
-              ('EUR', 'Europe',        f'{BASE}/wettbewerbe/europa'),
-              ('AME', 'Americas',      f'{BASE}/wettbewerbe/amerika'),
-              ('ASI', 'Asia',          f'{BASE}/wettbewerbe/asien'),
-              ('AFR', 'Africa',        f'{BASE}/wettbewerbe/afrika'),
-              ('OCE', 'Oceania',       f'{BASE}/wettbewerbe/ozeanien'),
-              ('INT', 'International', f'{BASE}/wettbewerbe/international'),
-          ]
+          COUNTRIES = {
+              'L':'Germany','GB':'England','ES':'Spain','IT':'Italy','FR':'France',
+              'NL':'Netherlands','BE':'Belgium','PO':'Portugal','TR':'Turkey',
+              'GR':'Greece','A':'Austria','RU':'Russia','UKR':'Ukraine','PL':'Poland',
+              'RO':'Romania','TS':'Switzerland','UNG':'Hungary','SER':'Serbia',
+              'SLO':'Slovenia','SC':'Scotland','DK':'Denmark','SE':'Sweden',
+              'NO':'Norway','KR':'Croatia','SLN':'Slovakia','ALB':'Albania',
+              'BOS':'Bosnia-Herzegovina','MKD':'North Macedonia','MNE':'Montenegro',
+              'FI':'Finland','IS':'Iceland','NIR':'Northern Ireland','IR':'Ireland',
+              'WAL':'Wales','GEO':'Georgia','AZE':'Azerbaijan','ARM':'Armenia',
+              'KAS':'Kazakhstan','WER':'Belarus','MOL':'Moldova','LIT':'Lithuania',
+              'LV':'Latvia','EST':'Estonia','BUL':'Bulgaria','KOS':'Kosovo',
+              'ISR':'Israel','ZYP':'Cyprus','LUX':'Luxembourg','MLT':'Malta',
+              'AND':'Andorra','FRO':'Faroe Islands','LIE':'Liechtenstein',
+              'SMR':'San Marino','GIB':'Gibraltar',
+              'MLS':'USA','MEX':'Mexico','BRA':'Brazil','ARG':'Argentina',
+              'COL':'Colombia','CHI':'Chile','PER':'Peru','ECU':'Ecuador',
+              'URU':'Uruguay','PAR':'Paraguay','BOL':'Bolivia','VEN':'Venezuela',
+              'CRC':'Costa Rica','HON':'Honduras','GUA':'Guatemala','PAN':'Panama',
+              'JAM':'Jamaica','TTO':'Trinidad and Tobago','CAN':'Canada',
+              'DOM':'Dominican Republic',
+              'JAP':'Japan','KOR':'South Korea','CHN':'China','IND':'India',
+              'SAU':'Saudi Arabia','UAE':'United Arab Emirates','QAT':'Qatar',
+              'IRN':'Iran','IRQ':'Iraq','JOR':'Jordan','KUW':'Kuwait',
+              'BHR':'Bahrain','OMA':'Oman','THA':'Thailand','VIE':'Vietnam',
+              'MAL':'Malaysia','IDN':'Indonesia','PHI':'Philippines',
+              'KGZ':'Kyrgyzstan','TJK':'Tajikistan','TKM':'Turkmenistan',
+              'UZB':'Uzbekistan','MNG':'Mongolia',
+              'EGY':'Egypt','MAR':'Morocco','TUN':'Tunisia','ALG':'Algeria',
+              'RSA':'South Africa','NGA':'Nigeria','GHA':'Ghana','CMR':'Cameroon',
+              'SEN':'Senegal','CIV':'Ivory Coast','MLI':'Mali','ZIM':'Zimbabwe',
+              'ZAM':'Zambia','KEN':'Kenya','TAN':'Tanzania','UGA':'Uganda',
+              'ETH':'Ethiopia','ANG':'Angola','MOZ':'Mozambique','RWA':'Rwanda',
+              'AUS':'Australia','NZL':'New Zealand',
+          }
+
+          CONTINENT_MAP = {
+              'Germany':'EUR','England':'EUR','Spain':'EUR','Italy':'EUR',
+              'France':'EUR','Netherlands':'EUR','Belgium':'EUR','Portugal':'EUR',
+              'Turkey':'EUR','Greece':'EUR','Austria':'EUR','Russia':'EUR',
+              'Ukraine':'EUR','Poland':'EUR','Romania':'EUR','Switzerland':'EUR',
+              'Hungary':'EUR','Serbia':'EUR','Slovenia':'EUR','Scotland':'EUR',
+              'Denmark':'EUR','Sweden':'EUR','Norway':'EUR','Croatia':'EUR',
+              'Slovakia':'EUR','Albania':'EUR','Bosnia-Herzegovina':'EUR',
+              'North Macedonia':'EUR','Montenegro':'EUR','Finland':'EUR',
+              'Iceland':'EUR','Northern Ireland':'EUR','Ireland':'EUR',
+              'Wales':'EUR','Georgia':'EUR','Azerbaijan':'EUR','Armenia':'EUR',
+              'Kazakhstan':'EUR','Belarus':'EUR','Moldova':'EUR','Lithuania':'EUR',
+              'Latvia':'EUR','Estonia':'EUR','Bulgaria':'EUR','Kosovo':'EUR',
+              'Israel':'EUR','Cyprus':'EUR','Luxembourg':'EUR','Malta':'EUR',
+              'Andorra':'EUR','Faroe Islands':'EUR','Liechtenstein':'EUR',
+              'San Marino':'EUR','Gibraltar':'EUR',
+              'USA':'AME','Mexico':'AME','Brazil':'AME','Argentina':'AME',
+              'Colombia':'AME','Chile':'AME','Peru':'AME','Ecuador':'AME',
+              'Uruguay':'AME','Paraguay':'AME','Bolivia':'AME','Venezuela':'AME',
+              'Costa Rica':'AME','Honduras':'AME','Guatemala':'AME','Panama':'AME',
+              'Jamaica':'AME','Trinidad and Tobago':'AME','Canada':'AME',
+              'Dominican Republic':'AME',
+              'Japan':'ASI','South Korea':'ASI','China':'ASI','India':'ASI',
+              'Saudi Arabia':'ASI','United Arab Emirates':'ASI','Qatar':'ASI',
+              'Iran':'ASI','Iraq':'ASI','Jordan':'ASI','Kuwait':'ASI',
+              'Bahrain':'ASI','Oman':'ASI','Thailand':'ASI','Vietnam':'ASI',
+              'Malaysia':'ASI','Indonesia':'ASI','Philippines':'ASI',
+              'Kyrgyzstan':'ASI','Tajikistan':'ASI','Turkmenistan':'ASI',
+              'Uzbekistan':'ASI','Mongolia':'ASI',
+              'Egypt':'AFR','Morocco':'AFR','Tunisia':'AFR','Algeria':'AFR',
+              'South Africa':'AFR','Nigeria':'AFR','Ghana':'AFR','Cameroon':'AFR',
+              'Senegal':'AFR','Ivory Coast':'AFR','Mali':'AFR','Zimbabwe':'AFR',
+              'Zambia':'AFR','Kenya':'AFR','Tanzania':'AFR','Uganda':'AFR',
+              'Ethiopia':'AFR','Angola':'AFR','Mozambique':'AFR','Rwanda':'AFR',
+              'Australia':'OCE','New Zealand':'OCE',
+          }
 
           session = requests.Session()
           session.headers.update(HEADERS)
@@ -60,12 +123,12 @@ jobs:
                           return r
                       if r.status_code == 403:
                           wait = 60 * (i + 1)
-                          print(f"  403 - wacht {wait}s...")
+                          print(f'  403 - wacht {wait}s...')
                           time.sleep(wait)
                       else:
                           time.sleep(3)
                   except Exception as e:
-                      print(f"  Fout: {e}")
+                      print(f'  Fout: {e}')
                       time.sleep(5)
               return None
 
@@ -74,96 +137,74 @@ jobs:
               s = str(name).strip()
               try: s = s.encode('latin-1').decode('utf-8')
               except: pass
-              for bad, good in [('\u00c3\u00bc','\u00fc'),('\u00c3\u00b6','\u00f6'),('\u00c3\u00a4','\u00e4'),
-                                 ('\u00c3\u00a9','\u00e9'),('\u00c3\u00a0','\u00e0'),('\u00c3\u00a7','\u00e7'),('\u00c3\u00b1','n'),
-                                 ("\u00e2\u0080\u0099","'"),("\u00e2\u0080\u0093","-")]:
+              for bad, good in [
+                  ('\u00c3\u00bc','\u00fc'),('\u00c3\u00b6','\u00f6'),
+                  ('\u00c3\u00a4','\u00e4'),('\u00c3\u00a9','\u00e9'),
+                  ('\u00c3\u00a0','\u00e0'),('\u00c3\u00a7','\u00e7'),
+                  ('\u00c3\u00b1','n'),('\u00e2\u0080\u0099',"'"),
+                  ('\u00e2\u0080\u0093','-'),
+              ]:
                   s = s.replace(bad, good)
-              for suffix in [r'\s+Fussball$',r'\s+Football\s+Club$',
-                              r'\s+Football\s+Club\b',r'\s+e\.V\.$',r'\s+a\.s\.$']:
+              for suffix in [
+                  r'\s+Fussball$', r'\s+Football\s+Club$',
+                  r'\s+Football\s+Club\b', r'\s+e\.V\.$', r'\s+a\.s\.$',
+              ]:
                   s = re.sub(suffix, '', s, flags=re.IGNORECASE).strip()
               return s
 
           competitions = {}
+          total_countries = len(COUNTRIES)
 
-          for continent_id, continent_name, url in CONTINENTS:
-              print(f"\n{continent_name} ({continent_id}): {url}")
+          for idx, (country_code, country_name) in enumerate(COUNTRIES.items(), 1):
+              url = f'{BASE}/wettbewerbe/national/wettbewerbe/{country_code}'
+              continent_id = CONTINENT_MAP.get(country_name, 'INT')
+              print(f'[{idx:3d}/{total_countries}] {country_name} ({country_code})...', end=' ', flush=True)
+
               r = get(url)
               if not r:
-                  print("  Overgeslagen")
+                  print('SKIP')
                   continue
 
               soup = BeautifulSoup(r.text, 'html.parser')
               found = 0
 
-              for table in soup.find_all('table', class_=re.compile('items')):
-                  for row in table.find_all('tr'):
-                      link = row.find('a', href=re.compile(r'/startseite/wettbewerb/'))
-                      if not link: continue
-                      href = link['href']
-                      m = re.search(r'/startseite/wettbewerb/([^/?]+)', href)
-                      if not m: continue
-                      comp_id = m.group(1)
-                      name = fix_name(link.get('title','') or link.get_text(strip=True))
-                      if not name: continue
+              for a in soup.find_all('a', href=re.compile(r'/startseite/wettbewerb/')):
+                  href = a['href']
+                  m = re.search(r'/startseite/wettbewerb/([^/?]+)', href)
+                  if not m: continue
+                  comp_id = m.group(1)
+                  name = fix_name(a.get('title','') or a.get_text(strip=True))
+                  if not name or len(name) < 2: continue
 
-                      # Land + land_id uit vlag
-                      country = ''
-                      country_id = ''
-                      img = row.find('img', class_=re.compile('flagge|flag'))
-                      if img:
-                          country = img.get('title','') or img.get('alt','')
-                          # Haal country_id uit src
-                          src = img.get('src','')
-                          cm = re.search(r'/(\d+)\.(?:png|jpg|gif)', src)
-                          if cm: country_id = cm.group(1)
-
-                      # Tier
-                      tier = ''
-                      for td in row.find_all('td'):
+                  # Tier uit omliggende rij
+                  tier = ''
+                  row_el = a.find_parent('tr')
+                  if row_el:
+                      for td in row_el.find_all('td'):
                           txt = td.get_text(strip=True)
                           if re.match(r'^\d+(st|nd|rd|th)?(\s+tier)?$', txt, re.I):
                               tier = txt; break
+                      # Probeer ook tekst zoals "1st tier", "2nd tier" etc
+                      row_text = row_el.get_text()
+                      tier_m = re.search(r'(\d+)(st|nd|rd|th)\s+tier', row_text, re.I)
+                      if tier_m: tier = tier_m.group(0)
 
-                      competitions[comp_id] = {
-                          'competition_id':  comp_id,
-                          'name':            name[:80],
-                          'country':         country[:60],
-                          'country_id':      country_id,
-                          'continent':       continent_name,
-                          'continent_id':    continent_id,
-                          'tier':            tier,
-                          'url':             f"{BASE}{href}" if href.startswith('/') else href,
-                      }
-                      found += 1
+                  competitions[comp_id] = {
+                      'competition_id': comp_id,
+                      'name':           name[:80],
+                      'country':        country_name,
+                      'country_id':     country_code,
+                      'continent':      continent_id,
+                      'continent_id':   continent_id,
+                      'tier':           tier,
+                      'url':            f'{BASE}{href}' if href.startswith('/') else href,
+                  }
+                  found += 1
 
-              # Fallback
-              if found == 0:
-                  skip = {'europa','amerika','asien','afrika','ozeanien','international'}
-                  for a in soup.find_all('a', href=re.compile(r'/wettbewerb/')):
-                      href = a['href']
-                      m = re.search(r'/wettbewerb/([A-Za-z0-9_]+)', href)
-                      if not m: continue
-                      comp_id = m.group(1)
-                      if comp_id in skip: continue
-                      name = fix_name(a.get_text(strip=True))
-                      if not name or len(name) < 2: continue
-                      if comp_id not in competitions:
-                          competitions[comp_id] = {
-                              'competition_id':  comp_id,
-                              'name':            name[:80],
-                              'country':         '',
-                              'country_id':      '',
-                              'continent':       continent_name,
-                              'continent_id':    continent_id,
-                              'tier':            '',
-                              'url':             f"{BASE}{href}" if href.startswith('/') else href,
-                          }
-                          found += 1
+              print(f'+{found} (totaal {len(competitions)})')
+              time.sleep(1.0 + random.uniform(0, 0.5))
 
-              print(f"  +{found} (totaal {len(competitions)})")
-              time.sleep(1.5 + random.uniform(0, 0.5))
-
-          # Schrijf competitions.csv (wordt later gegzipt)
+          # Schrijf competitions.csv
           FIELDS = ['competition_id','name','country','country_id',
                     'continent','continent_id','tier','url']
           out = DATA / 'competitions_new.csv'
@@ -171,7 +212,7 @@ jobs:
               w = csv.DictWriter(f, fieldnames=FIELDS, extrasaction='ignore')
               w.writeheader()
               w.writerows(competitions.values())
-          print(f"\ncompetitions_new.csv: {len(competitions)} competities")
+          print(f'\ncompetitions_new.csv: {len(competitions)} competities geschreven')
           PYEOF
 
       - name: Stap 2 - Clubs per competitie scrapen
@@ -185,7 +226,7 @@ jobs:
           DATA = Path('data/csv')
           BASE = 'https://www.transfermarkt.co.uk'
           HEADERS = {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
               'Accept-Language': 'en-GB,en;q=0.9',
               'Accept': 'text/html,application/xhtml+xml',
               'Referer': 'https://www.transfermarkt.co.uk/',
@@ -202,12 +243,12 @@ jobs:
                           return r
                       if r.status_code == 403:
                           wait = 60 * (i + 1)
-                          print(f"  403 - wacht {wait}s...")
+                          print(f'  403 - wacht {wait}s...')
                           time.sleep(wait)
                       else:
                           time.sleep(3)
                   except Exception as e:
-                      print(f"  Fout: {e}")
+                      print(f'  Fout: {e}')
                       time.sleep(5)
               return None
 
@@ -216,12 +257,18 @@ jobs:
               s = str(name).strip()
               try: s = s.encode('latin-1').decode('utf-8')
               except: pass
-              for bad, good in [('\u00c3\u00bc','\u00fc'),('\u00c3\u00b6','\u00f6'),('\u00c3\u00a4','\u00e4'),
-                                 ('\u00c3\u00a9','\u00e9'),('\u00c3\u00a0','\u00e0'),('\u00c3\u00a7','\u00e7'),('\u00c3\u00b1','n'),
-                                 ("\u00e2\u0080\u0099","'"),("\u00e2\u0080\u0093","-")]:
+              for bad, good in [
+                  ('\u00c3\u00bc','\u00fc'),('\u00c3\u00b6','\u00f6'),
+                  ('\u00c3\u00a4','\u00e4'),('\u00c3\u00a9','\u00e9'),
+                  ('\u00c3\u00a0','\u00e0'),('\u00c3\u00a7','\u00e7'),
+                  ('\u00c3\u00b1','n'),('\u00e2\u0080\u0099',"'"),
+                  ('\u00e2\u0080\u0093','-'),
+              ]:
                   s = s.replace(bad, good)
-              for suffix in [r'\s+Fussball$',r'\s+Football\s+Club$',
-                              r'\s+Football\s+Club\b',r'\s+e\.V\.$',r'\s+a\.s\.$']:
+              for suffix in [
+                  r'\s+Fussball$', r'\s+Football\s+Club$',
+                  r'\s+Football\s+Club\b', r'\s+e\.V\.$', r'\s+a\.s\.$',
+              ]:
                   s = re.sub(suffix, '', s, flags=re.IGNORECASE).strip()
               return s
 
@@ -229,43 +276,41 @@ jobs:
           competitions = []
           with open(DATA / 'competitions_new.csv', encoding='utf-8') as f:
               competitions = list(csv.DictReader(f))
-          print(f"Competities: {len(competitions)}")
+          print(f'Competities om te scrapen: {len(competitions)}')
 
-          # Laad bestaande clubs2 als die al bestaat (tussentijds)
+          # Laad bestaande clubs2 (tussentijds herstel)
           clubs = {}
           club_file = DATA / 'clubs2.csv'
           if club_file.exists():
               with open(club_file, encoding='utf-8') as f:
                   for row in csv.DictReader(f):
-                      if row.get('club_id'):
-                          clubs[row['club_id']] = row
-              print(f"Bestaande clubs2: {len(clubs)}")
+                      if row.get('club_id'): clubs[row['club_id']] = row
+              print(f'Bestaande clubs2: {len(clubs)}')
 
-          CLUB_FIELDS = ['club_id','name','short_name',
-                         'domestic_competition_id','competition_name',
-                         'country','country_id',
-                         'continent','continent_id',
-                         'squad_size','average_age','total_market_value',
-                         'coach_name','url']
+          CLUB_FIELDS = [
+              'club_id','name','short_name',
+              'domestic_competition_id','competition_name',
+              'country','country_id','continent','continent_id',
+              'squad_size','average_age','total_market_value','coach_name','url',
+          ]
 
           total = len(competitions)
           for i, comp in enumerate(competitions, 1):
-              comp_id        = comp['competition_id']
-              comp_url       = comp.get('url','')
-              comp_name      = comp.get('name', comp_id)
-              country        = comp.get('country','')
-              country_id     = comp.get('country_id','')
-              continent      = comp.get('continent','')
-              continent_id   = comp.get('continent_id','')
+              comp_id      = comp['competition_id']
+              comp_url     = comp.get('url','')
+              comp_name    = comp.get('name', comp_id)
+              country      = comp.get('country','')
+              country_id   = comp.get('country_id','')
+              continent    = comp.get('continent','')
+              continent_id = comp.get('continent_id','')
 
-              if not comp_url:
-                  continue
+              if not comp_url: continue
 
-              print(f"[{i:4d}/{total}] {comp_id:12s} {comp_name[:38]:38s}", end=' ', flush=True)
+              print(f'[{i:4d}/{total}] {comp_id:12s} {comp_name[:38]:38s}', end=' ', flush=True)
 
               r = get(comp_url)
               if not r:
-                  print("SKIP")
+                  print('SKIP')
                   continue
 
               soup = BeautifulSoup(r.text, 'html.parser')
@@ -281,10 +326,9 @@ jobs:
 
                           full_name  = fix_name(a.get('title','') or a.get_text(strip=True))
                           short_name = fix_name(a.get_text(strip=True))
-                          if short_name == full_name:
-                              short_name = ''
+                          if short_name == full_name: short_name = ''
 
-                          # Kortere span tekst als short_name
+                          # Kortere span als short_name
                           td = a.find_parent('td')
                           if td:
                               for span in td.find_all('span'):
@@ -295,48 +339,51 @@ jobs:
 
                           if not full_name or len(full_name) < 2: continue
 
-                          # Squad size + marktwaarde uit rij
+                          # Squad size, leeftijd, marktwaarde uit rij
                           cells = row.find_all('td')
                           squad_size = ''
-                          market_val = ''
                           avg_age    = ''
+                          market_val = ''
                           for td in cells:
                               txt = td.get_text(strip=True)
                               if re.match(r'^\d+$', txt) and 5 <= int(txt) <= 60:
                                   squad_size = txt
-                              if re.match(r'^[\d]+[,.][\d]+$', txt) and float(txt.replace(',','.')) < 40:
-                                  avg_age = txt
-                              if re.match(r'^[??]?\d+[\.,]\d+[mkMK]?$', txt):
+                              if re.match(r'^\d+[,.]\d$', txt):
+                                  try:
+                                      v = float(txt.replace(',','.'))
+                                      if 15 < v < 40: avg_age = txt
+                                  except: pass
+                              if re.match(r'^\d+[.,]\d+[mkMK]?$', txt):
                                   market_val = txt
 
                           clubs[club_id] = {
-                              'club_id':                  club_id,
-                              'name':                     full_name,
-                              'short_name':               short_name,
-                              'domestic_competition_id':  comp_id,
-                              'competition_name':         comp_name,
-                              'country':                  country,
-                              'country_id':               country_id,
-                              'continent':                continent,
-                              'continent_id':             continent_id,
-                              'squad_size':               squad_size,
-                              'average_age':              avg_age,
-                              'total_market_value':       market_val,
-                              'coach_name':               '',
-                              'url': f"{BASE}{href}" if href.startswith('/') else href,
+                              'club_id':                 club_id,
+                              'name':                    full_name,
+                              'short_name':              short_name,
+                              'domestic_competition_id': comp_id,
+                              'competition_name':        comp_name,
+                              'country':                 country,
+                              'country_id':              country_id,
+                              'continent':               continent,
+                              'continent_id':            continent_id,
+                              'squad_size':              squad_size,
+                              'average_age':             avg_age,
+                              'total_market_value':      market_val,
+                              'coach_name':              '',
+                              'url': f'{BASE}{href}' if href.startswith('/') else href,
                           }
                           found += 1
 
-              print(f"+{found} (totaal {len(clubs)})")
+              print(f'+{found} (totaal {len(clubs)})')
 
-              # Tussentijds opslaan elke 100 competities
-              if i % 100 == 0:
+              # Tussentijds opslaan elke 50 competities
+              if i % 50 == 0:
                   with open(club_file, 'w', newline='', encoding='utf-8') as f:
                       w = csv.DictWriter(f, fieldnames=CLUB_FIELDS, extrasaction='ignore')
                       w.writeheader()
                       for row in clubs.values():
                           w.writerow({k: row.get(k,'') for k in CLUB_FIELDS})
-                  print(f"  [SAVE] Opgeslagen: {len(clubs)} clubs")
+                  print(f'  [SAVE] {len(clubs)} clubs opgeslagen')
 
               time.sleep(1.2 + random.uniform(0, 0.8))
 
@@ -346,7 +393,7 @@ jobs:
               w.writeheader()
               for row in clubs.values():
                   w.writerow({k: row.get(k,'') for k in CLUB_FIELDS})
-          print(f"\nclubs2.csv: {len(clubs)} clubs")
+          print(f'\nclubs2.csv: {len(clubs)} clubs geschreven')
           PYEOF
 
       - name: Stap 3 - Gzippen en committen
@@ -354,14 +401,12 @@ jobs:
           git config user.name "ScoutAI Bot"
           git config user.email "actions@users.noreply.github.com"
 
-          # competitions_new.csv -> competitions.csv.gz
           if [ -f data/csv/competitions_new.csv ]; then
             gzip -c data/csv/competitions_new.csv > data/csv/competitions.csv.gz
             rm data/csv/competitions_new.csv
             echo "competitions.csv.gz: $(wc -c < data/csv/competitions.csv.gz) bytes"
           fi
 
-          # clubs2.csv -> clubs2.csv.gz
           if [ -f data/csv/clubs2.csv ]; then
             gzip -f data/csv/clubs2.csv
             echo "clubs2.csv.gz: $(wc -c < data/csv/clubs2.csv.gz) bytes"
@@ -369,7 +414,7 @@ jobs:
 
           git add data/csv/competitions.csv.gz data/csv/clubs2.csv.gz
           TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
-          git commit -m "ScoutAI world data: ${TIMESTAMP}" || echo "Geen wijzigingen"
+          git commit -m "ScoutAI world full: ${TIMESTAMP}" || echo "Geen wijzigingen"
           git push
 
       - name: Samenvatting
