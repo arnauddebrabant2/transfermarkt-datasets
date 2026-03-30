@@ -1,0 +1,177 @@
+name: Scrape Flags - Vlaggen en Logo's voor Competities
+
+on:
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4
+
+      - name: Stap 0 - Decompress competitions.csv.gz
+        run: |
+          python3 << 'PYEOF'
+          import gzip, shutil
+          from pathlib import Path
+          gz = Path('data/csv/competitions.csv.gz')
+          if gz.exists():
+              with gzip.open(gz, 'rb') as f_in:
+                  with open('data/csv/competitions.csv', 'wb') as f_out:
+                      shutil.copyfileobj(f_in, f_out)
+              print(f"Gedecomprimeerd: {gz.stat().st_size // 1024} KB")
+          PYEOF
+
+      - name: Stap 1 - Vlaggen en logo's scrapen per competitie
+        timeout-minutes: 300
+        run: |
+          python3 << 'PYEOF'
+          import requests, csv, time, re, random
+          from pathlib import Path
+          from bs4 import BeautifulSoup
+
+          DATA = Path('data/csv')
+          BASE = 'https://www.transfermarkt.co.uk'
+          HEADERS = {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'Accept-Language': 'en-GB,en;q=0.9',
+              'Accept': 'text/html,application/xhtml+xml',
+              'Referer': 'https://www.transfermarkt.co.uk/',
+          }
+
+          session = requests.Session()
+          session.headers.update(HEADERS)
+
+          def get(url, retries=3):
+              for i in range(retries):
+                  try:
+                      r = session.get(url, timeout=15)
+                      if r.status_code == 200:
+                          return r
+                      if r.status_code == 403:
+                          wait = 60 * (i + 1)
+                          print(f'  403 - wacht {wait}s...')
+                          time.sleep(wait)
+                      else:
+                          time.sleep(3)
+                  except Exception as e:
+                      print(f'  Fout: {e}')
+                      time.sleep(5)
+              return None
+
+          # Laad competitions.csv
+          comp_file = DATA / 'competitions.csv'
+          rows = []
+          fields = []
+          with open(comp_file, encoding='utf-8') as f:
+              reader = csv.DictReader(f)
+              fields = list(reader.fieldnames or [])
+              rows = list(reader)
+
+          for col in ['flag_id', 'flag_url', 'logo_url']:
+              if col not in fields:
+                  fields.append(col)
+
+          already = sum(1 for r in rows if r.get('flag_id'))
+          print(f'Competities: {len(rows)}, al verwerkt: {already}')
+
+          updated = 0
+          for i, row in enumerate(rows):
+              comp_id  = row.get('competition_id','')
+              comp_url = row.get('url','')
+
+              # Sla over als al verwerkt
+              if row.get('flag_id') and row.get('logo_url'):
+                  continue
+
+              if not comp_url:
+                  row['flag_id'] = ''
+                  row['flag_url'] = ''
+                  row['logo_url'] = ''
+                  continue
+
+              print(f'[{i+1:4d}/{len(rows)}] {comp_id:12s}', end=' ', flush=True)
+
+              r = get(comp_url)
+              if not r:
+                  print('SKIP')
+                  row['flag_id']  = ''
+                  row['flag_url'] = ''
+                  row['logo_url'] = ''
+                  continue
+
+              soup = BeautifulSoup(r.text, 'html.parser')
+              flag_id = flag_url = logo_url = ''
+
+              # Vlag: /images/flagge/verysmall/{id}.png of /images/flagge/small/{id}.png
+              for img in soup.find_all('img', src=re.compile(r'/images/flagge/')):
+                  src = img.get('src','')
+                  m = re.search(r'/images/flagge/[^/]+/(\d+)\.', src)
+                  if m:
+                      flag_id  = m.group(1)
+                      flag_url = f'https://tmssl.akamaized.net/images/flagge/verysmall/{flag_id}.png'
+                      break
+
+              # Competitie logo: /images/logo/tiny/{id}.png
+              for img in soup.find_all('img', src=re.compile(r'/images/logo/(tiny|small)/')):
+                  src = img.get('src','')
+                  if not src: continue
+                  logo_url = src if src.startswith('http') else f'https://tmssl.akamaized.net{src}'
+                  break
+
+              # Fallback: header wappen
+              if not logo_url:
+                  for img in soup.find_all('img'):
+                      src = img.get('src','')
+                      if '/images/wappen/' in src or comp_id.lower() in src.lower():
+                          logo_url = src if src.startswith('http') else f'https://tmssl.akamaized.net{src}'
+                          break
+
+              row['flag_id']  = flag_id
+              row['flag_url'] = flag_url
+              row['logo_url'] = logo_url
+              updated += 1
+
+              print(f'flag:{flag_id or "-":5s} logo:{"ok" if logo_url else "-"}')
+
+              # Tussentijds opslaan elke 100
+              if updated % 100 == 0:
+                  with open(comp_file, 'w', newline='', encoding='utf-8') as f:
+                      w = csv.DictWriter(f, fieldnames=fields, extrasaction='ignore')
+                      w.writeheader()
+                      for r2 in rows:
+                          w.writerow({k: r2.get(k,'') for k in fields})
+                  print(f'  [SAVE] {updated} bijgewerkt')
+
+              time.sleep(0.8 + random.uniform(0, 0.4))
+
+          # Finale opslag
+          with open(comp_file, 'w', newline='', encoding='utf-8') as f:
+              w = csv.DictWriter(f, fieldnames=fields, extrasaction='ignore')
+              w.writeheader()
+              for row in rows:
+                  w.writerow({k: row.get(k,'') for k in fields})
+          print(f'\nKlaar: {updated} bijgewerkt, {len(rows)} totaal')
+          PYEOF
+
+      - name: Stap 2 - Gzippen en committen
+        run: |
+          git config user.name "ScoutAI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          gzip -f data/csv/competitions.csv
+          echo "competitions.csv.gz: $(wc -c < data/csv/competitions.csv.gz) bytes"
+          git add data/csv/competitions.csv.gz
+          TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
+          git commit -m "ScoutAI: vlaggen en logo's competities [${TIMESTAMP}]" || echo "Geen wijzigingen"
+          git push
