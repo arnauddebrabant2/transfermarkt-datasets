@@ -78,81 +78,51 @@ jobs:
               return src if src.startswith('http') else urljoin('https://tmssl.akamaized.net', src)
 
           def find_flag_and_logo(soup, comp_id):
-              flag_id = ''
-              flag_url = ''
-              logo_url = ''
-
-              # 1) Zoek eerst in header / title area
-              header_candidates = []
-              for sel in [
-                  'div.data-header',
-                  'div.data-header__box',
-                  'div.content-box-headline',
-                  'header',
-                  'div.box'
-              ]:
-                  header_candidates.extend(soup.select(sel))
-
-              seen_imgs = []
-              for node in header_candidates:
-                  seen_imgs.extend(node.find_all('img', src=True))
-
-              # 1a) vlag zoeken in header
-              for img in seen_imgs:
-                  src = img.get('src', '')
-                  m = re.search(r'/images/flagge/(?:small|verysmall|tiny)/(\d+)\.', src)
-                  if m:
-                      flag_id = m.group(1)
-                      flag_url = f'https://tmssl.akamaized.net/images/flagge/verysmall/{flag_id}.png'
-                      break
-
-              # 1b) competitie logo zoeken in header
-              for img in seen_imgs:
-                  src = img.get('src', '')
-                  if (
-                      '/images/logo/' in src
-                      or f'/{comp_id.lower()}.png' in src.lower()
-                      or f'/{comp_id.lower()}?' in src.lower()
-                  ):
-                      logo_url = abs_url(src)
-                      break
-
-              # 2) fallback vlag: alleen als nog niets gevonden
-              if not flag_id:
-                  for img in soup.find_all('img', src=True):
-                      src = img.get('src', '')
-                      alt = (img.get('alt') or '').lower()
-                      title = (img.get('title') or '').lower()
-
-                      # probeer generieke vlaggen van andere elementen te vermijden
-                      if '/images/flagge/' not in src:
-                          continue
-                      if 'club' in alt or 'verein' in alt or 'player' in alt:
-                          continue
-
-                      m = re.search(r'/images/flagge/(?:small|verysmall|tiny)/(\d+)\.', src)
-                      if m:
-                          flag_id = m.group(1)
-                          flag_url = f'https://tmssl.akamaized.net/images/flagge/verysmall/{flag_id}.png'
-                          break
-
-              # 3) fallback logo
-              if not logo_url:
-                  for img in soup.find_all('img', src=True):
-                      src = img.get('src', '')
-                      if '/images/logo/' in src:
-                          logo_url = abs_url(src)
-                          break
-
-              # 4) laatste fallback op comp_id in src
-              if not logo_url:
-                  for img in soup.find_all('img', src=True):
-                      src = img.get('src', '')
-                      if comp_id.lower() in src.lower():
-                          logo_url = abs_url(src)
-                          break
-
-              return flag_id, flag_url, logo_url
+            flag_id = ''
+            flag_url = ''
+            logo_url = ''
+        
+            # 1) Eerst expliciet de header-box nemen
+            header_box = soup.select_one('.data-header__box')
+        
+            if header_box:
+                # vlag: class data-header__box__flag
+                flag_img = header_box.select_one('img.data-header__box__flag')
+                if flag_img:
+                    src = flag_img.get('src', '')
+                    m = re.search(r'/images/flagge/[^/]+/(\d+)\.', src)
+                    if m:
+                        flag_id = m.group(1)
+                        flag_url = src if src.startswith('http') else urljoin('https://tmssl.akamaized.net', src)
+        
+                # logo: meestal ander img element in dezelfde header-box
+                for img in header_box.find_all('img', src=True):
+                    src = img.get('src', '')
+                    if '/images/logo/' in src or f'/{comp_id.lower()}.png' in src.lower():
+                        logo_url = src if src.startswith('http') else urljoin('https://tmssl.akamaized.net', src)
+                        break
+        
+            # 2) fallback vlag als header niets gaf
+            if not flag_id:
+                for img in soup.find_all('img', src=True):
+                    src = img.get('src', '')
+                    if '/images/flagge/' not in src:
+                        continue
+                    m = re.search(r'/images/flagge/[^/]+/(\d+)\.', src)
+                    if m:
+                        flag_id = m.group(1)
+                        flag_url = src if src.startswith('http') else urljoin('https://tmssl.akamaized.net', src)
+                        break
+        
+            # 3) fallback logo
+            if not logo_url:
+                for img in soup.find_all('img', src=True):
+                    src = img.get('src', '')
+                    if '/images/logo/' in src or f'/{comp_id.lower()}.png' in src.lower():
+                        logo_url = src if src.startswith('http') else urljoin('https://tmssl.akamaized.net', src)
+                        break
+        
+            return flag_id, flag_url, logo_url
 
           comp_file = DATA / 'competitions.csv'
           rows = []
