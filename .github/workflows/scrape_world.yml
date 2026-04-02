@@ -29,222 +29,215 @@ jobs:
           import requests, csv, time, re, random
           from pathlib import Path
           from bs4 import BeautifulSoup
+          from urllib.parse import urljoin
 
           DATA = Path('data/csv')
-          BASE = 'https://www.transfermarkt.co.uk'
+          BASE = 'https://www.transfermarkt.com'
           HEADERS = {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
               'Accept-Language': 'en-GB,en;q=0.9',
               'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-              'Referer': 'https://www.transfermarkt.co.uk/',
+              'Referer': BASE + '/',
           }
-
-          # Transfermarkt numerieke land-IDs
-          # Gevonden via de form action op de landpagina
-          # URL: /wettbewerbe/national/wettbewerbe/{numeric_id}
-          COUNTRIES = [
-              (189,'England','GB','EUR'),(40,'Germany','L','EUR'),
-              (157,'Spain','ES','EUR'),(75,'Italy','IT','EUR'),
-              (50,'France','FR','EUR'),(122,'Netherlands','NL','EUR'),
-              (4,'Belgium','BE','EUR'),(136,'Portugal','PO','EUR'),
-              (163,'Turkey','TR','EUR'),(61,'Greece','GR','EUR'),
-              (17,'Austria','A','EUR'),(141,'Russia','RU','EUR'),
-              (175,'Ukraine','UKR','EUR'),(130,'Poland','PL','EUR'),
-              (140,'Romania','RO','EUR'),(148,'Switzerland','TS','EUR'),
-              (69,'Hungary','UNG','EUR'),(144,'Serbia','SER','EUR'),
-              (152,'Slovenia','SLO','EUR'),(153,'Slovakia','SLN','EUR'),
-              (160,'Scotland','SC','EUR'),(39,'Denmark','DK','EUR'),
-              (156,'Sweden','SE','EUR'),(125,'Norway','NO','EUR'),
-              (38,'Croatia','KR','EUR'),(3,'Albania','ALB','EUR'),
-              (25,'Bosnia-Herzegovina','BOS','EUR'),(105,'North Macedonia','MKD','EUR'),
-              (110,'Montenegro','MNE','EUR'),(57,'Finland','FI','EUR'),
-              (72,'Iceland','IS','EUR'),(116,'Northern Ireland','NIR','EUR'),
-              (71,'Ireland','IR','EUR'),(183,'Wales','WAL','EUR'),
-              (58,'Georgia','GEO','EUR'),(14,'Azerbaijan','AZE','EUR'),
-              (12,'Armenia','ARM','EUR'),(80,'Kazakhstan','KAS','EUR'),
-              (22,'Belarus','WER','EUR'),(109,'Moldova','MOL','EUR'),
-              (95,'Lithuania','LIT','EUR'),(97,'Latvia','LV','EUR'),
-              (44,'Estonia','EST','EUR'),(30,'Bulgaria','BUL','EUR'),
-              (84,'Kosovo','KOS','EUR'),(74,'Israel','ISR','EUR'),
-              (35,'Cyprus','ZYP','EUR'),(96,'Luxembourg','LUX','EUR'),
-              (100,'Malta','MLT','EUR'),(5,'Andorra','AND','EUR'),
-              (55,'Faroe Islands','FRO','EUR'),(94,'Liechtenstein','LIE','EUR'),
-              (146,'San Marino','SMR','EUR'),(60,'Gibraltar','GIB','EUR'),
-              (184,'USA','MLS','AME'),(107,'Mexico','MEX','AME'),
-              (26,'Brazil','BRA','AME'),(11,'Argentina','ARG','AME'),
-              (37,'Colombia','COL','AME'),(34,'Chile','CHI','AME'),
-              (132,'Peru','PER','AME'),(43,'Ecuador','ECU','AME'),
-              (174,'Uruguay','URU','AME'),(128,'Paraguay','PAR','AME'),
-              (23,'Bolivia','BOL','AME'),(182,'Venezuela','VEN','AME'),
-              (36,'Costa Rica','CRC','AME'),(68,'Honduras','HON','AME'),
-              (62,'Guatemala','GUA','AME'),(129,'Panama','PAN','AME'),
-              (78,'Jamaica','JAM','AME'),(164,'Trinidad and Tobago','TTO','AME'),
-              (32,'Canada','CAN','AME'),(41,'Dominican Republic','DOM','AME'),
-              (33,'Cuba','CUB','AME'),(66,'Haiti','HAI','AME'),
-              (155,'El Salvador','SLV','AME'),(119,'Nicaragua','NCA','AME'),
-              (63,'Guyana','GUY','AME'),(158,'Suriname','SUR','AME'),
-              (76,'Japan','JAP','ASI'),(82,'South Korea','KOR','ASI'),
-              (37,'China','CHN','ASI'),(67,'India','IND','ASI'),
-              (142,'Saudi Arabia','SAU','ASI'),(185,'UAE','UAE','ASI'),
-              (133,'Qatar','QAT','ASI'),(70,'Iran','IRN','ASI'),
-              (73,'Iraq','IRQ','ASI'),(79,'Jordan','JOR','ASI'),
-              (86,'Kuwait','KUW','ASI'),(16,'Bahrain','BHR','ASI'),
-              (127,'Oman','OMA','ASI'),(162,'Thailand','THA','ASI'),
-              (181,'Vietnam','VIE','ASI'),(103,'Malaysia','MAL','ASI'),
-              (73,'Indonesia','IDN','ASI'),(131,'Philippines','PHI','ASI'),
-              (88,'Kyrgyzstan','KGZ','ASI'),(161,'Tajikistan','TJK','ASI'),
-              (165,'Turkmenistan','TKM','ASI'),(176,'Uzbekistan','UZB','ASI'),
-              (108,'Mongolia','MNG','ASI'),(150,'Singapore','SIN','ASI'),
-              (113,'Myanmar','MYA','ASI'),(28,'Cambodia','KHM','ASI'),
-              (92,'Laos','LAO','ASI'),(18,'Bangladesh','BGD','ASI'),
-              (129,'Pakistan','PAK','ASI'),(154,'Sri Lanka','SRL','ASI'),
-              (120,'Nepal','NEP','ASI'),(59,'Afghanistan','AFG','ASI'),
-              (147,'Syria','SYR','ASI'),(93,'Lebanon','LIB','ASI'),
-              (187,'Palestine','PSE','ASI'),(186,'Yemen','YEM','ASI'),
-              (45,'Egypt','EGY','AFR'),(104,'Morocco','MAR','AFR'),
-              (167,'Tunisia','TUN','AFR'),(2,'Algeria','ALG','AFR'),
-              (143,'South Africa','RSA','AFR'),(123,'Nigeria','NGA','AFR'),
-              (62,'Ghana','GHA','AFR'),(29,'Cameroon','CMR','AFR'),
-              (143,'Senegal','SEN','AFR'),(83,'Ivory Coast','CIV','AFR'),
-              (101,'Mali','MLI','AFR'),(188,'Zimbabwe','ZIM','AFR'),
-              (188,'Zambia','ZAM','AFR'),(81,'Kenya','KEN','AFR'),
-              (166,'Tanzania','TAN','AFR'),(173,'Uganda','UGA','AFR'),
-              (47,'Ethiopia','ETH','AFR'),(8,'Angola','ANG','AFR'),
-              (111,'Mozambique','MOZ','AFR'),(138,'Rwanda','RWA','AFR'),
-              (27,'Burkina Faso','BFA','AFR'),(64,'Guinea','GNE','AFR'),
-              (102,'Malawi','MLW','AFR'),(24,'Botswana','BOT','AFR'),
-              (118,'Namibia','NAM','AFR'),(98,'Libya','LIB2','AFR'),
-              (151,'Sudan','SDN','AFR'),(114,'Congo','COG','AFR'),
-              (42,'DR Congo','COD','AFR'),(56,'Gabon','GAB','AFR'),
-              (106,'Madagascar','MDG','AFR'),(137,'Sierra Leone','SLE','AFR'),
-              (91,'Liberia','LBR','AFR'),(117,'Niger','NIG','AFR'),
-              (20,'Benin','BEN','AFR'),(163,'Togo','TGO','AFR'),
-              (15,'Australia','AUS','OCE'),(121,'New Zealand','NZL','OCE'),
-              (131,'Papua New Guinea','PNG','OCE'),(53,'Fiji','FIJ','OCE'),
-          ]
 
           session = requests.Session()
           session.headers.update(HEADERS)
 
-          def get(url, retries=3):
+          def get(url, retries=4, sleep_base=3):
               for i in range(retries):
                   try:
-                      r = session.get(url, timeout=20)
+                      r = session.get(url, timeout=25)
                       if r.status_code == 200:
                           return r
                       if r.status_code == 403:
-                          wait = 60 * (i + 1)
+                          wait = 30 * (i + 1)
                           print(f'  403 - wacht {wait}s...')
                           time.sleep(wait)
                       else:
-                          print(f' HTTP{r.status_code}', end='')
-                          time.sleep(3)
+                          print(f'  HTTP {r.status_code} voor {url}')
+                          time.sleep(sleep_base * (i + 1))
                   except Exception as e:
-                      print(f'  Fout: {e}')
-                      time.sleep(5)
+                      print(f'  Fout bij {url}: {e}')
+                      time.sleep(sleep_base * (i + 1))
               return None
 
           def fix_name(s):
-              if not s: return ''
+              if not s:
+                  return ''
               s = str(s).strip()
-              try: s = s.encode('latin-1').decode('utf-8')
-              except: pass
-              for bad, good in [
-                  ('\u00c3\u00bc','\u00fc'),('\u00c3\u00b6','\u00f6'),
-                  ('\u00c3\u00a4','\u00e4'),('\u00c3\u00a9','\u00e9'),
-                  ('\u00c3\u00a0','\u00e0'),('\u00c3\u00a7','\u00e7'),
-                  ('\u00c3\u00b1','n'),('\u00e2\u0080\u0099',"'"),
-                  ('\u00e2\u0080\u0093','-'),
-              ]:
+              try:
+                  s = s.encode('latin-1').decode('utf-8')
+              except:
+                  pass
+              bad_pairs = [
+                  ('Ã¼','ü'),('Ã¶','ö'),('Ã¤','ä'),('Ã©','é'),('Ã¨','è'),
+                  ('Ã¡','á'),('Ã ','à'),('Ã§','ç'),('Ã±','ñ'),
+                  ('â€™', "'"),('â€“', '-'),('â€”', '-'),
+              ]
+              for bad, good in bad_pairs:
                   s = s.replace(bad, good)
-              for suffix in [r'\s+Fussball$',r'\s+Football\s+Club$',
-                              r'\s+Football\s+Club\b',r'\s+e\.V\.$',r'\s+a\.s\.$']:
-                  s = re.sub(suffix, '', s, flags=re.IGNORECASE).strip()
+              s = re.sub(r'\s+', ' ', s).strip()
               return s
 
-          competitions = {}
-          seen_countries = set()
-          total = len(COUNTRIES)
+          def infer_continent_id(continent_url):
+              cu = continent_url.lower()
+              if 'europa' in cu:
+                  return 'EUR'
+              if 'amerika' in cu:
+                  return 'AME'
+              if 'asien' in cu or 'asia' in cu:
+                  return 'ASI'
+              if 'afrika' in cu or 'africa' in cu:
+                  return 'AFR'
+              if 'ozeanien' in cu or 'oceania' in cu:
+                  return 'OCE'
+              return ''
 
-          for idx, (country_num, country_name, country_code, continent_id) in enumerate(COUNTRIES, 1):
-              # Sla dubbele numerieke IDs over
-              key = (country_num, country_code)
-              if key in seen_countries:
+          def slug_to_country_name(slug):
+              slug = slug.strip('/').split('/')[0]
+              slug = slug.replace('-', ' ')
+              return ' '.join(w.capitalize() for w in slug.split())
+
+          # Dynamisch landen ophalen vanaf continentpagina's
+          continent_pages = [
+              BASE + '/wettbewerbe/europa',
+              BASE + '/wettbewerbe/amerika',
+              BASE + '/wettbewerbe/asien',
+              BASE + '/wettbewerbe/afrika',
+              BASE + '/wettbewerbe/ozeanien',
+          ]
+
+          countries = {}
+          for page_url in continent_pages:
+              continent_id = infer_continent_id(page_url)
+              print(f'\n[LANDEN] Lees {page_url}')
+              r = get(page_url)
+              if not r:
                   continue
-              seen_countries.add(key)
 
-              url = f'{BASE}/wettbewerbe/national/wettbewerbe/{country_num}'
-              print(f'[{idx:3d}/{total}] {country_name} (ID:{country_num})...', end=' ', flush=True)
+              soup = BeautifulSoup(r.text, 'html.parser')
 
-              r = get(url)
+              # Zoek alle links zoals /belgium/national/wettbewerbe/19
+              for a in soup.find_all('a', href=True):
+                  href = a['href']
+                  m = re.search(r'^/([^/]+)/national/wettbewerbe/(\d+)$', href)
+                  if not m:
+                      continue
+
+                  slug = m.group(1)
+                  country_num_id = m.group(2)
+                  country_name = fix_name(a.get_text(" ", strip=True))
+                  if not country_name or len(country_name) < 2:
+                      country_name = slug_to_country_name(slug)
+
+                  key = country_num_id
+                  if key not in countries:
+                      countries[key] = {
+                          'country_num_id': country_num_id,
+                          'country': country_name,
+                          'country_slug': slug,
+                          'country_id': '',
+                          'continent': continent_id,
+                          'continent_id': continent_id,
+                          'url': urljoin(BASE, href),
+                      }
+
+              time.sleep(1.0 + random.uniform(0, 0.4))
+
+          countries_list = sorted(countries.values(), key=lambda x: (x['continent_id'], x['country']))
+          print(f'\nTotaal landen gevonden: {len(countries_list)}')
+
+          competitions = {}
+
+          for idx, country in enumerate(countries_list, 1):
+              country_num = country['country_num_id']
+              country_name = country['country']
+              country_url = country['url']
+              continent_id = country['continent_id']
+
+              print(f'[{idx:3d}/{len(countries_list)}] {country_name} ({country_num})...', end=' ', flush=True)
+
+              r = get(country_url)
               if not r:
                   print('SKIP')
                   continue
 
               soup = BeautifulSoup(r.text, 'html.parser')
 
-              # Controleer of we het juiste land hebben via de form action
-              form = soup.find('form', action=re.compile(r'/wettbewerbe/national/wettbewerbe/'))
-              if form:
-                  action = form.get('action','')
-                  m = re.search(r'/wettbewerbe/national/wettbewerbe/(\d+)', action)
-                  if m and m.group(1) != str(country_num):
-                      print(f'WRONG PAGE (got {m.group(1)}, expected {country_num})')
-                      continue
+              # Extra validatie: pagina-id moet overeenkomen
+              canonical_ok = False
+              for a in soup.find_all('a', href=True):
+                  if re.search(rf'/national/wettbewerbe/{re.escape(country_num)}$', a["href"]):
+                      canonical_ok = True
+                      break
 
-              # Lees alle comp IDs uit de verborgen keys divs
+              if not canonical_ok:
+                  print('MISMATCH')
+                  continue
+
               found = 0
-              name_lookup = {}
-              tier_lookup = {}
+              current_tier = ''
+              country_code = ''
+              country_num_id_from_page = country_num
 
-              for table in soup.find_all('table', class_='items'):
-                  current_tier = ''
+              # Probeer een landcode af te leiden uit flag img op de pagina
+              flag_img = soup.find('img', src=re.compile(r'/images/flagge/'))
+              if flag_img:
+                  src = flag_img.get('src', '')
+                  mflag = re.search(r'/images/flagge/[^/]+/(\d+)\.', src)
+                  if mflag:
+                      country_num_id_from_page = mflag.group(1)
+
+              # Parse competitie-rows
+              for table in soup.find_all('table', class_=re.compile(r'items')):
                   for row in table.find_all('tr'):
                       extrarow = row.find('td', class_='extrarow')
                       if extrarow:
-                          current_tier = extrarow.get_text(strip=True)
+                          current_tier = fix_name(extrarow.get_text(" ", strip=True))
                           continue
-                      for a in row.find_all('a', href=re.compile(r'/startseite/wettbewerb/')):
-                          m2 = re.search(r'/startseite/wettbewerb/([^/?]+)', a['href'])
-                          if m2:
-                              cid = m2.group(1)
-                              name = fix_name(a.get('title','') or a.get_text(strip=True))
-                              if name:
-                                  name_lookup[cid] = name
-                                  tier_lookup[cid] = current_tier
 
-              for kd in soup.find_all('div', class_='keys'):
-                  for span in kd.find_all('span'):
-                      comp_id = span.get_text(strip=True)
-                      if not comp_id: continue
+                      comp_link = row.find('a', href=re.compile(r'/startseite/wettbewerb/'))
+                      if not comp_link:
+                          continue
+
+                      mcomp = re.search(r'/startseite/wettbewerb/([^/?#]+)', comp_link['href'])
+                      if not mcomp:
+                          continue
+
+                      comp_id = mcomp.group(1)
+                      comp_name = fix_name(comp_link.get('title') or comp_link.get_text(" ", strip=True))
+                      comp_url = urljoin(BASE, comp_link['href'])
+
+                      if not comp_name:
+                          comp_name = comp_id
+
                       if comp_id not in competitions:
-                          name = name_lookup.get(comp_id, comp_id)
-                          tier = tier_lookup.get(comp_id, '')
-                          link = soup.find('a', href=re.compile(f'/startseite/wettbewerb/{re.escape(comp_id)}'))
-                          comp_url = f'{BASE}{link["href"]}' if link else f'{BASE}/{comp_id.lower()}/startseite/wettbewerb/{comp_id}'
                           competitions[comp_id] = {
                               'competition_id': comp_id,
-                              'name':           name[:80],
-                              'country':        country_name,
-                              'country_id':     country_code,
-                              'country_num_id': str(country_num),
-                              'continent':      continent_id,
-                              'continent_id':   continent_id,
-                              'tier':           tier,
-                              'url':            comp_url,
+                              'name': comp_name[:120],
+                              'country': country_name,
+                              'country_id': country_code,
+                              'country_num_id': country_num_id_from_page,
+                              'continent': continent_id,
+                              'continent_id': continent_id,
+                              'tier': current_tier,
+                              'url': comp_url,
                           }
                           found += 1
 
               print(f'+{found} (totaal {len(competitions)})')
               time.sleep(1.0 + random.uniform(0, 0.5))
 
-          FIELDS = ['competition_id','name','country','country_id','country_num_id',
-                    'continent','continent_id','tier','url']
+          FIELDS = [
+              'competition_id','name','country','country_id','country_num_id',
+              'continent','continent_id','tier','url'
+          ]
           out = DATA / 'competitions_new.csv'
           with open(out, 'w', newline='', encoding='utf-8') as f:
               w = csv.DictWriter(f, fieldnames=FIELDS, extrasaction='ignore')
               w.writeheader()
               w.writerows(competitions.values())
+
           print(f'\ncompetitions_new.csv: {len(competitions)} competities')
           PYEOF
 
@@ -255,55 +248,54 @@ jobs:
           import requests, csv, time, re, random
           from pathlib import Path
           from bs4 import BeautifulSoup
+          from urllib.parse import urljoin
 
           DATA = Path('data/csv')
-          BASE = 'https://www.transfermarkt.co.uk'
+          BASE = 'https://www.transfermarkt.com'
           HEADERS = {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
               'Accept-Language': 'en-GB,en;q=0.9',
               'Accept': 'text/html,application/xhtml+xml',
-              'Referer': 'https://www.transfermarkt.co.uk/',
+              'Referer': BASE + '/',
           }
 
           session = requests.Session()
           session.headers.update(HEADERS)
 
-          def get(url, retries=3):
+          def get(url, retries=4):
               for i in range(retries):
                   try:
-                      r = session.get(url, timeout=20)
+                      r = session.get(url, timeout=25)
                       if r.status_code == 200:
                           return r
                       if r.status_code == 403:
-                          wait = 60 * (i + 1)
+                          wait = 30 * (i + 1)
                           print(f'  403 - wacht {wait}s...')
                           time.sleep(wait)
                       else:
-                          time.sleep(3)
+                          time.sleep(3 * (i + 1))
                   except Exception as e:
                       print(f'  Fout: {e}')
-                      time.sleep(5)
+                      time.sleep(3 * (i + 1))
               return None
 
           def fix_name(s):
-              if not s: return ''
+              if not s:
+                  return ''
               s = str(s).strip()
-              try: s = s.encode('latin-1').decode('utf-8')
-              except: pass
-              for bad, good in [
-                  ('\u00c3\u00bc','\u00fc'),('\u00c3\u00b6','\u00f6'),
-                  ('\u00c3\u00a4','\u00e4'),('\u00c3\u00a9','\u00e9'),
-                  ('\u00c3\u00a0','\u00e0'),('\u00c3\u00a7','\u00e7'),
-                  ('\u00c3\u00b1','n'),('\u00e2\u0080\u0099',"'"),
-                  ('\u00e2\u0080\u0093','-'),
-              ]:
+              try:
+                  s = s.encode('latin-1').decode('utf-8')
+              except:
+                  pass
+              replacements = [
+                  ('Ã¼','ü'),('Ã¶','ö'),('Ã¤','ä'),('Ã©','é'),('Ã¨','è'),
+                  ('Ã¡','á'),('Ã ','à'),('Ã§','ç'),('Ã±','ñ'),
+                  ('â€™', "'"),('â€“', '-'),('â€”', '-'),
+              ]
+              for bad, good in replacements:
                   s = s.replace(bad, good)
-              for suffix in [r'\s+Fussball$',r'\s+Football\s+Club$',
-                              r'\s+Football\s+Club\b',r'\s+e\.V\.$',r'\s+a\.s\.$']:
-                  s = re.sub(suffix, '', s, flags=re.IGNORECASE).strip()
-              return s
+              return re.sub(r'\s+', ' ', s).strip()
 
-          competitions = []
           with open(DATA / 'competitions_new.csv', encoding='utf-8') as f:
               competitions = list(csv.DictReader(f))
           print(f'Competities: {len(competitions)}')
@@ -313,7 +305,8 @@ jobs:
           if club_file.exists():
               with open(club_file, encoding='utf-8') as f:
                   for row in csv.DictReader(f):
-                      if row.get('club_id'): clubs[row['club_id']] = row
+                      if row.get('club_id'):
+                          clubs[row['club_id']] = row
               print(f'Bestaande clubs2: {len(clubs)}')
 
           CLUB_FIELDS = [
@@ -326,14 +319,16 @@ jobs:
           total = len(competitions)
           for i, comp in enumerate(competitions, 1):
               comp_id      = comp['competition_id']
-              comp_url     = comp.get('url','')
+              comp_url     = comp.get('url', '')
               comp_name    = comp.get('name', comp_id)
-              country      = comp.get('country','')
-              country_id   = comp.get('country_id','')
-              continent    = comp.get('continent','')
-              continent_id = comp.get('continent_id','')
+              country      = comp.get('country', '')
+              country_id   = comp.get('country_id', '')
+              continent    = comp.get('continent', '')
+              continent_id = comp.get('continent_id', '')
 
-              if not comp_url: continue
+              if not comp_url:
+                  continue
+
               print(f'[{i:4d}/{total}] {comp_id:12s} {comp_name[:38]:38s}', end=' ', flush=True)
 
               r = get(comp_url)
@@ -344,53 +339,73 @@ jobs:
               soup = BeautifulSoup(r.text, 'html.parser')
               found = 0
 
-              for table in soup.find_all('table', class_=re.compile('items')):
+              for table in soup.find_all('table', class_=re.compile(r'items')):
                   for row in table.find_all('tr'):
-                      for a in row.find_all('a', href=re.compile(r'/startseite/verein/\d+')):
-                          href = a['href']
-                          m = re.search(r'/startseite/verein/(\d+)', href)
-                          if not m: continue
-                          club_id = m.group(1)
+                      a = row.find('a', href=re.compile(r'/startseite/verein/\d+'))
+                      if not a:
+                          continue
 
-                          full_name  = fix_name(a.get('title','') or a.get_text(strip=True))
-                          short_name = fix_name(a.get_text(strip=True))
-                          if short_name == full_name: short_name = ''
+                      href = a['href']
+                      m = re.search(r'/startseite/verein/(\d+)', href)
+                      if not m:
+                          continue
 
-                          td = a.find_parent('td')
-                          if td:
-                              for span in td.find_all('span'):
-                                  txt = fix_name(span.get_text(strip=True))
-                                  if txt and txt != full_name and 2 < len(txt) < len(full_name):
-                                      short_name = txt; break
+                      club_id = m.group(1)
 
-                          if not full_name or len(full_name) < 2: continue
+                      full_name = fix_name(a.get('title', '') or a.get_text(" ", strip=True))
+                      short_name = fix_name(a.get_text(" ", strip=True))
+                      if short_name == full_name:
+                          short_name = ''
 
-                          cells = row.find_all('td')
-                          squad_size = avg_age = market_val = ''
-                          for td in cells:
-                              txt = td.get_text(strip=True)
-                              if re.match(r'^\d+$', txt) and 5 <= int(txt) <= 60:
-                                  squad_size = txt
-                              if re.match(r'^\d+[,.]\d$', txt):
-                                  try:
-                                      v = float(txt.replace(',','.'))
-                                      if 15 < v < 40: avg_age = txt
-                                  except: pass
-                              if re.match(r'^\d+[.,]\d+[mkMK]?$', txt):
-                                  market_val = txt
+                      td = a.find_parent('td')
+                      if td:
+                          for span in td.find_all('span'):
+                              txt = fix_name(span.get_text(" ", strip=True))
+                              if txt and txt != full_name and 2 < len(txt) < len(full_name):
+                                  short_name = txt
+                                  break
 
-                          clubs[club_id] = {
-                              'club_id': club_id, 'name': full_name,
-                              'short_name': short_name,
-                              'domestic_competition_id': comp_id,
-                              'competition_name': comp_name,
-                              'country': country, 'country_id': country_id,
-                              'continent': continent, 'continent_id': continent_id,
-                              'squad_size': squad_size, 'average_age': avg_age,
-                              'total_market_value': market_val, 'coach_name': '',
-                              'url': f'{BASE}{href}' if href.startswith('/') else href,
-                          }
-                          found += 1
+                      if not full_name or len(full_name) < 2:
+                          continue
+
+                      cells = row.find_all('td')
+                      squad_size = avg_age = market_val = ''
+                      for td in cells:
+                          txt = td.get_text(" ", strip=True)
+                          if re.match(r'^\d+$', txt):
+                              try:
+                                  n = int(txt)
+                                  if 5 <= n <= 60:
+                                      squad_size = txt
+                              except:
+                                  pass
+                          if re.match(r'^\d+[,.]\d$', txt):
+                              try:
+                                  v = float(txt.replace(',', '.'))
+                                  if 15 < v < 40:
+                                      avg_age = txt
+                              except:
+                                  pass
+                          if re.match(r'^\d+[.,]?\d*\s*[mkMK]?$', txt):
+                              market_val = txt
+
+                      clubs[club_id] = {
+                          'club_id': club_id,
+                          'name': full_name,
+                          'short_name': short_name,
+                          'domestic_competition_id': comp_id,
+                          'competition_name': comp_name,
+                          'country': country,
+                          'country_id': country_id,
+                          'continent': continent,
+                          'continent_id': continent_id,
+                          'squad_size': squad_size,
+                          'average_age': avg_age,
+                          'total_market_value': market_val,
+                          'coach_name': '',
+                          'url': urljoin(BASE, href),
+                      }
+                      found += 1
 
               print(f'+{found} (totaal {len(clubs)})')
 
@@ -399,16 +414,17 @@ jobs:
                       w = csv.DictWriter(f, fieldnames=CLUB_FIELDS, extrasaction='ignore')
                       w.writeheader()
                       for row in clubs.values():
-                          w.writerow({k: row.get(k,'') for k in CLUB_FIELDS})
+                          w.writerow({k: row.get(k, '') for k in CLUB_FIELDS})
                   print(f'  [SAVE] {len(clubs)} clubs opgeslagen')
 
-              time.sleep(1.2 + random.uniform(0, 0.8))
+              time.sleep(1.0 + random.uniform(0, 0.6))
 
           with open(club_file, 'w', newline='', encoding='utf-8') as f:
               w = csv.DictWriter(f, fieldnames=CLUB_FIELDS, extrasaction='ignore')
               w.writeheader()
               for row in clubs.values():
-                  w.writerow({k: row.get(k,'') for k in CLUB_FIELDS})
+                  w.writerow({k: row.get(k, '') for k in CLUB_FIELDS})
+
           print(f'\nclubs2.csv: {len(clubs)} clubs geschreven')
           PYEOF
 
@@ -416,15 +432,18 @@ jobs:
         run: |
           git config user.name "ScoutAI Bot"
           git config user.email "actions@users.noreply.github.com"
+
           if [ -f data/csv/competitions_new.csv ]; then
             gzip -c data/csv/competitions_new.csv > data/csv/competitions.csv.gz
             rm data/csv/competitions_new.csv
             echo "competitions.csv.gz: $(wc -c < data/csv/competitions.csv.gz) bytes"
           fi
+
           if [ -f data/csv/clubs2.csv ]; then
             gzip -f data/csv/clubs2.csv
             echo "clubs2.csv.gz: $(wc -c < data/csv/clubs2.csv.gz) bytes"
           fi
+
           git add data/csv/competitions.csv.gz data/csv/clubs2.csv.gz
           TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
           git commit -m "ScoutAI world full: ${TIMESTAMP}" || echo "Geen wijzigingen"
