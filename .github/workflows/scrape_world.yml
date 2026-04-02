@@ -93,28 +93,39 @@ jobs:
               return ''
 
           def parse_country_name(soup, response_url, fallback_num):
-              html = str(soup)
-              m = re.search(r'https://www\.transfermarkt\.(?:com|co\.uk)/([^/]+)/national/wettbewerbe/' + re.escape(str(fallback_num)), html)
-              if m:
-                  slug = m.group(1)
-                  slug = slug.replace('-', ' ')
-                  return ' '.join(w.capitalize() for w in slug.split())
-
-              m2 = re.search(r'https://www\.transfermarkt\.(?:com|co\.uk)/([^/]+)/national/wettbewerbe/' + re.escape(str(fallback_num)), response_url)
-              if m2:
-                  slug = m2.group(1)
-                  slug = slug.replace('-', ' ')
-                  return ' '.join(w.capitalize() for w in slug.split())
-
-              title = soup.get_text(" ", strip=True)
-              if 'National leagues and domestic cups' in title:
-                  h1 = soup.find(['h1','h2'])
-                  if h1:
-                      txt = fix_name(h1.get_text(" ", strip=True))
-                      if txt and 'National leagues' not in txt:
-                          return txt
-
-              return f'Country {fallback_num}'
+            # 1) Uit canonical link
+            canon = soup.find("link", rel="canonical")
+            if canon and canon.get("href"):
+                href = canon["href"]
+                m = re.search(r'transfermarkt\.(?:com|co\.uk)/([^/]+)/national/wettbewerbe/' + re.escape(str(fallback_num)), href)
+                if m:
+                    slug = m.group(1).replace('-', ' ')
+                    return ' '.join(w.capitalize() for w in slug.split())
+        
+            # 2) Uit og:url
+            og = soup.find("meta", attrs={"property": "og:url"})
+            if og and og.get("content"):
+                href = og["content"]
+                m = re.search(r'transfermarkt\.(?:com|co\.uk)/([^/]+)/national/wettbewerbe/' + re.escape(str(fallback_num)), href)
+                if m:
+                    slug = m.group(1).replace('-', ' ')
+                    return ' '.join(w.capitalize() for w in slug.split())
+        
+            # 3) Uit response URL
+            m2 = re.search(r'transfermarkt\.(?:com|co\.uk)/([^/]+)/national/wettbewerbe/' + re.escape(str(fallback_num)), response_url)
+            if m2:
+                slug = m2.group(1).replace('-', ' ')
+                return ' '.join(w.capitalize() for w in slug.split())
+        
+            # 4) Breadcrumb fallback
+            for a in soup.find_all('a', href=True):
+                href = a['href']
+                m3 = re.search(r'/([^/]+)/national/wettbewerbe/' + re.escape(str(fallback_num)), href)
+                if m3:
+                    slug = m3.group(1).replace('-', ' ')
+                    return ' '.join(w.capitalize() for w in slug.split())
+        
+            return f'Country {fallback_num}'
 
           def is_valid_country_page(soup):
               txt = soup.get_text(" ", strip=True)
