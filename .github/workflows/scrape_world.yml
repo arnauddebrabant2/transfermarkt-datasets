@@ -454,23 +454,34 @@ jobs:
       #     print(f'\nclubs2.csv: {len(clubs)} clubs geschreven')
       #     PYEOF
 
-      - name: Stap 3 - Gzippen en committen
+            - name: Stap 3 - Gzippen en committen
         run: |
           git config user.name "ScoutAI Bot"
           git config user.email "actions@users.noreply.github.com"
+
+          FILES_TO_ADD=""
+
           if [ -f data/csv/competitions_new.csv ]; then
             gzip -c data/csv/competitions_new.csv > data/csv/competitions.csv.gz
             rm data/csv/competitions_new.csv
             echo "competitions.csv.gz: $(wc -c < data/csv/competitions.csv.gz) bytes"
+            FILES_TO_ADD="$FILES_TO_ADD data/csv/competitions.csv.gz"
           fi
+
           if [ -f data/csv/clubs2.csv ]; then
             gzip -f data/csv/clubs2.csv
             echo "clubs2.csv.gz: $(wc -c < data/csv/clubs2.csv.gz) bytes"
+            FILES_TO_ADD="$FILES_TO_ADD data/csv/clubs2.csv.gz"
           fi
-          git add data/csv/competitions.csv.gz data/csv/clubs2.csv.gz
-          TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
-          git commit -m "ScoutAI world full: ${TIMESTAMP}" || echo "Geen wijzigingen"
-          git push
+
+          if [ -n "$FILES_TO_ADD" ]; then
+            git add $FILES_TO_ADD
+            TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
+            git commit -m "ScoutAI world full: ${TIMESTAMP}" || echo "Geen wijzigingen"
+            git push
+          else
+            echo "Geen bestanden om te committen"
+          fi
 
       - name: Samenvatting
         run: |
