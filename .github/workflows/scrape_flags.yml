@@ -33,7 +33,7 @@ jobs:
               print(f"Gedecomprimeerd: {gz.stat().st_size // 1024} KB")
           PYEOF
 
-            - name: Stap 1 - Vlaggen en logo's scrapen per competitie
+      - name: Stap 1 - Vlaggen en logo's scrapen per competitie
         timeout-minutes: 300
         run: |
           python3 << 'PYEOF'
