@@ -39,6 +39,12 @@ jobs:
               'Referer': 'https://www.transfermarkt.co.uk/',
           }
 
+          # Pagina titels die betekenen dat het GEEN geldig land is
+          INVALID_PAGES = {
+              'games of the day', 'transfers', 'news', 'forum',
+              'statistics', 'search', 'login', 'home',
+          }
+
           session = requests.Session()
           session.headers.update(HEADERS)
 
@@ -75,106 +81,104 @@ jobs:
               r = get(url)
 
               if not r:
-                  print(f'[{num:3d}] SKIP')
+                  print(f'[{num:3d}] SKIP (geen response)')
                   time.sleep(0.3)
                   continue
 
               soup = BeautifulSoup(r.text, 'html.parser')
 
-              # ── Landnaam uit h1 ───────────────────────────────────────────
+              # ── Valideer dat dit een echte landenpagina is ────────────────
+              # Check 1: h1 mag geen ongeldige paginanaam zijn
               country_name = ''
               h1 = soup.find('h1')
               if h1:
                   country_name = h1.get_text(strip=True)
-              if not country_name:
-                  continue  # Geen geldig land
 
-              # ── Flag URL: nummer komt uit de URL zelf → altijd correct ────
+              if not country_name or country_name.lower() in INVALID_PAGES:
+                  print(f'[{num:3d}] SKIP (ongeldige pagina: {country_name!r})')
+                  time.sleep(0.3)
+                  continue
+
+              # Check 2: pagina moet een tabel met competities bevatten
+              # Anders is het een redirect naar iets anders
+              tables = soup.find_all('table', class_='items')
+              if not tables:
+                  print(f'[{num:3d}] SKIP (geen competitietabel: {country_name!r})')
+                  time.sleep(0.3)
+                  continue
+
+              # ── Flag URL: nummer uit de URL → altijd correct ──────────────
               flag_url = f'https://tmssl.akamaized.net/images/flagge/verysmall/{num}.png'
 
-              # ── Continent uit breadcrumb of navigatie ─────────────────────
-              continent = 'EUR'  # default
+              # ── Continent ─────────────────────────────────────────────────
+              continent = 'EUR'
               page_text = soup.get_text()
               for c, label in [('AME','America'),('ASI','Asia'),('AFR','Africa'),('OCE','Oceania')]:
                   if label in page_text:
                       continent = c
                       break
 
-              # ── Alle competities op deze pagina ───────────────────────────
-              # Naam + tier uit de tabel, logo uit img in dezelfde rij
-              name_lookup = {}
-              tier_lookup = {}
-              logo_lookup = {}
-              url_lookup  = {}
-
-              for table in soup.find_all('table', class_='items'):
+              # ── Alle competities uit de tabellen scrapen ──────────────────
+              # NIET via div.keys (bestaat niet meer) maar via de tabelrijen zelf
+              found = 0
+              for table in tables:
                   current_tier = ''
                   for row in table.find_all('tr'):
-                      # Tier header
+                      # Tier header rij
                       extrarow = row.find('td', class_='extrarow')
                       if extrarow:
                           current_tier = extrarow.get_text(strip=True)
                           continue
 
-                      # Competitie links
+                      # Zoek competitie links in deze rij
                       for a in row.find_all('a', href=re.compile(r'/startseite/wettbewerb/')):
-                          m = re.search(r'/startseite/wettbewerb/([^/?&\s]+)', a['href'])
+                          m = re.search(r'/startseite/wettbewerb/([^/?&\s"]+)', a['href'])
                           if not m:
                               continue
                           cid = m.group(1)
+
+                          if cid in competitions:
+                              continue
+
                           name = fix_name(a.get('title') or a.get_text(strip=True))
                           if not name:
                               continue
-                          name_lookup[cid] = name
-                          tier_lookup[cid] = current_tier
-                          url_lookup[cid]  = BASE + a['href'] if a['href'].startswith('/') else a['href']
 
-                          # Logo: zoek img in dezelfde rij (niet flagge)
+                          comp_url = BASE + a['href'] if a['href'].startswith('/') else a['href']
+
+                          # country_id = letters vóór eerste cijfer in competition_id
+                          country_id = re.sub(r'\d.*$', '', cid)
+
+                          # Logo: eerste tmssl img in dezelfde rij die geen vlag is
+                          logo_url = ''
                           for img in row.find_all('img'):
                               src = img.get('src', '')
                               if src and 'flagge' not in src and 'tmssl' in src:
-                                  if src.startswith('//'):
-                                      src = 'https:' + src
-                                  logo_lookup[cid] = src
+                                  logo_url = src if src.startswith('http') else 'https:' + src
                                   break
 
-              # ── Competition IDs via de keys divs (volledigste lijst) ──────
-              found = 0
-              for kd in soup.find_all('div', class_='keys'):
-                  for span in kd.find_all('span'):
-                      cid = span.get_text(strip=True)
-                      if not cid or cid in competitions:
-                          continue
+                          competitions[cid] = {
+                              'competition_id': cid,
+                              'name':           name[:80],
+                              'country':        country_name,
+                              'country_id':     country_id,
+                              'country_num_id': str(num),
+                              'continent':      continent,
+                              'continent_id':   continent,
+                              'tier':           current_tier,
+                              'url':            comp_url,
+                              'flag_id':        str(num),
+                              'flag_url':       flag_url,
+                              'logo_url':       logo_url,
+                          }
+                          found += 1
 
-                      # country_id: letters voor het eerste cijfer in cid
-                      country_id = re.sub(r'\d.*$', '', cid)
-
-                      competitions[cid] = {
-                          'competition_id': cid,
-                          'name':           name_lookup.get(cid, cid)[:80],
-                          'country':        country_name,
-                          'country_id':     country_id,
-                          'country_num_id': str(num),
-                          'continent':      continent,
-                          'continent_id':   continent,
-                          'tier':           tier_lookup.get(cid, ''),
-                          'url':            url_lookup.get(cid, f'{BASE}/{cid.lower()}/startseite/wettbewerb/{cid}'),
-                          'flag_id':        str(num),
-                          'flag_url':       flag_url,
-                          'logo_url':       logo_lookup.get(cid, ''),
-                      }
-                      found += 1
-
-              if found > 0 or name_lookup:
-                  print(f'[{num:3d}] {country_name:30s} +{found:3d} comps  (totaal: {len(competitions)})')
-              else:
-                  print(f'[{num:3d}] {country_name or "---":30s} geen comps')
-
+              print(f'[{num:3d}] {country_name:30s} +{found:3d} comps  (totaal: {len(competitions)})')
               time.sleep(1.0 + random.uniform(0, 0.5))
 
-          # ── Nu: voor competities zonder logo → scrape de competitiepagina ─
+          # ── Voor competities zonder logo: scrape de competition pagina ────
           no_logo = [cid for cid, row in competitions.items() if not row.get('logo_url')]
-          print(f'\nCompetities zonder logo: {len(no_logo)} → scrape competitiepagina')
+          print(f'\nCompetities zonder logo: {len(no_logo)}')
 
           for i, cid in enumerate(no_logo, 1):
               row = competitions[cid]
@@ -189,8 +193,6 @@ jobs:
                   continue
 
               soup = BeautifulSoup(r.text, 'html.parser')
-
-              # Zoek logo op de competition pagina
               logo_url = ''
               for pattern in [r'logo/homepageWappen', r'logo/header', r'wappen/header', r'wappen/normal']:
                   for img in soup.find_all('img'):
@@ -219,9 +221,15 @@ jobs:
 
           ok_flag = sum(1 for r in competitions.values() if r.get('flag_url'))
           ok_logo = sum(1 for r in competitions.values() if r.get('logo_url'))
-          print(f'\n✅ {len(competitions)} competities')
+          print(f'\n{"="*60}')
+          print(f'✅ {len(competitions)} competities geschreven')
           print(f'   Vlaggen: {ok_flag}/{len(competitions)}')
           print(f'   Logos:   {ok_logo}/{len(competitions)}')
+
+          # Toon eerste paar rijen als check
+          print('\nVoorbeelden:')
+          for row in list(competitions.values())[:5]:
+              print(f'  {row["competition_id"]:8s} num={row["country_num_id"]:4s} {row["country"]:20s} {row["flag_url"]}')
           PYEOF
 
       - name: Stap 2 - Clubs per competitie scrapen
@@ -277,10 +285,19 @@ jobs:
               return s
 
           # Laad competitions
+          comp_file = DATA / 'competitions.csv'
+          if not comp_file.exists():
+              print('❌ competitions.csv niet gevonden - stap 1 mislukt?')
+              exit(1)
+
           competitions = []
-          with open(DATA / 'competitions.csv', encoding='utf-8') as f:
+          with open(comp_file, encoding='utf-8') as f:
               competitions = list(csv.DictReader(f))
-          print(f'Competities: {len(competitions)}')
+          print(f'Competities te verwerken: {len(competitions)}')
+
+          if len(competitions) == 0:
+              print('❌ Geen competities gevonden')
+              exit(1)
 
           # Laad bestaande clubs (voor resume na crash)
           clubs = {}
@@ -290,7 +307,7 @@ jobs:
                   for row in csv.DictReader(f):
                       if row.get('club_id'):
                           clubs[row['club_id']] = row
-              print(f'Bestaande clubs: {len(clubs)}')
+              print(f'Bestaande clubs geladen: {len(clubs)}')
 
           CLUB_FIELDS = [
               'club_id', 'name', 'short_name',
@@ -414,6 +431,9 @@ jobs:
             echo "Competities: $(wc -l < data/csv/competitions.csv) rijen"
             gzip -f data/csv/competitions.csv
             echo "competitions.csv.gz: $(wc -c < data/csv/competitions.csv.gz) bytes"
+          else
+            echo "❌ competitions.csv niet gevonden"
+            exit 1
           fi
 
           if [ -f data/csv/clubs2.csv ]; then
