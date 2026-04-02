@@ -1,4 +1,4 @@
-name: Scrape World Full - Alle Divisies en Clubs
+name: Scrape Competitions - Flag en Logo URLs
 
 on:
   workflow_dispatch:
@@ -6,7 +6,7 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 90
 
     steps:
       - name: Checkout repo
@@ -23,210 +23,150 @@ jobs:
       - name: Maak output map aan
         run: mkdir -p data/csv
 
-      - name: Stap 1 - Alle competities per land scrapen
+      - name: Scrape competition flag en logo URLs
         run: |
           python3 << 'PYEOF'
           import requests, csv, time, re, random
           from pathlib import Path
           from bs4 import BeautifulSoup
-          from urllib.parse import urljoin
 
           DATA = Path('data/csv')
-          BASE = 'https://www.transfermarkt.com'
+          BASE = 'https://www.transfermarkt.co.uk'
           HEADERS = {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
               'Accept-Language': 'en-GB,en;q=0.9',
               'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-              'Referer': BASE + '/',
+              'Referer': 'https://www.transfermarkt.co.uk/',
           }
 
-          session = requests.Session()
-          session.headers.update(HEADERS)
-
-          def get(url, retries=4, sleep_base=3):
-              for i in range(retries):
-                  try:
-                      r = session.get(url, timeout=25, allow_redirects=True)
-                      if r.status_code == 200:
-                          return r
-                      if r.status_code == 403:
-                          wait = 30 * (i + 1)
-                          print(f'  403 - wacht {wait}s...')
-                          time.sleep(wait)
-                      else:
-                          time.sleep(sleep_base * (i + 1))
-                  except Exception as e:
-                      print(f'  Fout bij {url}: {e}')
-                      time.sleep(sleep_base * (i + 1))
-              return None
-
-          def fix_name(s):
-              if not s:
-                  return ''
-              s = str(s).strip()
-              try:
-                  s = s.encode('latin-1').decode('utf-8')
-              except:
-                  pass
-              bad_pairs = [
-                  ('Ã¼','ü'),('Ã¶','ö'),('Ã¤','ä'),('Ã©','é'),('Ã¨','è'),
-                  ('Ã¡','á'),('Ã ','à'),('Ã§','ç'),('Ã±','ñ'),
-                  ('â€™', "'"),('â€“', '-'),('â€”', '-'),
-              ]
-              for bad, good in bad_pairs:
-                  s = s.replace(bad, good)
-              s = re.sub(r'\s+', ' ', s).strip()
-              return s
-
-          def infer_continent_from_comp_id(comp_id):
-              cid = str(comp_id).upper()
-              if cid.startswith(('GB','L','ES','IT','FR','NL','BE','PO','TR','GR','A','RU','UKR','PL','RO','TS','UNG','SER','SLO','SLN','SC','DK','SE','NO','KR','ALB','BOS','MKD','MNE','FI','IS','NIR','IR','WAL','GEO','AZE','ARM','KAS','WER','MOL','LIT','LV','EST','BUL','KOS','ISR','ZYP','LUX','MLT','AND','FRO','LIE','SMR','GIB')):
-                  return 'EUR'
-              if cid.startswith(('MLS','MEX','BRA','ARG','COL','CHI','PER','ECU','URU','PAR','BOL','VEN','CRC','HON','GUA','PAN','JAM','TTO','CAN','DOM','CUB','HAI','SLV','NCA','GUY','SUR')):
-                  return 'AME'
-              if cid.startswith(('JAP','KOR','CHN','IND','SAU','UAE','QAT','IRN','IRQ','JOR','KUW','BHR','OMA','THA','VIE','MAL','IDN','PHI','KGZ','TJK','TKM','UZB','MNG','SIN','MYA','KHM','LAO','BGD','PAK','SRL','NEP','AFG','SYR','LIB','PSE','YEM')):
-                  return 'ASI'
-              if cid.startswith(('EGY','MAR','TUN','ALG','RSA','NGA','GHA','CMR','SEN','CIV','MLI','ZIM','ZAM','KEN','TAN','UGA','ETH','ANG','MOZ','RWA','BFA','GNE','MLW','BOT','NAM','LIB2','SDN','COG','COD','GAB','MDG','SLE','LBR','NIG','BEN','TGO')):
-                  return 'AFR'
-              if cid.startswith(('AUS','NZL','PNG','FIJ')):
-                  return 'OCE'
-              return ''
-
-          def parse_country_name(soup, response_url, fallback_num):
-            # 1) Uit canonical link
-            canon = soup.find("link", rel="canonical")
-            if canon and canon.get("href"):
-                href = canon["href"]
-                m = re.search(r'transfermarkt\.(?:com|co\.uk)/([^/]+)/national/wettbewerbe/' + re.escape(str(fallback_num)), href)
-                if m:
-                    slug = m.group(1).replace('-', ' ')
-                    return ' '.join(w.capitalize() for w in slug.split())
-        
-            # 2) Uit og:url
-            og = soup.find("meta", attrs={"property": "og:url"})
-            if og and og.get("content"):
-                href = og["content"]
-                m = re.search(r'transfermarkt\.(?:com|co\.uk)/([^/]+)/national/wettbewerbe/' + re.escape(str(fallback_num)), href)
-                if m:
-                    slug = m.group(1).replace('-', ' ')
-                    return ' '.join(w.capitalize() for w in slug.split())
-        
-            # 3) Uit response URL
-            m2 = re.search(r'transfermarkt\.(?:com|co\.uk)/([^/]+)/national/wettbewerbe/' + re.escape(str(fallback_num)), response_url)
-            if m2:
-                slug = m2.group(1).replace('-', ' ')
-                return ' '.join(w.capitalize() for w in slug.split())
-        
-            # 4) Breadcrumb fallback
-            for a in soup.find_all('a', href=True):
-                href = a['href']
-                m3 = re.search(r'/([^/]+)/national/wettbewerbe/' + re.escape(str(fallback_num)), href)
-                if m3:
-                    slug = m3.group(1).replace('-', ' ')
-                    return ' '.join(w.capitalize() for w in slug.split())
-        
-            return f'Country {fallback_num}'
-
-          def is_valid_country_page(soup):
-              txt = soup.get_text(" ", strip=True)
-              return 'National leagues and domestic cups' in txt or 'Domestic leagues & cups' in txt
-
-          competitions = {}
-          valid_countries = 0
-
-          for country_num in range(1, 221):
-              url = f'{BASE}/wettbewerbe/national/wettbewerbe/{country_num}'
-              print(f'[{country_num:3d}/220] scan country id {country_num}...', end=' ', flush=True)
-
-              r = get(url, retries=2, sleep_base=2)
-              if not r:
-                  print('SKIP')
-                  continue
-
-              soup = BeautifulSoup(r.text, 'html.parser')
-
-              if not is_valid_country_page(soup):
-                  print('NO')
-                  continue
-
-              valid_countries += 1
-              found = 0
-              current_tier = ''
-              country_name = parse_country_name(soup, r.url, country_num)
-              country_num_id = str(country_num)
-
-              for table in soup.find_all('table', class_=re.compile(r'items')):
-                  for row in table.find_all('tr'):
-                      extrarow = row.find('td', class_='extrarow')
-                      if extrarow:
-                          current_tier = fix_name(extrarow.get_text(" ", strip=True))
-                          continue
-
-                      comp_link = row.find('a', href=re.compile(r'/startseite/wettbewerb/'))
-                      if not comp_link:
-                          continue
-
-                      mcomp = re.search(r'/startseite/wettbewerb/([^/?#]+)', comp_link.get('href', ''))
-                      if not mcomp:
-                          continue
-
-                      comp_id = mcomp.group(1)
-                      comp_name = fix_name(comp_link.get('title') or comp_link.get_text(" ", strip=True))
-                      comp_url = urljoin(BASE, comp_link['href'])
-
-                      if not comp_name:
-                          comp_name = comp_id
-
-                      if comp_id not in competitions:
-                          competitions[comp_id] = {
-                              'competition_id': comp_id,
-                              'name': comp_name[:120],
-                              'country': country_name,
-                              'country_id': '',
-                              'country_num_id': country_num_id,
-                              'continent': infer_continent_from_comp_id(comp_id),
-                              'continent_id': infer_continent_from_comp_id(comp_id),
-                              'tier': current_tier,
-                              'url': comp_url,
-                          }
-                          found += 1
-
-              print(f'+{found} ({country_name})')
-              time.sleep(0.8 + random.uniform(0, 0.4))
-
-          print(f'\nGeldige landen: {valid_countries}')
-          print(f'Totaal competities: {len(competitions)}')
-
-          FIELDS = [
-              'competition_id','name','country','country_id','country_num_id',
-              'continent','continent_id','tier','url'
+          # ── Competities: (competition_id, country, country_code, continent, href, tier)
+          # country_num_id en flag_url worden AUTOMATISCH gescraped van de pagina
+          # zodat we nooit foute hardcoded nummers hebben
+          COMPETITIONS = [
+              # EUROPA
+              ('GB1',  'England',            'GB',  'EUR', '/premier-league/startseite/wettbewerb/GB1',                   'First Tier'),
+              ('GB2',  'England',            'GB',  'EUR', '/championship/startseite/wettbewerb/GB2',                     'Second Tier'),
+              ('L1',   'Germany',            'L',   'EUR', '/bundesliga/startseite/wettbewerb/L1',                        'First Tier'),
+              ('L2',   'Germany',            'L',   'EUR', '/2-bundesliga/startseite/wettbewerb/L2',                      'Second Tier'),
+              ('ES1',  'Spain',              'ES',  'EUR', '/laliga/startseite/wettbewerb/ES1',                           'First Tier'),
+              ('ES2',  'Spain',              'ES',  'EUR', '/laliga2/startseite/wettbewerb/ES2',                          'Second Tier'),
+              ('IT1',  'Italy',              'IT',  'EUR', '/serie-a/startseite/wettbewerb/IT1',                          'First Tier'),
+              ('IT2',  'Italy',              'IT',  'EUR', '/serie-b/startseite/wettbewerb/IT2',                          'Second Tier'),
+              ('FR1',  'France',             'FR',  'EUR', '/ligue-1/startseite/wettbewerb/FR1',                          'First Tier'),
+              ('FR2',  'France',             'FR',  'EUR', '/ligue-2/startseite/wettbewerb/FR2',                          'Second Tier'),
+              ('NL1',  'Netherlands',        'NL',  'EUR', '/eredivisie/startseite/wettbewerb/NL1',                       'First Tier'),
+              ('NL2',  'Netherlands',        'NL',  'EUR', '/eerste-divisie/startseite/wettbewerb/NL2',                   'Second Tier'),
+              ('BE1',  'Belgium',            'BE',  'EUR', '/jupiler-pro-league/startseite/wettbewerb/BE1',               'First Tier'),
+              ('BE2',  'Belgium',            'BE',  'EUR', '/challenger-pro-league/startseite/wettbewerb/BE2',            'Second Tier'),
+              ('PO1',  'Portugal',           'PO',  'EUR', '/liga-portugal/startseite/wettbewerb/PO1',                   'First Tier'),
+              ('PO2',  'Portugal',           'PO',  'EUR', '/liga-portugal-2/startseite/wettbewerb/PO2',                 'Second Tier'),
+              ('TR1',  'Turkey',             'TR',  'EUR', '/super-lig/startseite/wettbewerb/TR1',                        'First Tier'),
+              ('TR2',  'Turkey',             'TR',  'EUR', '/1-lig/startseite/wettbewerb/TR2',                            'Second Tier'),
+              ('GR1',  'Greece',             'GR',  'EUR', '/super-league-1/startseite/wettbewerb/GR1',                  'First Tier'),
+              ('GR2',  'Greece',             'GR',  'EUR', '/super-league-2/startseite/wettbewerb/GR2',                  'Second Tier'),
+              ('A1',   'Austria',            'A',   'EUR', '/bundesliga/startseite/wettbewerb/A1',                        'First Tier'),
+              ('A2',   'Austria',            'A',   'EUR', '/2-liga/startseite/wettbewerb/A2',                            'Second Tier'),
+              ('C1',   'Switzerland',        'TS',  'EUR', '/super-league/startseite/wettbewerb/C1',                      'First Tier'),
+              ('C2',   'Switzerland',        'TS',  'EUR', '/challenge-league/startseite/wettbewerb/C2',                  'Second Tier'),
+              ('RU1',  'Russia',             'RU',  'EUR', '/premier-liga/startseite/wettbewerb/RU1',                     'First Tier'),
+              ('RU2',  'Russia',             'RU',  'EUR', '/fnl/startseite/wettbewerb/RU2',                              'Second Tier'),
+              ('UKR1', 'Ukraine',            'UKR', 'EUR', '/premier-liga/startseite/wettbewerb/UKR1',                    'First Tier'),
+              ('PL1',  'Poland',             'PL',  'EUR', '/ekstraklasa/startseite/wettbewerb/PL1',                      'First Tier'),
+              ('PL2',  'Poland',             'PL',  'EUR', '/i-liga/startseite/wettbewerb/PL2',                           'Second Tier'),
+              ('RO1',  'Romania',            'RO',  'EUR', '/superliga/startseite/wettbewerb/RO1',                        'First Tier'),
+              ('RO2',  'Romania',            'RO',  'EUR', '/liga-2/startseite/wettbewerb/RO2',                           'Second Tier'),
+              ('TS1',  'Czech Republic',     'TS',  'EUR', '/fortuna-liga/startseite/wettbewerb/TS1',                     'First Tier'),
+              ('TS2',  'Czech Republic',     'TS',  'EUR', '/narodni-fotbalova-liga/startseite/wettbewerb/TS2',            'Second Tier'),
+              ('UNG1', 'Hungary',            'UNG', 'EUR', '/nb-i/startseite/wettbewerb/UNG1',                            'First Tier'),
+              ('UNG2', 'Hungary',            'UNG', 'EUR', '/nb-ii/startseite/wettbewerb/UNG2',                           'Second Tier'),
+              ('SER1', 'Serbia',             'SER', 'EUR', '/superliga/startseite/wettbewerb/SER1',                       'First Tier'),
+              ('SER2', 'Serbia',             'SER', 'EUR', '/prva-liga/startseite/wettbewerb/SER2',                       'Second Tier'),
+              ('SLO1', 'Slovakia',           'SLN', 'EUR', '/nike-liga/startseite/wettbewerb/SLO1',                       'First Tier'),
+              ('SLN1', 'Slovenia',           'SLN', 'EUR', '/prva-liga/startseite/wettbewerb/SLN1',                       'First Tier'),
+              ('SC1',  'Scotland',           'SC',  'EUR', '/scottish-premiership/startseite/wettbewerb/SC1',             'First Tier'),
+              ('SC2',  'Scotland',           'SC',  'EUR', '/scottish-championship/startseite/wettbewerb/SC2',            'Second Tier'),
+              ('DK1',  'Denmark',            'DK',  'EUR', '/superligaen/startseite/wettbewerb/DK1',                      'First Tier'),
+              ('DK2',  'Denmark',            'DK',  'EUR', '/1-division/startseite/wettbewerb/DK2',                       'Second Tier'),
+              ('SE1',  'Sweden',             'SE',  'EUR', '/allsvenskan/startseite/wettbewerb/SE1',                      'First Tier'),
+              ('SE2',  'Sweden',             'SE',  'EUR', '/superettan/startseite/wettbewerb/SE2',                       'Second Tier'),
+              ('NO1',  'Norway',             'NO',  'EUR', '/eliteserien/startseite/wettbewerb/NO1',                      'First Tier'),
+              ('NO2',  'Norway',             'NO',  'EUR', '/obos-ligaen/startseite/wettbewerb/NO2',                      'Second Tier'),
+              ('KR1',  'Croatia',            'KR',  'EUR', '/hnl/startseite/wettbewerb/KR1',                              'First Tier'),
+              ('ALB1', 'Albania',            'ALB', 'EUR', '/kategoria-superiore/startseite/wettbewerb/ALB1',             'First Tier'),
+              ('BOS1', 'Bosnia-Herzegovina', 'BOS', 'EUR', '/premijer-liga/startseite/wettbewerb/BOS1',                   'First Tier'),
+              ('MKD1', 'North Macedonia',    'MKD', 'EUR', '/prva-fudbalska-liga/startseite/wettbewerb/MKD1',             'First Tier'),
+              ('MNE1', 'Montenegro',         'MNE', 'EUR', '/prva-crnogorska-liga/startseite/wettbewerb/MNE1',            'First Tier'),
+              ('FI1',  'Finland',            'FI',  'EUR', '/veikkausliiga/startseite/wettbewerb/FI1',                   'First Tier'),
+              ('IS1',  'Iceland',            'IS',  'EUR', '/urvalsdeild/startseite/wettbewerb/IS1',                      'First Tier'),
+              ('IR1',  'Ireland',            'IR',  'EUR', '/league-of-ireland-premier-division/startseite/wettbewerb/IR1', 'First Tier'),
+              ('NIR1', 'Northern Ireland',   'NIR', 'EUR', '/nifl-premiership/startseite/wettbewerb/NIR1',                'First Tier'),
+              ('WAL1', 'Wales',              'WAL', 'EUR', '/cymru-premier/startseite/wettbewerb/WAL1',                   'First Tier'),
+              ('GEO1', 'Georgia',            'GEO', 'EUR', '/erovnuli-liga/startseite/wettbewerb/GEO1',                  'First Tier'),
+              ('AZE1', 'Azerbaijan',         'AZE', 'EUR', '/premyer-liqa/startseite/wettbewerb/AZE1',                   'First Tier'),
+              ('ARM1', 'Armenia',            'ARM', 'EUR', '/armenian-premier-league/startseite/wettbewerb/ARM1',         'First Tier'),
+              ('KAS1', 'Kazakhstan',         'KAS', 'EUR', '/premier-liga/startseite/wettbewerb/KAS1',                   'First Tier'),
+              ('WER1', 'Belarus',            'WER', 'EUR', '/vysheyshaya-liga/startseite/wettbewerb/WER1',                'First Tier'),
+              ('MOL1', 'Moldova',            'MOL', 'EUR', '/divizia-nationala/startseite/wettbewerb/MOL1',               'First Tier'),
+              ('LIT1', 'Lithuania',          'LIT', 'EUR', '/a-lyga/startseite/wettbewerb/LIT1',                         'First Tier'),
+              ('LV1',  'Latvia',             'LV',  'EUR', '/virsliga/startseite/wettbewerb/LV1',                        'First Tier'),
+              ('EST1', 'Estonia',            'EST', 'EUR', '/meistriliiga/startseite/wettbewerb/EST1',                   'First Tier'),
+              ('BUL1', 'Bulgaria',           'BUL', 'EUR', '/parva-liga/startseite/wettbewerb/BUL1',                     'First Tier'),
+              ('KOS1', 'Kosovo',             'KOS', 'EUR', '/superliga/startseite/wettbewerb/KOS1',                      'First Tier'),
+              ('ISR1', 'Israel',             'ISR', 'EUR', '/ligat-haal/startseite/wettbewerb/ISR1',                     'First Tier'),
+              ('ZYP1', 'Cyprus',             'ZYP', 'EUR', '/1-division/startseite/wettbewerb/ZYP1',                     'First Tier'),
+              ('LUX1', 'Luxembourg',         'LUX', 'EUR', '/bgl-ligue/startseite/wettbewerb/LUX1',                      'First Tier'),
+              ('MLT1', 'Malta',              'MLT', 'EUR', '/maltese-premier-league/startseite/wettbewerb/MLT1',          'First Tier'),
+              ('FRO1', 'Faroe Islands',      'FRO', 'EUR', '/faroese-premier-league/startseite/wettbewerb/FRO1',          'First Tier'),
+              # UEFA cups
+              ('CL',   'UEFA',               'EUR', 'EUR', '/champions-league/startseite/wettbewerb/CL',                  'International'),
+              ('EL',   'UEFA',               'EUR', 'EUR', '/europa-league/startseite/wettbewerb/EL',                     'International'),
+              ('UCOL', 'UEFA',               'EUR', 'EUR', '/uecl/startseite/wettbewerb/UCOL',                            'International'),
+              # AMERICAS
+              ('MLS1', 'USA',                'MLS', 'AME', '/major-league-soccer/startseite/wettbewerb/MLS1',             'First Tier'),
+              ('MEX1', 'Mexico',             'MEX', 'AME', '/liga-mx-apertura/startseite/wettbewerb/MEXA',                'First Tier'),
+              ('BRA1', 'Brazil',             'BRA', 'AME', '/campeonato-brasileiro-serie-a/startseite/wettbewerb/BRA1',   'First Tier'),
+              ('BRA2', 'Brazil',             'BRA', 'AME', '/campeonato-brasileiro-serie-b/startseite/wettbewerb/BRA2',   'Second Tier'),
+              ('ARG1', 'Argentina',          'ARG', 'AME', '/primera-division/startseite/wettbewerb/AR1N',                'First Tier'),
+              ('COL1', 'Colombia',           'COL', 'AME', '/liga-dimayor-finalizacion/startseite/wettbewerb/COL1',       'First Tier'),
+              ('CHI1', 'Chile',              'CHI', 'AME', '/liga-de-primera/startseite/wettbewerb/CLPD',                 'First Tier'),
+              ('PER1', 'Peru',               'PER', 'AME', '/liga-1-apertura/startseite/wettbewerb/TDeA',                 'First Tier'),
+              ('ECU1', 'Ecuador',            'ECU', 'AME', '/ligapro-serie-a/startseite/wettbewerb/EC1N',                 'First Tier'),
+              ('URU1', 'Uruguay',            'URU', 'AME', '/super-lig/startseite/wettbewerb/TR1',                        'First Tier'),
+              ('PAR1', 'Paraguay',           'PAR', 'AME', '/primera-division-apertura/startseite/wettbewerb/PR1A',       'First Tier'),
+              ('BOL1', 'Bolivia',            'BOL', 'AME', '/division-profesional/startseite/wettbewerb/BO1A',            'First Tier'),
+              ('VEN1', 'Venezuela',          'VEN', 'AME', '/liga-futve-apertura/startseite/wettbewerb/VZ1A',             'First Tier'),
+              ('CRC1', 'Costa Rica',         'CRC', 'AME', '/primera-division-apertura/startseite/wettbewerb/CRPD',       'First Tier'),
+              ('HON1', 'Honduras',           'HON', 'AME', '/liga-nacional-apertura/startseite/wettbewerb/HO1A',          'First Tier'),
+              ('CDN1', 'Canada',             'CAN', 'AME', '/canadian-premier-league/startseite/wettbewerb/CDN1',         'First Tier'),
+              # AZIË
+              ('J1',   'Japan',              'JAP', 'ASI', '/j1-league/startseite/wettbewerb/JAP1',                       'First Tier'),
+              ('KL1',  'South Korea',        'KOR', 'ASI', '/k-league-1/startseite/wettbewerb/KOR1',                      'First Tier'),
+              ('CSL',  'China',              'CHN', 'ASI', '/chinese-super-league/startseite/wettbewerb/CSL',              'First Tier'),
+              ('IND1', 'India',              'IND', 'ASI', '/indian-super-league/startseite/wettbewerb/IND1',              'First Tier'),
+              ('SA1',  'Saudi Arabia',       'SAU', 'ASI', '/saudi-pro-league/startseite/wettbewerb/SA1',                  'First Tier'),
+              ('UAE1', 'UAE',                'UAE', 'ASI', '/uae-pro-league/startseite/wettbewerb/UAE1',                   'First Tier'),
+              ('QSL',  'Qatar',              'QAT', 'ASI', '/qatar-stars-league/startseite/wettbewerb/QSL',                'First Tier'),
+              ('IRN1', 'Iran',               'IRN', 'ASI', '/persian-gulf-pro-league/startseite/wettbewerb/IRN1',          'First Tier'),
+              ('IRQ1', 'Iraq',               'IRQ', 'ASI', '/iraq-stars-league/startseite/wettbewerb/IRQ1',                'First Tier'),
+              ('MYS1', 'Malaysia',           'MAL', 'ASI', '/malaysia-super-league/startseite/wettbewerb/MYS1',            'First Tier'),
+              ('THA1', 'Thailand',           'THA', 'ASI', '/thai-league/startseite/wettbewerb/THA1',                     'First Tier'),
+              ('VIE1', 'Vietnam',            'VIE', 'ASI', '/v-league-1/startseite/wettbewerb/VIE1',                      'First Tier'),
+              ('IND1', 'Indonesia',          'IDN', 'ASI', '/super-league/startseite/wettbewerb/IN1L',                    'First Tier'),
+              ('SIN1', 'Singapore',          'SIN', 'ASI', '/singapore-premier-league/startseite/wettbewerb/SIN1',        'First Tier'),
+              # AFRIKA
+              ('EGY1', 'Egypt',              'EGY', 'AFR', '/egyptian-premier-league/startseite/wettbewerb/EGY1',         'First Tier'),
+              ('MAR1', 'Morocco',            'MAR', 'AFR', '/botola-pro-inwi/startseite/wettbewerb/MAR1',                 'First Tier'),
+              ('TUN1', 'Tunisia',            'TUN', 'AFR', '/ligue-1/startseite/wettbewerb/TUN1',                         'First Tier'),
+              ('ALG1', 'Algeria',            'ALG', 'AFR', '/ligue-1/startseite/wettbewerb/ALG1',                         'First Tier'),
+              ('SA1K', 'South Africa',       'RSA', 'AFR', '/premier-soccer-league/startseite/wettbewerb/SA1K',           'First Tier'),
+              ('NGA1', 'Nigeria',            'NGA', 'AFR', '/nigeria-professional-football-league/startseite/wettbewerb/NGA1', 'First Tier'),
+              ('GHA1', 'Ghana',              'GHA', 'AFR', '/ghana-premier-league/startseite/wettbewerb/GHA1',            'First Tier'),
+              ('CMR1', 'Cameroon',           'CMR', 'AFR', '/elite-one/startseite/wettbewerb/CMR1',                       'First Tier'),
+              ('SEN1', 'Senegal',            'SEN', 'AFR', '/ligue-1/startseite/wettbewerb/SEN1',                         'First Tier'),
+              ('CIV1', 'Ivory Coast',        'CIV', 'AFR', '/ligue-1/startseite/wettbewerb/CIV1',                         'First Tier'),
+              ('UGL1', 'Uganda',             'UGA', 'AFR', '/uganda-premier-league/startseite/wettbewerb/UGL1',           'First Tier'),
+              ('KAS2', 'Kenya',              'KEN', 'AFR', '/kenyan-premier-league/startseite/wettbewerb/KPL1',            'First Tier'),
           ]
-          out = DATA / 'competitions_new.csv'
-          with open(out, 'w', newline='', encoding='utf-8') as f:
-              w = csv.DictWriter(f, fieldnames=FIELDS, extrasaction='ignore')
-              w.writeheader()
-              w.writerows(competitions.values())
-
-          print(f'competitions_new.csv: {len(competitions)} competities')
-          PYEOF
-
-      - name: Stap 2 - Clubs per competitie scrapen
-        timeout-minutes: 300
-        run: |
-          python3 << 'PYEOF'
-          import requests, csv, time, re, random
-          from pathlib import Path
-          from bs4 import BeautifulSoup
-          from urllib.parse import urljoin
-
-          DATA = Path('data/csv')
-          BASE = 'https://www.transfermarkt.com'
-          HEADERS = {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-              'Accept-Language': 'en-GB,en;q=0.9',
-              'Accept': 'text/html,application/xhtml+xml',
-              'Referer': BASE + '/',
-          }
 
           session = requests.Session()
           session.headers.update(HEADERS)
@@ -238,189 +178,155 @@ jobs:
                       if r.status_code == 200:
                           return r
                       if r.status_code == 403:
-                          wait = 30 * (i + 1)
-                          print(f'  403 - wacht {wait}s...')
+                          wait = 60 * (i + 1)
+                          print(f'  403 → wacht {wait}s')
                           time.sleep(wait)
                       else:
-                          time.sleep(3 * (i + 1))
+                          print(f'  HTTP{r.status_code}')
+                          time.sleep(5)
                   except Exception as e:
                       print(f'  Fout: {e}')
-                      time.sleep(3 * (i + 1))
+                      time.sleep(5)
               return None
 
-          def fix_name(s):
-              if not s:
-                  return ''
-              s = str(s).strip()
-              try:
-                  s = s.encode('latin-1').decode('utf-8')
-              except:
-                  pass
-              replacements = [
-                  ('Ã¼','ü'),('Ã¶','ö'),('Ã¤','ä'),('Ã©','é'),('Ã¨','è'),
-                  ('Ã¡','á'),('Ã ','à'),('Ã§','ç'),('Ã±','ñ'),
-                  ('â€™', "'"),('â€“', '-'),('â€”', '-'),
-              ]
-              for bad, good in replacements:
-                  s = s.replace(bad, good)
-              return re.sub(r'\s+', ' ', s).strip()
-
-          with open(DATA / 'competitions_new.csv', encoding='utf-8') as f:
-              competitions = list(csv.DictReader(f))
-          print(f'Competities: {len(competitions)}')
-
-          clubs = {}
-          club_file = DATA / 'clubs2.csv'
-          if club_file.exists():
-              with open(club_file, encoding='utf-8') as f:
-                  for row in csv.DictReader(f):
-                      if row.get('club_id'):
-                          clubs[row['club_id']] = row
-              print(f'Bestaande clubs2: {len(clubs)}')
-
-          CLUB_FIELDS = [
-              'club_id','name','short_name',
-              'domestic_competition_id','competition_name',
-              'country','country_id','continent','continent_id',
-              'squad_size','average_age','total_market_value','coach_name','url',
-          ]
-
-          total = len(competitions)
-          for i, comp in enumerate(competitions, 1):
-              comp_id      = comp['competition_id']
-              comp_url     = comp.get('url', '')
-              comp_name    = comp.get('name', comp_id)
-              country      = comp.get('country', '')
-              country_id   = comp.get('country_id', '')
-              continent    = comp.get('continent', '')
-              continent_id = comp.get('continent_id', '')
-
-              if not comp_url:
-                  continue
-
-              print(f'[{i:4d}/{total}] {comp_id:12s} {comp_name[:38]:38s}', end=' ', flush=True)
-
-              r = get(comp_url)
+          def scrape_comp(comp_id, href):
+              """
+              Scrape naam, flag_url en logo_url van de Transfermarkt pagina.
+              country_num_id wordt AUTOMATISCH geëxtraheerd uit de flag img src URL.
+              """
+              url = BASE + href
+              r = get(url)
               if not r:
-                  print('SKIP')
-                  continue
+                  return None, None, None, None
 
               soup = BeautifulSoup(r.text, 'html.parser')
-              found = 0
 
-              for table in soup.find_all('table', class_=re.compile(r'items')):
-                  for row in table.find_all('tr'):
-                      a = row.find('a', href=re.compile(r'/startseite/verein/\d+'))
-                      if not a:
-                          continue
+              # ── Naam ─────────────────────────────────────────────────────
+              name = ''
+              h1 = soup.find('h1')
+              if h1:
+                  for span in h1.find_all('span'):
+                      span.decompose()
+                  name = h1.get_text(strip=True)
 
-                      href = a['href']
-                      m = re.search(r'/startseite/verein/(\d+)', href)
-                      if not m:
-                          continue
+              # ── Flag URL + country_num_id (uit de img src) ────────────────
+              # Patroon: tmssl.akamaized.net/images/flagge/verysmall/189.png
+              flag_url = ''
+              country_num = ''
+              for img in soup.find_all('img'):
+                  src = img.get('src', '') or img.get('data-src', '')
+                  if not src:
+                      continue
+                  m = re.search(r'flagge/(?:verysmall|small|normal|big)/(\d+)\.png', src)
+                  if m:
+                      country_num = m.group(1)
+                      flag_url = f'https://tmssl.akamaized.net/images/flagge/verysmall/{country_num}.png'
+                      break
 
-                      club_id = m.group(1)
+              # ── Logo URL ──────────────────────────────────────────────────
+              logo_url = ''
+              logo_patterns = [
+                  r'logo/homepageWappen150x150',
+                  r'logo/header',
+                  r'wappen/header',
+                  r'homepageWappen',
+              ]
+              all_srcs = []
+              for img in soup.find_all('img'):
+                  src = img.get('src', '') or img.get('data-src', '')
+                  if src and 'flagge' not in src and src != '#' and 'tmssl' in src:
+                      all_srcs.append(src)
 
-                      full_name = fix_name(a.get('title', '') or a.get_text(" ", strip=True))
-                      short_name = fix_name(a.get_text(" ", strip=True))
-                      if short_name == full_name:
-                          short_name = ''
+              for pattern in logo_patterns:
+                  for src in all_srcs:
+                      if re.search(pattern, src, re.I):
+                          logo_url = src
+                          if logo_url.startswith('//'):
+                              logo_url = 'https:' + logo_url
+                          break
+                  if logo_url:
+                      break
 
-                      td = a.find_parent('td')
-                      if td:
-                          for span in td.find_all('span'):
-                              txt = fix_name(span.get_text(" ", strip=True))
-                              if txt and txt != full_name and 2 < len(txt) < len(full_name):
-                                  short_name = txt
-                                  break
+              return name, flag_url, logo_url, country_num
 
-                      if not full_name or len(full_name) < 2:
-                          continue
+          # ── Verwerk alle competities ──────────────────────────────────────
+          FIELDS = [
+              'competition_id', 'name', 'country', 'country_id',
+              'country_num_id', 'continent', 'continent_id', 'tier',
+              'url', 'flag_id', 'flag_url', 'logo_url',
+          ]
 
-                      cells = row.find_all('td')
-                      squad_size = avg_age = market_val = ''
-                      for td in cells:
-                          txt = td.get_text(" ", strip=True)
-                          if re.match(r'^\d+$', txt):
-                              try:
-                                  n = int(txt)
-                                  if 5 <= n <= 60:
-                                      squad_size = txt
-                              except:
-                                  pass
-                          if re.match(r'^\d+[,.]\d$', txt):
-                              try:
-                                  v = float(txt.replace(',', '.'))
-                                  if 15 < v < 40:
-                                      avg_age = txt
-                              except:
-                                  pass
-                          if re.match(r'^\d+[.,]?\d*\s*[mkMK]?$', txt):
-                              market_val = txt
+          results = []
+          total = len(COMPETITIONS)
 
-                      clubs[club_id] = {
-                          'club_id': club_id,
-                          'name': full_name,
-                          'short_name': short_name,
-                          'domestic_competition_id': comp_id,
-                          'competition_name': comp_name,
-                          'country': country,
-                          'country_id': country_id,
-                          'continent': continent,
-                          'continent_id': continent_id,
-                          'squad_size': squad_size,
-                          'average_age': avg_age,
-                          'total_market_value': market_val,
-                          'coach_name': '',
-                          'url': urljoin(BASE, href),
-                      }
-                      found += 1
+          for i, (comp_id, country, country_code, continent, href, tier) in enumerate(COMPETITIONS, 1):
+              print(f'[{i:3d}/{total}] {comp_id:8s} {country:28s}', end=' ', flush=True)
 
-              print(f'+{found} (totaal {len(clubs)})')
+              name, flag_url, logo_url, country_num = scrape_comp(comp_id, href)
 
-              if i % 50 == 0:
-                  with open(club_file, 'w', newline='', encoding='utf-8') as f:
-                      w = csv.DictWriter(f, fieldnames=CLUB_FIELDS, extrasaction='ignore')
-                      w.writeheader()
-                      for row in clubs.values():
-                          w.writerow({k: row.get(k, '') for k in CLUB_FIELDS})
-                  print(f'  [SAVE] {len(clubs)} clubs opgeslagen')
+              row = {
+                  'competition_id': comp_id,
+                  'name':           name or comp_id,
+                  'country':        country,
+                  'country_id':     country_code,
+                  'country_num_id': country_num or '',
+                  'continent':      continent,
+                  'continent_id':   continent,
+                  'tier':           tier,
+                  'url':            BASE + href,
+                  'flag_id':        country_num or '',
+                  'flag_url':       flag_url or '',
+                  'logo_url':       logo_url or '',
+              }
+              results.append(row)
 
-              time.sleep(1.0 + random.uniform(0, 0.6))
+              flag_ok = '✓' if flag_url  else '✗'
+              logo_ok = '✓' if logo_url  else '✗'
+              num_str = f'num={country_num}' if country_num else 'num=??'
+              print(f'flag:{flag_ok} logo:{logo_ok} ({num_str})  {(name or "")[:30]}')
 
-          with open(club_file, 'w', newline='', encoding='utf-8') as f:
-              w = csv.DictWriter(f, fieldnames=CLUB_FIELDS, extrasaction='ignore')
+              time.sleep(1.5 + random.uniform(0, 1.0))
+
+          # ── Statistieken ─────────────────────────────────────────────────
+          ok_flag = sum(1 for r in results if r['flag_url'])
+          ok_logo = sum(1 for r in results if r['logo_url'])
+          print(f'\n{"="*60}')
+          print(f'✅ {len(results)} competities verwerkt')
+          print(f'   Vlaggen:  {ok_flag}/{len(results)}')
+          print(f'   Logos:    {ok_logo}/{len(results)}')
+
+          failed = [r for r in results if not r['flag_url'] or not r['logo_url']]
+          if failed:
+              print('\n⚠️  Ontbrekende flag/logo:')
+              for r in failed:
+                  print(f'   {r["competition_id"]:10s}  flag={bool(r["flag_url"])}  logo={bool(r["logo_url"])}  url={r["url"]}')
+
+          # ── CSV schrijven ─────────────────────────────────────────────────
+          out_csv = DATA / 'competitions.csv'
+          with open(out_csv, 'w', newline='', encoding='utf-8') as f:
+              w = csv.DictWriter(f, fieldnames=FIELDS)
               w.writeheader()
-              for row in clubs.values():
-                  w.writerow({k: row.get(k, '') for k in CLUB_FIELDS})
-
-          print(f'\nclubs2.csv: {len(clubs)} clubs geschreven')
+              w.writerows(results)
+          print(f'\nGeschreven: {out_csv}')
           PYEOF
 
-      - name: Stap 3 - Gzippen en committen
+      - name: Preview CSV
+        run: |
+          echo "=== Eerste 5 rijen ==="
+          head -6 data/csv/competitions.csv
+
+      - name: Gzip en commit
         run: |
           git config user.name "ScoutAI Bot"
           git config user.email "actions@users.noreply.github.com"
-
-          if [ -f data/csv/competitions_new.csv ]; then
-            gzip -c data/csv/competitions_new.csv > data/csv/competitions.csv.gz
-            rm data/csv/competitions_new.csv
+          if [ -f data/csv/competitions.csv ]; then
+            gzip -f data/csv/competitions.csv
             echo "competitions.csv.gz: $(wc -c < data/csv/competitions.csv.gz) bytes"
+            git add data/csv/competitions.csv.gz
+            TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
+            git commit -m "competitions.csv.gz correcte flag+logo: ${TIMESTAMP}" || echo "Geen wijzigingen"
+            git push
+          else
+            echo "❌ competitions.csv niet gevonden"
+            exit 1
           fi
-
-          if [ -f data/csv/clubs2.csv ]; then
-            gzip -f data/csv/clubs2.csv
-            echo "clubs2.csv.gz: $(wc -c < data/csv/clubs2.csv.gz) bytes"
-          fi
-
-          git add data/csv/competitions.csv.gz data/csv/clubs2.csv.gz
-          TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
-          git commit -m "ScoutAI world full: ${TIMESTAMP}" || echo "Geen wijzigingen"
-          git push
-
-      - name: Samenvatting
-        run: |
-          echo "=== WORLD SCRAPE KLAAR ==="
-          for f in data/csv/competitions.csv.gz data/csv/clubs2.csv.gz; do
-            [ -f "$f" ] && echo "$f: $(wc -c < $f) bytes"
-          done
