@@ -483,9 +483,3 @@ jobs:
             echo "Geen bestanden om te committen"
           fi
 
-      - name: Samenvatting
-        run: |
-          echo "=== WORLD SCRAPE KLAAR ==="
-          for f in data/csv/competitions.csv.gz data/csv/clubs2.csv.gz; do
-            [ -f "$f" ] && echo "$f: $(wc -c < $f) bytes"
-          done
