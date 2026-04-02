@@ -23,7 +23,7 @@ jobs:
       - name: Maak output map aan
         run: mkdir -p data/csv
 
-      - name: Stap 1 - Alle competities per land scrapen
+            - name: Stap 1 - Alle competities per land scrapen
         run: |
           python3 << 'PYEOF'
           import requests, csv, time, re, random
@@ -46,7 +46,7 @@ jobs:
           def get(url, retries=4, sleep_base=3):
               for i in range(retries):
                   try:
-                      r = session.get(url, timeout=25)
+                      r = session.get(url, timeout=25, allow_redirects=True)
                       if r.status_code == 200:
                           return r
                       if r.status_code == 403:
@@ -54,7 +54,6 @@ jobs:
                           print(f'  403 - wacht {wait}s...')
                           time.sleep(wait)
                       else:
-                          print(f'  HTTP {r.status_code} voor {url}')
                           time.sleep(sleep_base * (i + 1))
                   except Exception as e:
                       print(f'  Fout bij {url}: {e}')
@@ -79,116 +78,78 @@ jobs:
               s = re.sub(r'\s+', ' ', s).strip()
               return s
 
-          def infer_continent_id(continent_url):
-              cu = continent_url.lower()
-              if 'europa' in cu:
+          def infer_continent_from_comp_id(comp_id):
+              cid = str(comp_id).upper()
+              if cid.startswith(('GB','L','ES','IT','FR','NL','BE','PO','TR','GR','A','RU','UKR','PL','RO','TS','UNG','SER','SLO','SLN','SC','DK','SE','NO','KR','ALB','BOS','MKD','MNE','FI','IS','NIR','IR','WAL','GEO','AZE','ARM','KAS','WER','MOL','LIT','LV','EST','BUL','KOS','ISR','ZYP','LUX','MLT','AND','FRO','LIE','SMR','GIB')):
                   return 'EUR'
-              if 'amerika' in cu:
+              if cid.startswith(('MLS','MEX','BRA','ARG','COL','CHI','PER','ECU','URU','PAR','BOL','VEN','CRC','HON','GUA','PAN','JAM','TTO','CAN','DOM','CUB','HAI','SLV','NCA','GUY','SUR')):
                   return 'AME'
-              if 'asien' in cu or 'asia' in cu:
+              if cid.startswith(('JAP','KOR','CHN','IND','SAU','UAE','QAT','IRN','IRQ','JOR','KUW','BHR','OMA','THA','VIE','MAL','IDN','PHI','KGZ','TJK','TKM','UZB','MNG','SIN','MYA','KHM','LAO','BGD','PAK','SRL','NEP','AFG','SYR','LIB','PSE','YEM')):
                   return 'ASI'
-              if 'afrika' in cu or 'africa' in cu:
+              if cid.startswith(('EGY','MAR','TUN','ALG','RSA','NGA','GHA','CMR','SEN','CIV','MLI','ZIM','ZAM','KEN','TAN','UGA','ETH','ANG','MOZ','RWA','BFA','GNE','MLW','BOT','NAM','LIB2','SDN','COG','COD','GAB','MDG','SLE','LBR','NIG','BEN','TGO')):
                   return 'AFR'
-              if 'ozeanien' in cu or 'oceania' in cu:
+              if cid.startswith(('AUS','NZL','PNG','FIJ')):
                   return 'OCE'
               return ''
 
-          def slug_to_country_name(slug):
-              slug = slug.strip('/').split('/')[0]
-              slug = slug.replace('-', ' ')
-              return ' '.join(w.capitalize() for w in slug.split())
-
-          # Dynamisch landen ophalen vanaf continentpagina's
-          continent_pages = [
-              BASE + '/wettbewerbe/europa',
-              BASE + '/wettbewerbe/amerika',
-              BASE + '/wettbewerbe/asien',
-              BASE + '/wettbewerbe/afrika',
-              BASE + '/wettbewerbe/ozeanien',
-          ]
-
-          countries = {}
-          for page_url in continent_pages:
-              continent_id = infer_continent_id(page_url)
-              print(f'\n[LANDEN] Lees {page_url}')
-              r = get(page_url)
-              if not r:
-                  continue
-
-              soup = BeautifulSoup(r.text, 'html.parser')
-
-              # Zoek alle links zoals /belgium/national/wettbewerbe/19
-              for a in soup.find_all('a', href=True):
-                  href = a['href']
-                  m = re.search(r'^/([^/]+)/national/wettbewerbe/(\d+)$', href)
-                  if not m:
-                      continue
-
+          def parse_country_name(soup, response_url, fallback_num):
+              # 1) Probeer uit canonical/og:url slug te halen
+              html = str(soup)
+              m = re.search(r'https://www\.transfermarkt\.(?:com|co\.uk)/([^/]+)/national/wettbewerbe/' + re.escape(str(fallback_num)), html)
+              if m:
                   slug = m.group(1)
-                  country_num_id = m.group(2)
-                  country_name = fix_name(a.get_text(" ", strip=True))
-                  if not country_name or len(country_name) < 2:
-                      country_name = slug_to_country_name(slug)
+                  slug = slug.replace('-', ' ')
+                  return ' '.join(w.capitalize() for w in slug.split())
 
-                  key = country_num_id
-                  if key not in countries:
-                      countries[key] = {
-                          'country_num_id': country_num_id,
-                          'country': country_name,
-                          'country_slug': slug,
-                          'country_id': '',
-                          'continent': continent_id,
-                          'continent_id': continent_id,
-                          'url': urljoin(BASE, href),
-                      }
+              # 2) Probeer uit response URL
+              m2 = re.search(r'https://www\.transfermarkt\.(?:com|co\.uk)/([^/]+)/national/wettbewerbe/' + re.escape(str(fallback_num)), response_url)
+              if m2:
+                  slug = m2.group(1)
+                  slug = slug.replace('-', ' ')
+                  return ' '.join(w.capitalize() for w in slug.split())
 
-              time.sleep(1.0 + random.uniform(0, 0.4))
+              # 3) Header fallback
+              title = soup.get_text(" ", strip=True)
+              if 'National leagues and domestic cups' in title:
+                  h1 = soup.find(['h1','h2'])
+                  if h1:
+                      txt = fix_name(h1.get_text(" ", strip=True))
+                      if txt and 'National leagues' not in txt:
+                          return txt
 
-          countries_list = sorted(countries.values(), key=lambda x: (x['continent_id'], x['country']))
-          print(f'\nTotaal landen gevonden: {len(countries_list)}')
+              return f'Country {fallback_num}'
+
+          def is_valid_country_page(soup):
+              txt = soup.get_text(" ", strip=True)
+              return 'National leagues and domestic cups' in txt or 'Domestic leagues & cups' in txt
 
           competitions = {}
+          scanned = 0
+          valid_countries = 0
 
-          for idx, country in enumerate(countries_list, 1):
-              country_num = country['country_num_id']
-              country_name = country['country']
-              country_url = country['url']
-              continent_id = country['continent_id']
+          # Scan numerieke country ids rechtstreeks
+          for country_num in range(1, 221):
+              scanned += 1
+              url = f'{BASE}/wettbewerbe/national/wettbewerbe/{country_num}'
+              print(f'[{country_num:3d}/220] scan country id {country_num}...', end=' ', flush=True)
 
-              print(f'[{idx:3d}/{len(countries_list)}] {country_name} ({country_num})...', end=' ', flush=True)
-
-              r = get(country_url)
+              r = get(url, retries=2, sleep_base=2)
               if not r:
                   print('SKIP')
                   continue
 
               soup = BeautifulSoup(r.text, 'html.parser')
 
-              # Extra validatie: pagina-id moet overeenkomen
-              canonical_ok = False
-              for a in soup.find_all('a', href=True):
-                  if re.search(rf'/national/wettbewerbe/{re.escape(country_num)}$', a["href"]):
-                      canonical_ok = True
-                      break
-
-              if not canonical_ok:
-                  print('MISMATCH')
+              if not is_valid_country_page(soup):
+                  print('NO')
                   continue
 
+              valid_countries += 1
               found = 0
               current_tier = ''
-              country_code = ''
-              country_num_id_from_page = country_num
+              country_name = parse_country_name(soup, r.url, country_num)
+              country_num_id = str(country_num)
 
-              # Probeer een landcode af te leiden uit flag img op de pagina
-              flag_img = soup.find('img', src=re.compile(r'/images/flagge/'))
-              if flag_img:
-                  src = flag_img.get('src', '')
-                  mflag = re.search(r'/images/flagge/[^/]+/(\d+)\.', src)
-                  if mflag:
-                      country_num_id_from_page = mflag.group(1)
-
-              # Parse competitie-rows
               for table in soup.find_all('table', class_=re.compile(r'items')):
                   for row in table.find_all('tr'):
                       extrarow = row.find('td', class_='extrarow')
@@ -200,7 +161,7 @@ jobs:
                       if not comp_link:
                           continue
 
-                      mcomp = re.search(r'/startseite/wettbewerb/([^/?#]+)', comp_link['href'])
+                      mcomp = re.search(r'/startseite/wettbewerb/([^/?#]+)', comp_link.get('href', ''))
                       if not mcomp:
                           continue
 
@@ -216,17 +177,20 @@ jobs:
                               'competition_id': comp_id,
                               'name': comp_name[:120],
                               'country': country_name,
-                              'country_id': country_code,
-                              'country_num_id': country_num_id_from_page,
-                              'continent': continent_id,
-                              'continent_id': continent_id,
+                              'country_id': '',
+                              'country_num_id': country_num_id,
+                              'continent': infer_continent_from_comp_id(comp_id),
+                              'continent_id': infer_continent_from_comp_id(comp_id),
                               'tier': current_tier,
                               'url': comp_url,
                           }
                           found += 1
 
-              print(f'+{found} (totaal {len(competitions)})')
-              time.sleep(1.0 + random.uniform(0, 0.5))
+              print(f'+{found} ({country_name})')
+              time.sleep(0.8 + random.uniform(0, 0.4))
+
+          print(f'\nGeldige landen: {valid_countries}')
+          print(f'Totaal competities: {len(competitions)}')
 
           FIELDS = [
               'competition_id','name','country','country_id','country_num_id',
@@ -238,7 +202,187 @@ jobs:
               w.writeheader()
               w.writerows(competitions.values())
 
-          print(f'\ncompetitions_new.csv: {len(competitions)} competities')
+          print(f'competitions_new.csv: {len(competitions)} competities')
+          PYEOF      - name: Stap 1 - Alle competities per land scrapen
+        run: |
+          python3 << 'PYEOF'
+          import requests, csv, time, re, random
+          from pathlib import Path
+          from bs4 import BeautifulSoup
+          from urllib.parse import urljoin
+
+          DATA = Path('data/csv')
+          BASE = 'https://www.transfermarkt.com'
+          HEADERS = {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+              'Accept-Language': 'en-GB,en;q=0.9',
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+              'Referer': BASE + '/',
+          }
+
+          session = requests.Session()
+          session.headers.update(HEADERS)
+
+          def get(url, retries=4, sleep_base=3):
+              for i in range(retries):
+                  try:
+                      r = session.get(url, timeout=25, allow_redirects=True)
+                      if r.status_code == 200:
+                          return r
+                      if r.status_code == 403:
+                          wait = 30 * (i + 1)
+                          print(f'  403 - wacht {wait}s...')
+                          time.sleep(wait)
+                      else:
+                          time.sleep(sleep_base * (i + 1))
+                  except Exception as e:
+                      print(f'  Fout bij {url}: {e}')
+                      time.sleep(sleep_base * (i + 1))
+              return None
+
+          def fix_name(s):
+              if not s:
+                  return ''
+              s = str(s).strip()
+              try:
+                  s = s.encode('latin-1').decode('utf-8')
+              except:
+                  pass
+              bad_pairs = [
+                  ('Ã¼','ü'),('Ã¶','ö'),('Ã¤','ä'),('Ã©','é'),('Ã¨','è'),
+                  ('Ã¡','á'),('Ã ','à'),('Ã§','ç'),('Ã±','ñ'),
+                  ('â€™', "'"),('â€“', '-'),('â€”', '-'),
+              ]
+              for bad, good in bad_pairs:
+                  s = s.replace(bad, good)
+              s = re.sub(r'\s+', ' ', s).strip()
+              return s
+
+          def infer_continent_from_comp_id(comp_id):
+              cid = str(comp_id).upper()
+              if cid.startswith(('GB','L','ES','IT','FR','NL','BE','PO','TR','GR','A','RU','UKR','PL','RO','TS','UNG','SER','SLO','SLN','SC','DK','SE','NO','KR','ALB','BOS','MKD','MNE','FI','IS','NIR','IR','WAL','GEO','AZE','ARM','KAS','WER','MOL','LIT','LV','EST','BUL','KOS','ISR','ZYP','LUX','MLT','AND','FRO','LIE','SMR','GIB')):
+                  return 'EUR'
+              if cid.startswith(('MLS','MEX','BRA','ARG','COL','CHI','PER','ECU','URU','PAR','BOL','VEN','CRC','HON','GUA','PAN','JAM','TTO','CAN','DOM','CUB','HAI','SLV','NCA','GUY','SUR')):
+                  return 'AME'
+              if cid.startswith(('JAP','KOR','CHN','IND','SAU','UAE','QAT','IRN','IRQ','JOR','KUW','BHR','OMA','THA','VIE','MAL','IDN','PHI','KGZ','TJK','TKM','UZB','MNG','SIN','MYA','KHM','LAO','BGD','PAK','SRL','NEP','AFG','SYR','LIB','PSE','YEM')):
+                  return 'ASI'
+              if cid.startswith(('EGY','MAR','TUN','ALG','RSA','NGA','GHA','CMR','SEN','CIV','MLI','ZIM','ZAM','KEN','TAN','UGA','ETH','ANG','MOZ','RWA','BFA','GNE','MLW','BOT','NAM','LIB2','SDN','COG','COD','GAB','MDG','SLE','LBR','NIG','BEN','TGO')):
+                  return 'AFR'
+              if cid.startswith(('AUS','NZL','PNG','FIJ')):
+                  return 'OCE'
+              return ''
+
+          def parse_country_name(soup, response_url, fallback_num):
+              # 1) Probeer uit canonical/og:url slug te halen
+              html = str(soup)
+              m = re.search(r'https://www\.transfermarkt\.(?:com|co\.uk)/([^/]+)/national/wettbewerbe/' + re.escape(str(fallback_num)), html)
+              if m:
+                  slug = m.group(1)
+                  slug = slug.replace('-', ' ')
+                  return ' '.join(w.capitalize() for w in slug.split())
+
+              # 2) Probeer uit response URL
+              m2 = re.search(r'https://www\.transfermarkt\.(?:com|co\.uk)/([^/]+)/national/wettbewerbe/' + re.escape(str(fallback_num)), response_url)
+              if m2:
+                  slug = m2.group(1)
+                  slug = slug.replace('-', ' ')
+                  return ' '.join(w.capitalize() for w in slug.split())
+
+              # 3) Header fallback
+              title = soup.get_text(" ", strip=True)
+              if 'National leagues and domestic cups' in title:
+                  h1 = soup.find(['h1','h2'])
+                  if h1:
+                      txt = fix_name(h1.get_text(" ", strip=True))
+                      if txt and 'National leagues' not in txt:
+                          return txt
+
+              return f'Country {fallback_num}'
+
+          def is_valid_country_page(soup):
+              txt = soup.get_text(" ", strip=True)
+              return 'National leagues and domestic cups' in txt or 'Domestic leagues & cups' in txt
+
+          competitions = {}
+          scanned = 0
+          valid_countries = 0
+
+          # Scan numerieke country ids rechtstreeks
+          for country_num in range(1, 221):
+              scanned += 1
+              url = f'{BASE}/wettbewerbe/national/wettbewerbe/{country_num}'
+              print(f'[{country_num:3d}/220] scan country id {country_num}...', end=' ', flush=True)
+
+              r = get(url, retries=2, sleep_base=2)
+              if not r:
+                  print('SKIP')
+                  continue
+
+              soup = BeautifulSoup(r.text, 'html.parser')
+
+              if not is_valid_country_page(soup):
+                  print('NO')
+                  continue
+
+              valid_countries += 1
+              found = 0
+              current_tier = ''
+              country_name = parse_country_name(soup, r.url, country_num)
+              country_num_id = str(country_num)
+
+              for table in soup.find_all('table', class_=re.compile(r'items')):
+                  for row in table.find_all('tr'):
+                      extrarow = row.find('td', class_='extrarow')
+                      if extrarow:
+                          current_tier = fix_name(extrarow.get_text(" ", strip=True))
+                          continue
+
+                      comp_link = row.find('a', href=re.compile(r'/startseite/wettbewerb/'))
+                      if not comp_link:
+                          continue
+
+                      mcomp = re.search(r'/startseite/wettbewerb/([^/?#]+)', comp_link.get('href', ''))
+                      if not mcomp:
+                          continue
+
+                      comp_id = mcomp.group(1)
+                      comp_name = fix_name(comp_link.get('title') or comp_link.get_text(" ", strip=True))
+                      comp_url = urljoin(BASE, comp_link['href'])
+
+                      if not comp_name:
+                          comp_name = comp_id
+
+                      if comp_id not in competitions:
+                          competitions[comp_id] = {
+                              'competition_id': comp_id,
+                              'name': comp_name[:120],
+                              'country': country_name,
+                              'country_id': '',
+                              'country_num_id': country_num_id,
+                              'continent': infer_continent_from_comp_id(comp_id),
+                              'continent_id': infer_continent_from_comp_id(comp_id),
+                              'tier': current_tier,
+                              'url': comp_url,
+                          }
+                          found += 1
+
+              print(f'+{found} ({country_name})')
+              time.sleep(0.8 + random.uniform(0, 0.4))
+
+          print(f'\nGeldige landen: {valid_countries}')
+          print(f'Totaal competities: {len(competitions)}')
+
+          FIELDS = [
+              'competition_id','name','country','country_id','country_num_id',
+              'continent','continent_id','tier','url'
+          ]
+          out = DATA / 'competitions_new.csv'
+          with open(out, 'w', newline='', encoding='utf-8') as f:
+              w = csv.DictWriter(f, fieldnames=FIELDS, extrasaction='ignore')
+              w.writeheader()
+              w.writerows(competitions.values())
+
+          print(f'competitions_new.csv: {len(competitions)} competities')
           PYEOF
 
       - name: Stap 2 - Clubs per competitie scrapen
