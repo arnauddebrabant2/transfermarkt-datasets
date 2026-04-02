@@ -290,169 +290,169 @@ jobs:
           print(f'\ncompetitions_new.csv: {len(competitions)} competities')
           PYEOF
 
-      - name: Stap 2 - Clubs per competitie scrapen
-        timeout-minutes: 300
-        run: |
-          python3 << 'PYEOF'
-          import requests, csv, time, re, random
-          from pathlib import Path
-          from bs4 import BeautifulSoup
+      # - name: Stap 2 - Clubs per competitie scrapen
+      #   timeout-minutes: 300
+      #   run: |
+      #     python3 << 'PYEOF'
+      #     import requests, csv, time, re, random
+      #     from pathlib import Path
+      #     from bs4 import BeautifulSoup
 
-          DATA = Path('data/csv')
-          BASE = 'https://www.transfermarkt.co.uk'
-          HEADERS = {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-              'Accept-Language': 'en-GB,en;q=0.9',
-              'Accept': 'text/html,application/xhtml+xml',
-              'Referer': 'https://www.transfermarkt.co.uk/',
-          }
+      #     DATA = Path('data/csv')
+      #     BASE = 'https://www.transfermarkt.co.uk'
+      #     HEADERS = {
+      #         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      #         'Accept-Language': 'en-GB,en;q=0.9',
+      #         'Accept': 'text/html,application/xhtml+xml',
+      #         'Referer': 'https://www.transfermarkt.co.uk/',
+      #     }
 
-          session = requests.Session()
-          session.headers.update(HEADERS)
+      #     session = requests.Session()
+      #     session.headers.update(HEADERS)
 
-          def get(url, retries=3):
-              for i in range(retries):
-                  try:
-                      r = session.get(url, timeout=20)
-                      if r.status_code == 200:
-                          return r
-                      if r.status_code == 403:
-                          wait = 60 * (i + 1)
-                          print(f'  403 - wacht {wait}s...')
-                          time.sleep(wait)
-                      else:
-                          time.sleep(3)
-                  except Exception as e:
-                      print(f'  Fout: {e}')
-                      time.sleep(5)
-              return None
+      #     def get(url, retries=3):
+      #         for i in range(retries):
+      #             try:
+      #                 r = session.get(url, timeout=20)
+      #                 if r.status_code == 200:
+      #                     return r
+      #                 if r.status_code == 403:
+      #                     wait = 60 * (i + 1)
+      #                     print(f'  403 - wacht {wait}s...')
+      #                     time.sleep(wait)
+      #                 else:
+      #                     time.sleep(3)
+      #             except Exception as e:
+      #                 print(f'  Fout: {e}')
+      #                 time.sleep(5)
+      #         return None
 
-          def fix_name(s):
-              if not s: return ''
-              s = str(s).strip()
-              try: s = s.encode('latin-1').decode('utf-8')
-              except: pass
-              for bad, good in [
-                  ('\u00c3\u00bc','\u00fc'),('\u00c3\u00b6','\u00f6'),
-                  ('\u00c3\u00a4','\u00e4'),('\u00c3\u00a9','\u00e9'),
-                  ('\u00c3\u00a0','\u00e0'),('\u00c3\u00a7','\u00e7'),
-                  ('\u00c3\u00b1','n'),('\u00e2\u0080\u0099',"'"),
-                  ('\u00e2\u0080\u0093','-'),
-              ]:
-                  s = s.replace(bad, good)
-              for suffix in [r'\s+Fussball$',r'\s+Football\s+Club$',
-                              r'\s+Football\s+Club\b',r'\s+e\.V\.$',r'\s+a\.s\.$']:
-                  s = re.sub(suffix, '', s, flags=re.IGNORECASE).strip()
-              return s
+      #     def fix_name(s):
+      #         if not s: return ''
+      #         s = str(s).strip()
+      #         try: s = s.encode('latin-1').decode('utf-8')
+      #         except: pass
+      #         for bad, good in [
+      #             ('\u00c3\u00bc','\u00fc'),('\u00c3\u00b6','\u00f6'),
+      #             ('\u00c3\u00a4','\u00e4'),('\u00c3\u00a9','\u00e9'),
+      #             ('\u00c3\u00a0','\u00e0'),('\u00c3\u00a7','\u00e7'),
+      #             ('\u00c3\u00b1','n'),('\u00e2\u0080\u0099',"'"),
+      #             ('\u00e2\u0080\u0093','-'),
+      #         ]:
+      #             s = s.replace(bad, good)
+      #         for suffix in [r'\s+Fussball$',r'\s+Football\s+Club$',
+      #                         r'\s+Football\s+Club\b',r'\s+e\.V\.$',r'\s+a\.s\.$']:
+      #             s = re.sub(suffix, '', s, flags=re.IGNORECASE).strip()
+      #         return s
 
-          competitions = []
-          with open(DATA / 'competitions_new.csv', encoding='utf-8') as f:
-              competitions = list(csv.DictReader(f))
-          print(f'Competities: {len(competitions)}')
+      #     competitions = []
+      #     with open(DATA / 'competitions_new.csv', encoding='utf-8') as f:
+      #         competitions = list(csv.DictReader(f))
+      #     print(f'Competities: {len(competitions)}')
 
-          clubs = {}
-          club_file = DATA / 'clubs2.csv'
-          if club_file.exists():
-              with open(club_file, encoding='utf-8') as f:
-                  for row in csv.DictReader(f):
-                      if row.get('club_id'): clubs[row['club_id']] = row
-              print(f'Bestaande clubs2: {len(clubs)}')
+      #     clubs = {}
+      #     club_file = DATA / 'clubs2.csv'
+      #     if club_file.exists():
+      #         with open(club_file, encoding='utf-8') as f:
+      #             for row in csv.DictReader(f):
+      #                 if row.get('club_id'): clubs[row['club_id']] = row
+      #         print(f'Bestaande clubs2: {len(clubs)}')
 
-          CLUB_FIELDS = [
-              'club_id','name','short_name',
-              'domestic_competition_id','competition_name',
-              'country','country_id','continent','continent_id',
-              'squad_size','average_age','total_market_value','coach_name','url',
-          ]
+      #     CLUB_FIELDS = [
+      #         'club_id','name','short_name',
+      #         'domestic_competition_id','competition_name',
+      #         'country','country_id','continent','continent_id',
+      #         'squad_size','average_age','total_market_value','coach_name','url',
+      #     ]
 
-          total = len(competitions)
-          for i, comp in enumerate(competitions, 1):
-              comp_id      = comp['competition_id']
-              comp_url     = comp.get('url','')
-              comp_name    = comp.get('name', comp_id)
-              country      = comp.get('country','')
-              country_id   = comp.get('country_id','')
-              continent    = comp.get('continent','')
-              continent_id = comp.get('continent_id','')
+      #     total = len(competitions)
+      #     for i, comp in enumerate(competitions, 1):
+      #         comp_id      = comp['competition_id']
+      #         comp_url     = comp.get('url','')
+      #         comp_name    = comp.get('name', comp_id)
+      #         country      = comp.get('country','')
+      #         country_id   = comp.get('country_id','')
+      #         continent    = comp.get('continent','')
+      #         continent_id = comp.get('continent_id','')
 
-              if not comp_url: continue
-              print(f'[{i:4d}/{total}] {comp_id:12s} {comp_name[:38]:38s}', end=' ', flush=True)
+      #         if not comp_url: continue
+      #         print(f'[{i:4d}/{total}] {comp_id:12s} {comp_name[:38]:38s}', end=' ', flush=True)
 
-              r = get(comp_url)
-              if not r:
-                  print('SKIP')
-                  continue
+      #         r = get(comp_url)
+      #         if not r:
+      #             print('SKIP')
+      #             continue
 
-              soup = BeautifulSoup(r.text, 'html.parser')
-              found = 0
+      #         soup = BeautifulSoup(r.text, 'html.parser')
+      #         found = 0
 
-              for table in soup.find_all('table', class_=re.compile('items')):
-                  for row in table.find_all('tr'):
-                      for a in row.find_all('a', href=re.compile(r'/startseite/verein/\d+')):
-                          href = a['href']
-                          m = re.search(r'/startseite/verein/(\d+)', href)
-                          if not m: continue
-                          club_id = m.group(1)
+      #         for table in soup.find_all('table', class_=re.compile('items')):
+      #             for row in table.find_all('tr'):
+      #                 for a in row.find_all('a', href=re.compile(r'/startseite/verein/\d+')):
+      #                     href = a['href']
+      #                     m = re.search(r'/startseite/verein/(\d+)', href)
+      #                     if not m: continue
+      #                     club_id = m.group(1)
 
-                          full_name  = fix_name(a.get('title','') or a.get_text(strip=True))
-                          short_name = fix_name(a.get_text(strip=True))
-                          if short_name == full_name: short_name = ''
+      #                     full_name  = fix_name(a.get('title','') or a.get_text(strip=True))
+      #                     short_name = fix_name(a.get_text(strip=True))
+      #                     if short_name == full_name: short_name = ''
 
-                          td = a.find_parent('td')
-                          if td:
-                              for span in td.find_all('span'):
-                                  txt = fix_name(span.get_text(strip=True))
-                                  if txt and txt != full_name and 2 < len(txt) < len(full_name):
-                                      short_name = txt; break
+      #                     td = a.find_parent('td')
+      #                     if td:
+      #                         for span in td.find_all('span'):
+      #                             txt = fix_name(span.get_text(strip=True))
+      #                             if txt and txt != full_name and 2 < len(txt) < len(full_name):
+      #                                 short_name = txt; break
 
-                          if not full_name or len(full_name) < 2: continue
+      #                     if not full_name or len(full_name) < 2: continue
 
-                          cells = row.find_all('td')
-                          squad_size = avg_age = market_val = ''
-                          for td in cells:
-                              txt = td.get_text(strip=True)
-                              if re.match(r'^\d+$', txt) and 5 <= int(txt) <= 60:
-                                  squad_size = txt
-                              if re.match(r'^\d+[,.]\d$', txt):
-                                  try:
-                                      v = float(txt.replace(',','.'))
-                                      if 15 < v < 40: avg_age = txt
-                                  except: pass
-                              if re.match(r'^\d+[.,]\d+[mkMK]?$', txt):
-                                  market_val = txt
+      #                     cells = row.find_all('td')
+      #                     squad_size = avg_age = market_val = ''
+      #                     for td in cells:
+      #                         txt = td.get_text(strip=True)
+      #                         if re.match(r'^\d+$', txt) and 5 <= int(txt) <= 60:
+      #                             squad_size = txt
+      #                         if re.match(r'^\d+[,.]\d$', txt):
+      #                             try:
+      #                                 v = float(txt.replace(',','.'))
+      #                                 if 15 < v < 40: avg_age = txt
+      #                             except: pass
+      #                         if re.match(r'^\d+[.,]\d+[mkMK]?$', txt):
+      #                             market_val = txt
 
-                          clubs[club_id] = {
-                              'club_id': club_id, 'name': full_name,
-                              'short_name': short_name,
-                              'domestic_competition_id': comp_id,
-                              'competition_name': comp_name,
-                              'country': country, 'country_id': country_id,
-                              'continent': continent, 'continent_id': continent_id,
-                              'squad_size': squad_size, 'average_age': avg_age,
-                              'total_market_value': market_val, 'coach_name': '',
-                              'url': f'{BASE}{href}' if href.startswith('/') else href,
-                          }
-                          found += 1
+      #                     clubs[club_id] = {
+      #                         'club_id': club_id, 'name': full_name,
+      #                         'short_name': short_name,
+      #                         'domestic_competition_id': comp_id,
+      #                         'competition_name': comp_name,
+      #                         'country': country, 'country_id': country_id,
+      #                         'continent': continent, 'continent_id': continent_id,
+      #                         'squad_size': squad_size, 'average_age': avg_age,
+      #                         'total_market_value': market_val, 'coach_name': '',
+      #                         'url': f'{BASE}{href}' if href.startswith('/') else href,
+      #                     }
+      #                     found += 1
 
-              print(f'+{found} (totaal {len(clubs)})')
+      #         print(f'+{found} (totaal {len(clubs)})')
 
-              if i % 50 == 0:
-                  with open(club_file, 'w', newline='', encoding='utf-8') as f:
-                      w = csv.DictWriter(f, fieldnames=CLUB_FIELDS, extrasaction='ignore')
-                      w.writeheader()
-                      for row in clubs.values():
-                          w.writerow({k: row.get(k,'') for k in CLUB_FIELDS})
-                  print(f'  [SAVE] {len(clubs)} clubs opgeslagen')
+      #         if i % 50 == 0:
+      #             with open(club_file, 'w', newline='', encoding='utf-8') as f:
+      #                 w = csv.DictWriter(f, fieldnames=CLUB_FIELDS, extrasaction='ignore')
+      #                 w.writeheader()
+      #                 for row in clubs.values():
+      #                     w.writerow({k: row.get(k,'') for k in CLUB_FIELDS})
+      #             print(f'  [SAVE] {len(clubs)} clubs opgeslagen')
 
-              time.sleep(1.2 + random.uniform(0, 0.8))
+      #         time.sleep(1.2 + random.uniform(0, 0.8))
 
-          with open(club_file, 'w', newline='', encoding='utf-8') as f:
-              w = csv.DictWriter(f, fieldnames=CLUB_FIELDS, extrasaction='ignore')
-              w.writeheader()
-              for row in clubs.values():
-                  w.writerow({k: row.get(k,'') for k in CLUB_FIELDS})
-          print(f'\nclubs2.csv: {len(clubs)} clubs geschreven')
-          PYEOF
+      #     with open(club_file, 'w', newline='', encoding='utf-8') as f:
+      #         w = csv.DictWriter(f, fieldnames=CLUB_FIELDS, extrasaction='ignore')
+      #         w.writeheader()
+      #         for row in clubs.values():
+      #             w.writerow({k: row.get(k,'') for k in CLUB_FIELDS})
+      #     print(f'\nclubs2.csv: {len(clubs)} clubs geschreven')
+      #     PYEOF
 
       - name: Stap 3 - Gzippen en committen
         run: |
