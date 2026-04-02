@@ -454,7 +454,7 @@ jobs:
       #     print(f'\nclubs2.csv: {len(clubs)} clubs geschreven')
       #     PYEOF
 
-            - name: Stap 3 - Gzippen en committen
+      - name: Stap 3 - Gzippen en committen
         run: |
           git config user.name "ScoutAI Bot"
           git config user.email "actions@users.noreply.github.com"
