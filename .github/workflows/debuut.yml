@@ -59,7 +59,7 @@ jobs:
           DATA_DIR = Path("data/csv")
           PLAYERS_FILE = DATA_DIR / "players.csv"
 
-          START_FROM = 1          # 1-based index
+          START_FROM = 1
           SAVE_EVERY = 50
           SLEEP_MIN = 1.2
           SLEEP_MAX = 2.2
@@ -136,7 +136,7 @@ jobs:
                           time.sleep(wait)
                           continue
 
-                      if r.status_code in (404,):
+                      if r.status_code == 404:
                           return None, "not_found"
 
                       if r.status_code in (301, 302, 303, 307, 308):
@@ -161,12 +161,12 @@ jobs:
               soup = BeautifulSoup(html, "lxml")
 
               result = {
-                  "pro_debut_date": "",
-                  "pro_debut_club": "",
-                  "pro_debut_competition": "",
-                  "first_team_debut_date": "",
-                  "first_team_debut_club": "",
-                  "first_team_debut_competition": "",
+                  "debut_highest_division_date": "",
+                  "debut_highest_division_club": "",
+                  "debut_highest_division_competition": "",
+                  "debut_second_tier_date": "",
+                  "debut_second_tier_club": "",
+                  "debut_second_tier_competition": "",
               }
 
               box = None
@@ -209,19 +209,17 @@ jobs:
                   if not club_name:
                       club_name = clean_text(club_cell)
 
-                  # Hoogste divisie => debuut 1ste elftal
                   if current_section == "hoogste divisie":
-                      if not result["first_team_debut_date"]:
-                          result["first_team_debut_date"] = date_val
-                          result["first_team_debut_club"] = club_name
-                          result["first_team_debut_competition"] = competition
+                      if not result["debut_highest_division_date"]:
+                          result["debut_highest_division_date"] = date_val
+                          result["debut_highest_division_club"] = club_name
+                          result["debut_highest_division_competition"] = competition
 
-                  # 2de niveau => profdebuut
                   elif current_section in ("2de niveau", "tweede niveau", "second tier", "2. niveau"):
-                      if not result["pro_debut_date"]:
-                          result["pro_debut_date"] = date_val
-                          result["pro_debut_club"] = club_name
-                          result["pro_debut_competition"] = competition
+                      if not result["debut_second_tier_date"]:
+                          result["debut_second_tier_date"] = date_val
+                          result["debut_second_tier_club"] = club_name
+                          result["debut_second_tier_competition"] = competition
 
               return result
 
@@ -234,12 +232,12 @@ jobs:
               rows = list(reader)
 
           debut_cols = [
-              "pro_debut_date",
-              "pro_debut_club",
-              "pro_debut_competition",
-              "first_team_debut_date",
-              "first_team_debut_club",
-              "first_team_debut_competition",
+              "debut_highest_division_date",
+              "debut_highest_division_club",
+              "debut_highest_division_competition",
+              "debut_second_tier_date",
+              "debut_second_tier_club",
+              "debut_second_tier_competition",
           ]
 
           for col in debut_cols:
@@ -248,7 +246,7 @@ jobs:
 
           already_done = sum(
               1 for r in rows
-              if (r.get("pro_debut_date") or r.get("first_team_debut_date"))
+              if (r.get("debut_highest_division_date") or r.get("debut_second_tier_date"))
           )
 
           print(f"Spelers: {len(rows)}")
@@ -269,8 +267,7 @@ jobs:
                   print(f"[{idx:5d}/{len(rows)}] {'-':8s} {player_name[:35]:35s} -> no_player_id")
                   continue
 
-              # skip als al minstens één van beide debuten gezet is
-              if row.get("pro_debut_date") or row.get("first_team_debut_date"):
+              if row.get("debut_highest_division_date") or row.get("debut_second_tier_date"):
                   continue
 
               checked += 1
@@ -281,28 +278,28 @@ jobs:
               if not r:
                   print(
                       f"[{idx:5d}/{len(rows)}] {player_id:8s} {player_name[:35]:35s} "
-                      f"-> {status:10s} | pro:- | first:-"
+                      f"-> {status:10s} | second:- | highest:-"
                   )
                   continue
 
               parsed = parse_debut_page(r.text)
 
-              row["pro_debut_date"] = parsed["pro_debut_date"]
-              row["pro_debut_club"] = parsed["pro_debut_club"]
-              row["pro_debut_competition"] = parsed["pro_debut_competition"]
+              row["debut_highest_division_date"] = parsed["debut_highest_division_date"]
+              row["debut_highest_division_club"] = parsed["debut_highest_division_club"]
+              row["debut_highest_division_competition"] = parsed["debut_highest_division_competition"]
 
-              row["first_team_debut_date"] = parsed["first_team_debut_date"]
-              row["first_team_debut_club"] = parsed["first_team_debut_club"]
-              row["first_team_debut_competition"] = parsed["first_team_debut_competition"]
+              row["debut_second_tier_date"] = parsed["debut_second_tier_date"]
+              row["debut_second_tier_club"] = parsed["debut_second_tier_club"]
+              row["debut_second_tier_competition"] = parsed["debut_second_tier_competition"]
 
               processed += 1
 
-              pro_show = row["pro_debut_date"] or "-"
-              first_show = row["first_team_debut_date"] or "-"
+              second_show = row["debut_second_tier_date"] or "-"
+              highest_show = row["debut_highest_division_date"] or "-"
 
               print(
                   f"[{idx:5d}/{len(rows)}] {player_id:8s} {player_name[:35]:35s} "
-                  f"-> ok         | pro:{pro_show} | first:{first_show}"
+                  f"-> ok         | second:{second_show} | highest:{highest_show}"
               )
 
               if processed % SAVE_EVERY == 0:
