@@ -44,6 +44,9 @@ jobs:
 
           DATA = Path('data/csv')
           BASE = 'https://www.transfermarkt.co.uk'
+          START_FROM = 931   # 1-based index; hervat vanaf rij 931
+          SAVE_EVERY = 25
+
           HEADERS = {
               'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
               'Accept-Language': 'en-GB,en;q=0.9',
@@ -57,18 +60,21 @@ jobs:
           def get(url, retries=3):
               for i in range(retries):
                   try:
-                      r = session.get(url, timeout=20)
+                      r = session.get(url, timeout=20, allow_redirects=True)
                       if r.status_code == 200:
                           return r
                       if r.status_code == 403:
                           wait = 60 * (i + 1)
-                          print(f'  403 - wacht {wait}s...')
+                          print(f'  403 - wacht {wait}s...', end='')
                           time.sleep(wait)
+                      elif r.status_code == 405:
+                          print(f' HTTP405', end='')
+                          time.sleep(5 * (i + 1))
                       else:
                           print(f' HTTP{r.status_code}', end='')
-                          time.sleep(3)
+                          time.sleep(3 * (i + 1))
                   except Exception as e:
-                      print(f'  Fout: {e}')
+                      print(f'  Fout: {e}', end='')
                       time.sleep(5)
               return None
 
@@ -77,52 +83,54 @@ jobs:
                   return ''
               return src if src.startswith('http') else urljoin('https://tmssl.akamaized.net', src)
 
+          def save_rows(comp_file, fields, rows):
+              with open(comp_file, 'w', newline='', encoding='utf-8') as f:
+                  w = csv.DictWriter(f, fieldnames=fields, extrasaction='ignore')
+                  w.writeheader()
+                  for row in rows:
+                      w.writerow({k: row.get(k, '') for k in fields})
+
           def find_flag_and_logo(soup, comp_id):
-            flag_id = ''
-            flag_url = ''
-            logo_url = ''
-        
-            # 1) Eerst expliciet de header-box nemen
-            header_box = soup.select_one('.data-header__box')
-        
-            if header_box:
-                # vlag: class data-header__box__flag
-                flag_img = header_box.select_one('img.data-header__box__flag')
-                if flag_img:
-                    src = flag_img.get('src', '')
-                    m = re.search(r'/images/flagge/[^/]+/(\d+)\.', src)
-                    if m:
-                        flag_id = m.group(1)
-                        flag_url = src if src.startswith('http') else urljoin('https://tmssl.akamaized.net', src)
-        
-                # logo: meestal ander img element in dezelfde header-box
-                for img in header_box.find_all('img', src=True):
-                    src = img.get('src', '')
-                    if '/images/logo/' in src or f'/{comp_id.lower()}.png' in src.lower():
-                        logo_url = src if src.startswith('http') else urljoin('https://tmssl.akamaized.net', src)
-                        break
-        
-            # 2) fallback vlag als header niets gaf
-            if not flag_id:
-                for img in soup.find_all('img', src=True):
-                    src = img.get('src', '')
-                    if '/images/flagge/' not in src:
-                        continue
-                    m = re.search(r'/images/flagge/[^/]+/(\d+)\.', src)
-                    if m:
-                        flag_id = m.group(1)
-                        flag_url = src if src.startswith('http') else urljoin('https://tmssl.akamaized.net', src)
-                        break
-        
-            # 3) fallback logo
-            if not logo_url:
-                for img in soup.find_all('img', src=True):
-                    src = img.get('src', '')
-                    if '/images/logo/' in src or f'/{comp_id.lower()}.png' in src.lower():
-                        logo_url = src if src.startswith('http') else urljoin('https://tmssl.akamaized.net', src)
-                        break
-        
-            return flag_id, flag_url, logo_url
+              flag_id = ''
+              flag_url = ''
+              logo_url = ''
+
+              header_box = soup.select_one('.data-header__box')
+
+              if header_box:
+                  flag_img = header_box.select_one('img.data-header__box__flag')
+                  if flag_img:
+                      src = flag_img.get('src', '')
+                      m = re.search(r'/images/flagge/[^/]+/(\d+)\.', src)
+                      if m:
+                          flag_id = m.group(1)
+                          flag_url = abs_url(src)
+
+                  for img in header_box.find_all('img', src=True):
+                      src = img.get('src', '')
+                      if '/images/logo/' in src or f'/{comp_id.lower()}.png' in src.lower():
+                          logo_url = abs_url(src)
+                          break
+
+              if not flag_id:
+                  for img in soup.find_all('img', src=True):
+                      src = img.get('src', '')
+                      if '/images/flagge/' not in src:
+                          continue
+                      m = re.search(r'/images/flagge/[^/]+/(\d+)\.', src)
+                      if m:
+                          flag_id = m.group(1)
+                          flag_url = abs_url(src)
+                          break
+
+              if not logo_url:
+                  for img in soup.find_all('img', src=True):
+                      src = img.get('src', '')
+                      if '/images/logo/' in src or f'/{comp_id.lower()}.png' in src.lower():
+                          logo_url = abs_url(src)
+                          break
+
+              return flag_id, flag_url, logo_url
 
           comp_file = DATA / 'competitions.csv'
           rows = []
@@ -139,66 +147,68 @@ jobs:
 
           already = sum(1 for r in rows if r.get('flag_id') and r.get('logo_url'))
           print(f'Competities: {len(rows)}, al verwerkt: {already}')
+          print(f'Hervatten vanaf index: {START_FROM}')
 
           updated = 0
-          for i, row in enumerate(rows):
-              comp_id  = row.get('competition_id', '')
-              comp_url = row.get('url', '')
+          checked = 0
 
+          for i, row in enumerate(rows, start=1):
+              if i < START_FROM:
+                  continue
+
+              comp_id  = (row.get('competition_id') or '').strip()
+              comp_url = (row.get('url') or '').strip()
+
+              # sla reeds volledig verwerkte rijen over
               if row.get('flag_id') and row.get('logo_url'):
                   continue
 
               if not comp_url:
-                  row['flag_id'] = ''
-                  row['flag_url'] = ''
-                  row['logo_url'] = ''
+                  print(f'[{i:4d}/{len(rows)}] {comp_id:12s} NO_URL')
                   continue
 
-              print(f'[{i+1:4d}/{len(rows)}] {comp_id:12s}', end=' ', flush=True)
+              checked += 1
+              print(f'[{i:4d}/{len(rows)}] {comp_id:12s}', end=' ', flush=True)
 
               r = get(comp_url)
               if not r:
                   print('SKIP')
-                  row['flag_id'] = ''
-                  row['flag_url'] = ''
-                  row['logo_url'] = ''
+                  # NIET leegmaken; bestaande waarden behouden
                   continue
 
               soup = BeautifulSoup(r.text, 'html.parser')
-              flag_id, flag_url, logo_url = find_flag_and_logo(soup, comp_id)
+              new_flag_id, new_flag_url, new_logo_url = find_flag_and_logo(soup, comp_id)
 
-              row['flag_id'] = flag_id
-              row['flag_url'] = flag_url
-              row['logo_url'] = logo_url
+              # Alleen overschrijven als we effectief iets gevonden hebben
+              if new_flag_id:
+                  row['flag_id'] = new_flag_id
+              if new_flag_url:
+                  row['flag_url'] = new_flag_url
+              if new_logo_url:
+                  row['logo_url'] = new_logo_url
+
               updated += 1
 
-              print(f'flag:{flag_id or "-":5s} logo:{"ok" if logo_url else "-"}')
+              print(f'flag:{row.get("flag_id","-") or "-":5s} logo:{"ok" if row.get("logo_url") else "-"}')
 
-              if updated % 100 == 0:
-                  with open(comp_file, 'w', newline='', encoding='utf-8') as f:
-                      w = csv.DictWriter(f, fieldnames=fields, extrasaction='ignore')
-                      w.writeheader()
-                      for r2 in rows:
-                          w.writerow({k: r2.get(k, '') for k in fields})
-                  print(f'  [SAVE] {updated} bijgewerkt')
+              if updated % SAVE_EVERY == 0:
+                  save_rows(comp_file, fields, rows)
+                  print(f'  [SAVE] {updated} bijgewerkt vanaf startpunt')
 
               time.sleep(0.8 + random.uniform(0, 0.4))
 
-          with open(comp_file, 'w', newline='', encoding='utf-8') as f:
-              w = csv.DictWriter(f, fieldnames=fields, extrasaction='ignore')
-              w.writeheader()
-              for row in rows:
-                  w.writerow({k: row.get(k, '') for k in fields})
-
-          print(f'\nKlaar: {updated} bijgewerkt, {len(rows)} totaal')
+          save_rows(comp_file, fields, rows)
+          print(f'\nKlaar: {updated} bijgewerkt, {checked} gecontroleerd vanaf startpunt')
           PYEOF
 
       - name: Stap 2 - Gzippen en committen
         run: |
           git config user.name "ScoutAI Bot"
           git config user.email "actions@users.noreply.github.com"
+
           gzip -f data/csv/competitions.csv
           echo "competitions.csv.gz: $(wc -c < data/csv/competitions.csv.gz) bytes"
+
           git add data/csv/competitions.csv.gz
           TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
           git commit -m "ScoutAI: vlaggen en logo's competities [${TIMESTAMP}]" || echo "Geen wijzigingen"
