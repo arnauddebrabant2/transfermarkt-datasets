@@ -1,10 +1,10 @@
-name: Scrape First-Team Debut Dates
+name: Scrape Debuts - Prodebuut en debuut 1ste elftal
 
 on:
   workflow_dispatch:
 
 jobs:
-  scrape-debuts:
+  scrape:
     runs-on: ubuntu-latest
     timeout-minutes: 360
 
@@ -19,293 +19,430 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install requests beautifulsoup4 lxml
+          pip install requests beautifulsoup4 lxml pandas
 
       - name: Maak output map aan
-        run: mkdir -p data/raw data/csv
+        run: mkdir -p data/csv
 
-      - name: Decompress bestaande CSV bestanden
+      - name: Stap 0 - Decompress players.csv.gz
         run: |
           python3 << 'PYEOF'
           import gzip, shutil
           from pathlib import Path
 
-          csv_dir = Path("data/csv")
-          for gz_file in csv_dir.glob("*.csv.gz"):
-              out_file = csv_dir / gz_file.stem
-              with gzip.open(gz_file, "rb") as f_in, open(out_file, "wb") as f_out:
-                  shutil.copyfileobj(f_in, f_out)
-              print(f"Decomprimeerd: {gz_file.name} -> {out_file.name}")
+          gz = Path('data/csv/players.csv.gz')
+          csv = Path('data/csv/players.csv')
+
+          if gz.exists():
+              with gzip.open(gz, 'rb') as f_in:
+                  with open(csv, 'wb') as f_out:
+                      shutil.copyfileobj(f_in, f_out)
+              print(f"Gedecomprimeerd: {gz} -> {csv}")
+          else:
+              print("Geen players.csv.gz gevonden")
           PYEOF
 
-      - name: Scrape first-team debuutdatums
-        timeout-minutes: 300
+      - name: Stap 1 - Debuten scrapen
+        timeout-minutes: 320
         run: |
           python3 << 'PYEOF'
           import csv
-          import json
-          import random
           import re
           import time
-          from pathlib import Path
-          from urllib.parse import quote
-
+          import random
           import requests
+          import pandas as pd
+          from pathlib import Path
           from bs4 import BeautifulSoup
 
-          CSV_DIR = Path("data/csv")
-          RAW_DIR = Path("data/raw")
-          RAW_DIR.mkdir(parents=True, exist_ok=True)
+          DATA = Path("data/csv")
+          PLAYERS_FILE = DATA / "players.csv"
 
-          players_file = CSV_DIR / "players.csv"
-          raw_file = RAW_DIR / "first_team_debuts.jsonl"
-
-          BASE = "https://www.transfermarkt.be"
+          SAVE_EVERY = 50
+          START_FROM = 1   # 1-based index
+          BASE_DOMAIN = "https://www.transfermarkt.be"
 
           HEADERS = {
-              "User-Agent": (
-                  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                  "AppleWebKit/537.36 (KHTML, like Gecko) "
-                  "Chrome/122.0.0.0 Safari/537.36"
-              ),
-              "Accept-Language": "nl-BE,nl;q=0.9,en;q=0.8",
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+              "Accept-Language": "en-GB,en;q=0.9,nl;q=0.8",
               "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-              "Referer": BASE + "/",
+              "Referer": BASE_DOMAIN + "/",
           }
 
           session = requests.Session()
           session.headers.update(HEADERS)
 
-          BAD_PATTERNS = [
-              r'\bu17\b', r'\bu18\b', r'\bu19\b', r'\bu20\b', r'\bu21\b', r'\bu23\b',
-              r'\byouth\b', r'\bjunior\b', r'\bjugend\b',
-              r'\breserve\b', r'\breserves\b', r'\bbeloften\b',
-              r'\bii\b', r'\bb-team\b', r'\bb team\b',
-              r'\bprimavera\b'
-          ]
-
-          def clean_text(x):
-              return re.sub(r'\s+', ' ', str(x or '')).strip()
-
-          def slugify_name(name):
-              s = clean_text(name).lower()
-              s = s.replace("'", "-").replace(".", "-").replace("/", "-")
-              s = re.sub(r"\s+", "-", s)
-              s = re.sub(r"[^a-z0-9\-àáâäãåæçèéêëìíîïñòóôöõøùúûüýÿ]", "-", s)
-              s = re.sub(r"-+", "-", s).strip("-")
-              return s or "spieler"
-
-          def get(url, retries=4):
+          def get(url, retries=3):
               for i in range(retries):
                   try:
                       r = session.get(url, timeout=25, allow_redirects=True)
                       if r.status_code == 200:
                           return r
-                      if r.status_code in (403, 429):
-                          wait = 30 * (i + 1)
-                          print(f"HTTP {r.status_code}, wacht {wait}s")
+                      if r.status_code == 403:
+                          wait = 60 * (i + 1)
+                          print(f" HTTP403(wait {wait}s)", end="", flush=True)
+                          time.sleep(wait)
+                      elif r.status_code == 429:
+                          wait = 45 * (i + 1)
+                          print(f" HTTP429(wait {wait}s)", end="", flush=True)
                           time.sleep(wait)
                       else:
-                          print(f"HTTP {r.status_code}")
+                          print(f" HTTP{r.status_code}", end="", flush=True)
                           time.sleep(4 * (i + 1))
                   except Exception as e:
-                      print(f"fout: {e}")
-                      time.sleep(4 * (i + 1))
+                      print(f" EXC:{type(e).__name__}", end="", flush=True)
+                      time.sleep(5 * (i + 1))
               return None
 
-          def is_non_first_team(text):
-              s = clean_text(text).lower()
-              return any(re.search(p, s) for p in BAD_PATTERNS)
+          def clean_text(s):
+              return re.sub(r"\s+", " ", str(s or "")).strip()
 
-          def parse_date(text):
-              text = clean_text(text)
-              m = re.search(r'(\d{2}\.\d{2}\.\d{4})', text)
-              return m.group(1) if m else ''
+          def make_debut_url(player_url, player_id):
+              url = clean_text(player_url)
+              if not url:
+                  return f"{BASE_DOMAIN}/-/debuets/spieler/{player_id}"
 
-          def parse_debut_page(html, player_id, player_name, source_url):
-              soup = BeautifulSoup(html, "lxml")
-              candidates = []
+              url = url.replace("transfermarkt.co.uk", "transfermarkt.be")
+              url = url.replace("transfermarkt.com", "transfermarkt.be")
+              url = url.replace("transfermarkt.de", "transfermarkt.be")
+              url = url.replace("transfermarkt.nl", "transfermarkt.be")
 
-              for table in soup.find_all("table", class_=re.compile("items")):
-                  tbody = table.find("tbody") or table
-                  for tr in tbody.find_all("tr"):
+              if "/profil/spieler/" in url:
+                  url = re.sub(r"/profil/spieler/\d+.*$", f"/debuets/spieler/{player_id}", url)
+                  return url
+
+              if "/spieler/" in url:
+                  url = re.sub(r"/spieler/\d+.*$", f"/debuets/spieler/{player_id}", url)
+                  return url
+
+              return f"{BASE_DOMAIN}/-/debuets/spieler/{player_id}"
+
+          def parse_date_from_text(txt):
+              txt = clean_text(txt)
+              m = re.search(r"(\d{2}\.\d{2}\.\d{4})", txt)
+              return m.group(1) if m else ""
+
+          def is_blocked_page(soup):
+              txt = clean_text(soup.get_text(" ", strip=True)).lower()
+              title = clean_text(soup.title.get_text(" ", strip=True) if soup.title else "").lower()
+              markers = [
+                  "data protection",
+                  "privacy",
+                  "consent",
+                  "tracking",
+                  "access denied",
+                  "forbidden",
+                  "just a moment",
+                  "security check",
+                  "unusual traffic",
+                  "captcha",
+              ]
+              hay = txt + " " + title
+              return any(m in hay for m in markers)
+
+          def parse_debut_rows(soup):
+              rows_out = []
+
+              for table in soup.find_all("table"):
+                  for tr in table.find_all("tr"):
                       cells = [clean_text(td.get_text(" ", strip=True)) for td in tr.find_all(["td", "th"])]
                       cells = [c for c in cells if c]
-                      if not cells:
+                      if len(cells) < 2:
                           continue
 
-                      row_text = " | ".join(cells)
-                      date = ''
-                      for c in cells:
-                          date = parse_date(c)
-                          if date:
-                              break
-
-                      competition = cells[0] if len(cells) > 0 else ''
-                      club = cells[1] if len(cells) > 1 else ''
-                      opponent = cells[2] if len(cells) > 2 else ''
-
-                      combo_text = f"{competition} {club} {opponent}"
-
-                      if is_non_first_team(combo_text):
-                          continue
+                      joined = " | ".join(cells)
+                      date = parse_date_from_text(joined)
                       if not date:
                           continue
 
-                      candidates.append({
-                          "player_id": player_id,
-                          "player_name": player_name,
-                          "first_team_debut_date": date,
-                          "first_team_debut_club": club,
-                          "first_team_debut_competition": competition,
-                          "first_team_debut_url": source_url,
-                          "first_team_debut_status": "ok"
+                      competition = cells[0] if len(cells) > 0 else ""
+                      club = cells[1] if len(cells) > 1 else ""
+                      opponent = cells[2] if len(cells) > 2 else ""
+                      result = cells[3] if len(cells) > 3 else ""
+
+                      rows_out.append({
+                          "date": date,
+                          "competition": competition,
+                          "club": club,
+                          "opponent": opponent,
+                          "result": result,
+                          "raw": joined,
                       })
 
-              if not candidates:
+              # deduplicate
+              dedup = {}
+              for r in rows_out:
+                  key = (r["date"], r["competition"], r["club"], r["opponent"])
+                  dedup[key] = r
+              return list(dedup.values())
+
+          def sort_key_date(d):
+              dd, mm, yyyy = d.split(".")
+              return (int(yyyy), int(mm), int(dd))
+
+          def comp_is_first_division(comp_name):
+              s = clean_text(comp_name).lower()
+
+              first_division_patterns = [
+                  r"\bpremier league\b",
+                  r"\bbundesliga\b",
+                  r"\bla liga\b",
+                  r"\bserie a\b",
+                  r"\bligue 1\b",
+                  r"\beredivisie\b",
+                  r"\bjupiler pro league\b",
+                  r"\bliga portugal\b",
+                  r"\bsuper lig\b",
+                  r"\bsüper lig\b",
+                  r"\bsuper league\b",
+                  r"\bsuperliga\b",
+                  r"\bprva liga\b",
+                  r"\bparva liga\b",
+                  r"\ba lyga\b",
+                  r"\bveikkausliiga\b",
+                  r"\ballsvenskan\b",
+                  r"\beliteserien\b",
+                  r"\b1\. liga\b",
+                  r"\b1st division\b",
+                  r"\bfirst division\b",
+                  r"\bpremiership\b",
+                  r"\bvirsliga\b",
+                  r"\bmeistriliiga\b",
+                  r"\botp bank liga\b",
+                  r"\bnemzeti bajnoksag\b",
+                  r"\bsuperligaen\b",
+                  r"\bcymru premier\b",
+                  r"\bnifl premiership\b",
+                  r"\bkategoria superiore\b",
+                  r"\berovnuli liga\b",
+                  r"\bpremyer liqa\b",
+                  r"\bpremier liga\b",
+                  r"\bpro league\b",
+                  r"\bmajor league soccer\b",
+                  r"\bmls\b",
+                  r"\bj1 league\b",
+                  r"\bk league 1\b",
+                  r"\bchinese super league\b",
+                  r"\bsaudi pro league\b",
+                  r"\bprimera division\b",
+                  r"\bprimera división\b",
+                  r"\bprimera a\b",
+                  r"\bliga mx\b",
+                  r"\bserie a brasil\b",
+                  r"\bbrasileirao\b",
+                  r"\bprimera division argentina\b",
+                  r"\bpro league\b",
+                  r"\bchallenge league\b",  # NIET altijd eerste divisie, dus later nog check
+              ]
+
+              second_division_markers = [
+                  "2. bundesliga", "segunda", "serie b", "ligue 2", "eerste nationale",
+                  "championship", "2 liga", "ii liga", "second division",
+                  "2nd division", "league two", "league one", "3 liga", "regionalliga",
+                  "national league", "reserve", "u19", "u21", "u23", "youth", "junior",
+                  "primavera", "beloften", "ii", "iii"
+              ]
+
+              # eerst tweede divisie / jeugd eruit
+              if any(x in s for x in second_division_markers):
+                  return False
+
+              return any(re.search(p, s) for p in first_division_patterns)
+
+          def comp_is_professional(comp_name):
+              s = clean_text(comp_name).lower()
+
+              youth_or_b = [
+                  "u17", "u18", "u19", "u20", "u21", "u23",
+                  "youth", "junior", "jugend", "primavera",
+                  "reserve", "reserves", "beloften",
+                  "b-team", "b team",
+              ]
+              if any(x in s for x in youth_or_b):
+                  return False
+
+              # alles wat duidelijk op competitievoetbal wijst en niet jeugd/reserve is
+              pro_markers = [
+                  "league", "liga", "ligue", "division", "división", "divizion",
+                  "bundesliga", "premier", "super", "serie", "championship",
+                  "cup", "beker", "pokal", "copa", "coppa", "trophy"
+              ]
+              return any(x in s for x in pro_markers)
+
+          def extract_debuts(html, player_id, player_name, source_url):
+              soup = BeautifulSoup(html, "lxml")
+
+              if is_blocked_page(soup):
                   return {
                       "player_id": player_id,
                       "player_name": player_name,
+                      "pro_debut_date": "",
+                      "pro_debut_competition": "",
+                      "pro_debut_club": "",
                       "first_team_debut_date": "",
-                      "first_team_debut_club": "",
                       "first_team_debut_competition": "",
-                      "first_team_debut_url": source_url,
-                      "first_team_debut_status": "not_found"
+                      "first_team_debut_club": "",
+                      "debut_url": source_url,
+                      "debut_status": "blocked",
                   }
 
-              def keyfunc(x):
-                  d = x["first_team_debut_date"]
-                  dd, mm, yyyy = d.split(".")
-                  return (int(yyyy), int(mm), int(dd))
+              rows = parse_debut_rows(soup)
+              if not rows:
+                  return {
+                      "player_id": player_id,
+                      "player_name": player_name,
+                      "pro_debut_date": "",
+                      "pro_debut_competition": "",
+                      "pro_debut_club": "",
+                      "first_team_debut_date": "",
+                      "first_team_debut_competition": "",
+                      "first_team_debut_club": "",
+                      "debut_url": source_url,
+                      "debut_status": "not_found",
+                  }
 
-              return sorted(candidates, key=keyfunc)[0]
+              rows = sorted(rows, key=lambda x: sort_key_date(x["date"]))
 
-          players = list(csv.DictReader(open(players_file, encoding="utf-8")))
-          print(f"Players geladen: {len(players)}")
+              pro_debut = None
+              first_team_debut = None
 
-          done = set()
-          if raw_file.exists():
-              with open(raw_file, encoding="utf-8") as f:
-                  for line in f:
-                      try:
-                          row = json.loads(line)
-                          pid = str(row.get("player_id", "")).strip()
-                          if pid:
-                              done.add(pid)
-                      except:
-                          pass
+              for r in rows:
+                  comp = r["competition"]
 
-          with open(raw_file, "a", encoding="utf-8") as out:
-              for i, p in enumerate(players, 1):
-                  pid = str(p.get("player_id", "")).strip()
-                  if not pid or pid in done:
-                      continue
+                  if pro_debut is None and comp_is_professional(comp):
+                      pro_debut = r
 
-                  name = clean_text(p.get("name") or f"{p.get('first_name','')} {p.get('last_name','')}")
-                  slug = slugify_name(name)
-                  url = f"{BASE}/{quote(slug)}/debuets/spieler/{pid}"
+                  if first_team_debut is None and comp_is_first_division(comp):
+                      first_team_debut = r
 
-                  print(f"[{i:5d}/{len(players)}] {pid} {name}", end=" ", flush=True)
+              return {
+                  "player_id": player_id,
+                  "player_name": player_name,
+                  "pro_debut_date": pro_debut["date"] if pro_debut else "",
+                  "pro_debut_competition": pro_debut["competition"] if pro_debut else "",
+                  "pro_debut_club": pro_debut["club"] if pro_debut else "",
+                  "first_team_debut_date": first_team_debut["date"] if first_team_debut else "",
+                  "first_team_debut_competition": first_team_debut["competition"] if first_team_debut else "",
+                  "first_team_debut_club": first_team_debut["club"] if first_team_debut else "",
+                  "debut_url": source_url,
+                  "debut_status": "ok",
+              }
 
-                  r = get(url)
-                  if not r:
-                      row = {
-                          "player_id": pid,
-                          "player_name": name,
-                          "first_team_debut_date": "",
-                          "first_team_debut_club": "",
-                          "first_team_debut_competition": "",
-                          "first_team_debut_url": url,
-                          "first_team_debut_status": "failed"
-                      }
-                      out.write(json.dumps(row, ensure_ascii=False) + "\n")
-                      out.flush()
-                      print("SKIP")
-                      continue
+          def save_rows(path, fieldnames, rows):
+              with open(path, "w", newline="", encoding="utf-8") as f:
+                  w = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+                  w.writeheader()
+                  for row in rows:
+                      w.writerow({k: row.get(k, "") for k in fieldnames})
 
-                  row = parse_debut_page(r.text, pid, name, r.url)
-                  out.write(json.dumps(row, ensure_ascii=False) + "\n")
-                  out.flush()
+          if not PLAYERS_FILE.exists():
+              raise FileNotFoundError(f"{PLAYERS_FILE} niet gevonden")
 
-                  print(f"-> {row['first_team_debut_status']} {row['first_team_debut_date'] or '-'}")
-                  time.sleep(1.2 + random.uniform(0.0, 0.8))
-          PYEOF
+          with open(PLAYERS_FILE, encoding="utf-8") as f:
+              reader = csv.DictReader(f)
+              fields = list(reader.fieldnames or [])
+              rows = list(reader)
 
-      - name: Merge first-team debuutdatum in players.csv
-        run: |
-          python3 << 'PYEOF'
-          import csv
-          import json
-          from pathlib import Path
-
-          csv_dir = Path("data/csv")
-          raw_dir = Path("data/raw")
-
-          players_file = csv_dir / "players.csv"
-          raw_file = raw_dir / "first_team_debuts.jsonl"
-
-          players = list(csv.DictReader(open(players_file, encoding="utf-8")))
-          debut_map = {}
-
-          if raw_file.exists():
-              with open(raw_file, encoding="utf-8") as f:
-                  for line in f:
-                      line = line.strip()
-                      if not line:
-                          continue
-                      try:
-                          row = json.loads(line)
-                          pid = str(row.get("player_id", "")).strip()
-                          if pid:
-                              debut_map[pid] = row
-                      except:
-                          pass
-
-          extra_fields = [
+          new_cols = [
+              "pro_debut_date",
+              "pro_debut_competition",
+              "pro_debut_club",
               "first_team_debut_date",
-              "first_team_debut_club",
               "first_team_debut_competition",
-              "first_team_debut_url",
-              "first_team_debut_status",
+              "first_team_debut_club",
+              "debut_url",
+              "debut_status",
           ]
+          for c in new_cols:
+              if c not in fields:
+                  fields.append(c)
 
-          fieldnames = list(players[0].keys()) if players else []
-          for fld in extra_fields:
-              if fld not in fieldnames:
-                  fieldnames.append(fld)
+          already_done = sum(
+              1 for r in rows
+              if clean_text(r.get("debut_status")) in ("ok", "blocked")
+          )
+
+          print(f"Spelers: {len(rows)}")
+          print(f"Al verwerkt: {already_done}")
+          print(f"Start vanaf: {START_FROM}")
 
           updated = 0
-          for p in players:
-              pid = str(p.get("player_id", "")).strip()
-              d = debut_map.get(pid)
-              if not d:
+          checked = 0
+
+          for i, row in enumerate(rows, start=1):
+              if i < START_FROM:
                   continue
-              for fld in extra_fields:
-                  p[fld] = d.get(fld, "")
+
+              pid = clean_text(row.get("player_id"))
+              name = clean_text(row.get("name"))
+              player_url = clean_text(row.get("url"))
+
+              if not pid:
+                  continue
+
+              # skip als al verwerkt en data aanwezig
+              if clean_text(row.get("debut_status")) == "ok" and (
+                  clean_text(row.get("pro_debut_date")) or clean_text(row.get("first_team_debut_date"))
+              ):
+                  continue
+
+              debut_url = make_debut_url(player_url, pid)
+              checked += 1
+
+              print(f"[{i:5d}/{len(rows)}] {pid} {name[:35]:35s}", end=" ", flush=True)
+
+              r = get(debut_url)
+              if not r:
+                  row["debut_url"] = debut_url
+                  row["debut_status"] = "failed"
+                  print("-> failed -")
+                  continue
+
+              parsed = extract_debuts(r.text, pid, name, r.url)
+
+              row["pro_debut_date"] = parsed["pro_debut_date"]
+              row["pro_debut_competition"] = parsed["pro_debut_competition"]
+              row["pro_debut_club"] = parsed["pro_debut_club"]
+
+              row["first_team_debut_date"] = parsed["first_team_debut_date"]
+              row["first_team_debut_competition"] = parsed["first_team_debut_competition"]
+              row["first_team_debut_club"] = parsed["first_team_debut_club"]
+
+              row["debut_url"] = parsed["debut_url"]
+              row["debut_status"] = parsed["debut_status"]
+
               updated += 1
 
-          with open(players_file, "w", newline="", encoding="utf-8") as f:
-              w = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
-              w.writeheader()
-              w.writerows(players)
+              print(
+                  f"-> {parsed['debut_status']} "
+                  f"| pro:{parsed['pro_debut_date'] or '-'} "
+                  f"| first:{parsed['first_team_debut_date'] or '-'}"
+              )
 
-          print(f"players.csv bijgewerkt: {updated} spelers")
+              if updated % SAVE_EVERY == 0:
+                  save_rows(PLAYERS_FILE, fields, rows)
+                  print(f"  [SAVE] {updated} bijgewerkt")
+
+              time.sleep(1.1 + random.uniform(0.0, 0.5))
+
+          save_rows(PLAYERS_FILE, fields, rows)
+          print(f"\nKlaar: {updated} bijgewerkt, {checked} gecontroleerd")
           PYEOF
 
-      - name: Gzip en commit
+      - name: Stap 2 - Gzippen en committen
         run: |
           git config user.name "ScoutAI Bot"
           git config user.email "actions@users.noreply.github.com"
 
           gzip -f data/csv/players.csv
-          git add data/csv/players.csv.gz data/raw/first_team_debuts.jsonl
+          echo "players.csv.gz: $(wc -c < data/csv/players.csv.gz) bytes"
 
+          git add data/csv/players.csv.gz
           TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
-          git commit -m "ScoutAI first-team debut dates update: ${TIMESTAMP}" || echo "Geen wijzigingen"
+          git commit -m "ScoutAI: debuten spelers [${TIMESTAMP}]" || echo "Geen wijzigingen"
           git push
 
       - name: Samenvatting
         run: |
-          echo "=== FIRST-TEAM DEBUT SCRAPE KLAAR ==="
-          [ -f data/csv/players.csv.gz ] && echo "players.csv.gz: $(wc -c < data/csv/players.csv.gz) bytes"
-          [ -f data/raw/first_team_debuts.jsonl ] && echo "first_team_debuts.jsonl: $(wc -l < data/raw/first_team_debuts.jsonl) lijnen"
+          echo "=== DEBUT SCRAPE KLAAR ==="
+          [ -f data/csv/players.csv.gz ] && echo "data/csv/players.csv.gz: $(wc -c < data/csv/players.csv.gz) bytes"
