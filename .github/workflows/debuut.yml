@@ -42,10 +42,11 @@ jobs:
       - name: Scrape debuts and checkpoint every 250
         timeout-minutes: 320
         env:
-          WORKERS: "6"
+          WORKERS: "4"
           SAVE_EVERY: "50"
           COMMIT_EVERY: "250"
           START_FROM: "1"
+          BATCH_SIZE: "120"
         run: |
           python3 << 'PYEOF'
           import csv
@@ -53,7 +54,6 @@ jobs:
           import re
           import time
           import gzip
-          import random
           import shutil
           import subprocess
           from pathlib import Path
@@ -66,10 +66,11 @@ jobs:
           PLAYERS_FILE = Path("data/csv/players.csv")
           GZ_FILE = Path("data/csv/players.csv.gz")
 
-          WORKERS = int(os.getenv("WORKERS", "6"))
+          WORKERS = int(os.getenv("WORKERS", "4"))
           SAVE_EVERY = int(os.getenv("SAVE_EVERY", "50"))
           COMMIT_EVERY = int(os.getenv("COMMIT_EVERY", "250"))
           START_FROM = int(os.getenv("START_FROM", "1"))
+          BATCH_SIZE = int(os.getenv("BATCH_SIZE", "120"))
 
           USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
 
@@ -84,7 +85,7 @@ jobs:
           session.headers.update(HEADERS)
 
           def run_cmd(cmd):
-              print(">", " ".join(cmd))
+              print(">", " ".join(cmd), flush=True)
               subprocess.run(cmd, check=False)
 
           def save_rows(rows, fields):
@@ -126,11 +127,11 @@ jobs:
               if len(parts) < 3:
                   return ""
 
-              day = parts[0].zfill(2)
+              day = re.sub(r"\D", "", parts[0]).zfill(2)
               mon = months.get(parts[1], "")
-              year = parts[2]
+              year = re.sub(r"\D", "", parts[2])
 
-              if not mon or not year.isdigit():
+              if not mon or not year:
                   return ""
 
               return f"{year}-{mon}-{day}"
@@ -166,6 +167,8 @@ jobs:
               return result
 
           def extract_club_name_from_row(tr):
+              if not tr:
+                  return ""
               tds = tr.find_all("td", recursive=False)
               if len(tds) < 3:
                   return ""
@@ -179,6 +182,8 @@ jobs:
               return club_td.get_text(" ", strip=True)
 
           def extract_date_from_row(tr):
+              if not tr:
+                  return ""
               tds = tr.find_all("td", recursive=False)
               if len(tds) < 4:
                   return ""
@@ -194,7 +199,8 @@ jobs:
                   debut_url = url.rstrip("/") + "/debuets"
 
               try:
-                  r = session.get(debut_url, timeout=25)
+                  r = session.get(debut_url, timeout=20)
+
                   if r.status_code == 404:
                       return {"status": "not_found"}
                   if r.status_code in (403, 429):
@@ -214,18 +220,12 @@ jobs:
                       elif "2de niveau" in key or "tweede niveau" in key or "2e niveau" in key:
                           second_row = row
 
-                  hoogste_divisie_debut_date = extract_date_from_row(top_row) if top_row else ""
-                  hoogste_divisie_debut_club = extract_club_name_from_row(top_row) if top_row else ""
-
-                  tweede_niveau_debut_date = extract_date_from_row(second_row) if second_row else ""
-                  tweede_niveau_debut_club = extract_club_name_from_row(second_row) if second_row else ""
-
                   return {
                       "status": "ok",
-                      "hoogste_divisie_debut_date": hoogste_divisie_debut_date,
-                      "hoogste_divisie_debut_club": hoogste_divisie_debut_club,
-                      "tweede_niveau_debut_date": tweede_niveau_debut_date,
-                      "tweede_niveau_debut_club": tweede_niveau_debut_club,
+                      "hoogste_divisie_debut_date": extract_date_from_row(top_row),
+                      "hoogste_divisie_debut_club": extract_club_name_from_row(top_row),
+                      "tweede_niveau_debut_date": extract_date_from_row(second_row),
+                      "tweede_niveau_debut_club": extract_club_name_from_row(second_row),
                   }
 
               except requests.RequestException:
@@ -268,11 +268,12 @@ jobs:
 
               todo.append((idx, pid, name, purl))
 
-          print(f"Spelers: {len(rows)}")
-          print(f"Al verwerkt: {already}")
-          print(f"Start vanaf: {START_FROM}")
-          print(f"Nog te doen: {len(todo)}")
-          print(f"Workers: {WORKERS}")
+          print(f"Spelers: {len(rows)}", flush=True)
+          print(f"Al verwerkt: {already}", flush=True)
+          print(f"Start vanaf: {START_FROM}", flush=True)
+          print(f"Nog te doen: {len(todo)}", flush=True)
+          print(f"Workers: {WORKERS}", flush=True)
+          print(f"Batch size: {BATCH_SIZE}", flush=True)
 
           processed_since_save = 0
           processed_since_commit = 0
@@ -281,51 +282,60 @@ jobs:
           row_map = {str((r.get("player_id") or "").strip()): r for r in rows}
 
           with ThreadPoolExecutor(max_workers=WORKERS) as ex:
-              futures = {}
-              for idx, pid, name, purl in todo:
-                  futures[ex.submit(scrape_one, pid, purl)] = (idx, pid, name)
-                  time.sleep(0.12)
+              for batch_start in range(0, len(todo), BATCH_SIZE):
+                  batch = todo[batch_start:batch_start + BATCH_SIZE]
+                  futures = {}
 
-              for fut in as_completed(futures):
-                  idx, pid, name = futures[fut]
-                  res = fut.result()
-                  row = row_map.get(str(pid))
-                  if row is None:
-                      continue
+                  for idx, pid, name, purl in batch:
+                      futures[ex.submit(scrape_one, pid, purl)] = (idx, pid, name)
+                      time.sleep(0.03)
 
-                  if res.get("status") == "ok":
-                      row["hoogste_divisie_debut_date"] = res.get("hoogste_divisie_debut_date", "") or row.get("hoogste_divisie_debut_date", "")
-                      row["hoogste_divisie_debut_club"] = res.get("hoogste_divisie_debut_club", "") or row.get("hoogste_divisie_debut_club", "")
-                      row["tweede_niveau_debut_date"] = res.get("tweede_niveau_debut_date", "") or row.get("tweede_niveau_debut_date", "")
-                      row["tweede_niveau_debut_club"] = res.get("tweede_niveau_debut_club", "") or row.get("tweede_niveau_debut_club", "")
-                  else:
-                      # laat rij leeg, zodat je later eventueel opnieuw kunt draaien
-                      pass
+                  for fut in as_completed(futures):
+                      idx, pid, name = futures[fut]
+                      res = fut.result()
+                      row = row_map.get(str(pid))
+                      if row is None:
+                          continue
 
-                  total_done += 1
-                  processed_since_save += 1
-                  processed_since_commit += 1
+                      if res.get("status") == "ok":
+                          row["hoogste_divisie_debut_date"] = res.get("hoogste_divisie_debut_date", "") or row.get("hoogste_divisie_debut_date", "")
+                          row["hoogste_divisie_debut_club"] = res.get("hoogste_divisie_debut_club", "") or row.get("hoogste_divisie_debut_club", "")
+                          row["tweede_niveau_debut_date"] = res.get("tweede_niveau_debut_date", "") or row.get("tweede_niveau_debut_date", "")
+                          row["tweede_niveau_debut_club"] = res.get("tweede_niveau_debut_club", "") or row.get("tweede_niveau_debut_club", "")
 
-                  top = row.get("hoogste_divisie_debut_date") or "-"
-                  second = row.get("tweede_niveau_debut_date") or "-"
-                  print(f"[{idx:5d}/{len(rows)}] {pid:<8} {name[:35]:<35} -> {res.get('status','?'):<10} | hoogste:{top} | tweede:{second}")
+                      total_done += 1
+                      processed_since_save += 1
+                      processed_since_commit += 1
 
-                  if processed_since_save >= SAVE_EVERY:
-                      save_rows(rows, fields)
-                      processed_since_save = 0
-                      print(f"  [SAVE] {total_done} verwerkt sinds start")
+                      top = row.get("hoogste_divisie_debut_date") or "-"
+                      second = row.get("tweede_niveau_debut_date") or "-"
+                      print(
+                          f"[{idx:5d}/{len(rows)}] {pid:<8} {name[:35]:<35} -> {res.get('status','?'):<12} | hoogste:{top} | tweede:{second}",
+                          flush=True
+                      )
 
-                  if processed_since_commit >= COMMIT_EVERY:
-                      save_rows(rows, fields)
-                      ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-                      git_checkpoint(f"ScoutAI debuts checkpoint [{ts}]")
-                      processed_since_commit = 0
-                      print(f"  [COMMIT/PUSH] {total_done} verwerkt sinds start")
+                      if processed_since_save >= SAVE_EVERY:
+                          save_rows(rows, fields)
+                          processed_since_save = 0
+                          print(f"  [SAVE] {total_done} verwerkt sinds start", flush=True)
+
+                      if processed_since_commit >= COMMIT_EVERY:
+                          save_rows(rows, fields)
+                          ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+                          git_checkpoint(f"ScoutAI debuts checkpoint [{ts}]")
+                          processed_since_commit = 0
+                          print(f"  [COMMIT/PUSH] {total_done} verwerkt sinds start", flush=True)
+
+                  save_rows(rows, fields)
+                  print(
+                      f"  [BATCH DONE] {min(batch_start + BATCH_SIZE, len(todo))}/{len(todo)} todo verwerkt",
+                      flush=True
+                  )
 
           save_rows(rows, fields)
           ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
           git_checkpoint(f"ScoutAI debuts full [{ts}]")
-          print("Klaar.")
+          print("Klaar.", flush=True)
           PYEOF
 
       - name: Summary
