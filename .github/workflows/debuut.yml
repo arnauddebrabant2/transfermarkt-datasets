@@ -197,24 +197,21 @@ jobs:
 
           def parse_debut_page(html):
               """
-              Parse de TM debut pagina en return dict met datum + club per niveau.
+              Parse de TM debut pagina.
 
-              TM debut pagina structuur:
-              <table>
-                <tbody>
-                  <tr class="bg_Torwart"> ← sectie header met competitienaam
-                    <td class="hauptlink" colspan="...">Hoogste divisie</td>
-                  </tr>
-                  <tr>  ← data rij
-                    <td>competitie icon</td>
-                    <td>competitienaam (met <a href="/wettbewerb/GB1">)</td>
-                    <td>datum</td>
-                    <td>thuisclub</td>
-                    <td>x - y</td>
-                    <td>uitclub</td>
-                    <td>minuten</td>
-                  </tr>
-                  ...meer secties...
+              Exacte tabelstructuur (uit HTML analyse):
+              <tr class="bg_Sturm">
+                <td class="hauptlink" colspan="7">Hoogste divisie</td>
+              </tr>
+              <tr>
+                <td>competitie logo img</td>          col 0
+                <td><a href="/wettbewerb/KR1">...</a> col 1  ← competitiecode
+                <td><a href="/verein/...">club</a></td> col 2 ← club
+                <td>21 apr. 2023</td>                 col 3  ← DATUM
+                <td>wedstrijd</td>                    col 4
+                <td>trainer</td>                      col 5
+                <td>leeftijd</td>                     col 6
+              </tr>
               """
               soup = BeautifulSoup(html, "html.parser")
               result = {
@@ -224,79 +221,71 @@ jobs:
                   "tweede_niveau_debut_club":    "",
               }
 
-              # Zoek alle responsive-table divs (er kan er meer dan één zijn)
-              tables = soup.select("div.responsive-table table")
-              if not tables:
-                  # Fallback: gewoon alle tables
-                  tables = soup.find_all("table")
+              table = soup.select_one("div.responsive-table table")
+              if not table:
+                  table = soup.find("table")
+              if not table:
+                  return result
 
-              for table in tables:
-                  tbody = table.find("tbody")
-                  if not tbody:
+              tbody = table.find("tbody")
+              if not tbody:
+                  return result
+
+              for tr in tbody.find_all("tr", recursive=False):
+                  tds = tr.find_all("td", recursive=False)
+                  if not tds:
                       continue
 
-                  rows = tbody.find_all("tr", recursive=False)
+                  # Skip sectie-header rijen
+                  if tr.find("td", class_="hauptlink"):
+                      continue
 
-                  for tr in rows:
-                      tds = tr.find_all("td", recursive=False)
-                      if not tds:
-                          continue
+                  # Data rij heeft 7 kolommen
+                  if len(tds) < 4:
+                      continue
 
-                      # Skip sectie-header rijen (hebben hauptlink class of colspan)
-                      if tds[0].get("colspan") or tr.find("td", class_="hauptlink"):
-                          continue
-
-                      # Data rij moet minstens 3 kolommen hebben
-                      if len(tds) < 3:
-                          continue
-
-                      # Haal competitiecode op
-                      comp_code = get_comp_code(tr)
-                      if not comp_code:
-                          # Probeer uit de eerste td
-                          for a in tds[0].find_all("a", href=True) + (tds[1].find_all("a", href=True) if len(tds) > 1 else []):
-                              m = re.search(r'/wettbewerb/([A-Za-z0-9]+)', a["href"])
-                              if m:
-                                  comp_code = m.group(1).upper()
-                                  break
-
-                      # Zoek de datum — staat in de td met een datumachtige tekst
-                      # TM kolommen: [vlag/icon] [comp naam] [datum] [thuisclub] [score] [uitclub] [mins]
-                      # Maar soms ook: [comp icon] [datum] [thuisclub] [score] [uitclub]
-                      datum = ""
-                      club  = ""
-
-                      for i, td in enumerate(tds):
-                          txt = td.get_text(" ", strip=True)
-                          # Datum herkenning
-                          if not datum and re.search(r'\d{1,2}[\s./][a-zA-Z]+[\s./]\d{4}|\d{1,2}/\d{1,2}/\d{2,4}', txt):
-                              datum = parse_date(txt)
-
-                      # Club: zoek de eerste td met een club-link (verein of startseite/verein)
-                      for td in tds:
-                          for a in td.find_all("a", href=True):
-                              if "/verein/" in a["href"] or "startseite/verein" in a["href"]:
-                                  club = (a.get("title") or a.get_text(strip=True)).strip()
-                                  if club:
-                                      break
-                          if club:
+                  # Competitiecode uit col 1 (href=/wettbewerb/KR1)
+                  comp_code = ""
+                  for a in tds[1].find_all("a", href=True):
+                      m = re.search(r'/wettbewerb/([A-Za-z0-9]+)', a["href"])
+                      if m:
+                          comp_code = m.group(1).upper()
+                          break
+                  # Fallback: col 0
+                  if not comp_code:
+                      for a in tds[0].find_all("a", href=True):
+                          m = re.search(r'/wettbewerb/([A-Za-z0-9]+)', a["href"])
+                          if m:
+                              comp_code = m.group(1).upper()
                               break
 
-                      if not datum:
-                          continue
+                  if comp_code not in FIRST_DIV and comp_code not in SECOND_DIV:
+                      continue
 
-                      # Sla op per niveau op basis van competitiecode
-                      if comp_code in FIRST_DIV and not result["hoogste_divisie_debut_date"]:
-                          result["hoogste_divisie_debut_date"] = datum
-                          result["hoogste_divisie_debut_club"] = club
+                  # Datum uit col 3
+                  datum = parse_date(tds[3].get_text(" ", strip=True))
+                  if not datum:
+                      continue
 
-                      elif comp_code in SECOND_DIV and not result["tweede_niveau_debut_date"]:
-                          result["tweede_niveau_debut_date"] = datum
-                          result["tweede_niveau_debut_club"] = club
+                  # Club uit col 2: img title of a title
+                  club = ""
+                  td_club = tds[2]
+                  img = td_club.find("img")
+                  if img and img.get("title"):
+                      club = img["title"].strip()
+                  if not club:
+                      a = td_club.find("a")
+                      if a:
+                          club = (a.get("title") or a.get_text(strip=True)).strip()
 
-                      # Stop als beide gevonden
-                      if result["hoogste_divisie_debut_date"] and result["tweede_niveau_debut_date"]:
-                          break
+                  # Opslaan per niveau
+                  if comp_code in FIRST_DIV and not result["hoogste_divisie_debut_date"]:
+                      result["hoogste_divisie_debut_date"] = datum
+                      result["hoogste_divisie_debut_club"] = club
+
+                  elif comp_code in SECOND_DIV and not result["tweede_niveau_debut_date"]:
+                      result["tweede_niveau_debut_date"] = datum
+                      result["tweede_niveau_debut_club"] = club
 
                   if result["hoogste_divisie_debut_date"] and result["tweede_niveau_debut_date"]:
                       break
