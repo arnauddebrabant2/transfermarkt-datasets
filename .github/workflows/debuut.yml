@@ -10,7 +10,15 @@ on:
       workers:
         description: 'Aantal parallelle workers'
         required: false
-        default: '3'
+        default: '8'
+      save_every:
+        description: 'Opslaan elke N spelers'
+        required: false
+        default: '100'
+      commit_every:
+        description: 'Commit elke N spelers'
+        required: false
+        default: '500'
 
 jobs:
   scrape:
@@ -31,31 +39,31 @@ jobs:
 
       - name: Decompress players.csv.gz
         run: |
-          python3 << 'PYEOF'
+          python3 -c "
           import gzip, shutil
           from pathlib import Path
-
-          gz  = Path("data/csv/players.csv.gz")
-          csv = Path("data/csv/players.csv")
-
+          gz  = Path('data/csv/players.csv.gz')
+          csv = Path('data/csv/players.csv')
           if gz.exists():
-              with gzip.open(gz, "rb") as fi, open(csv, "wb") as fo:
+              with gzip.open(gz,'rb') as fi, open(csv,'wb') as fo:
                   shutil.copyfileobj(fi, fo)
-              print(f"Gedecomprimeerd: {gz} → {csv} ({csv.stat().st_size // 1024} KB)")
+              print(f'Gedecomprimeerd: {csv.stat().st_size//1024} KB')
           elif csv.exists():
-              print("players.csv bestaat al")
+              print('players.csv bestaat al')
           else:
-              raise FileNotFoundError("Geen players.csv.gz of players.csv gevonden")
-          PYEOF
+              raise FileNotFoundError('Geen players.csv.gz of players.csv')
+          "
 
-      - name: Scrape debuts from Transfermarkt
-        timeout-minutes: 300
+      - name: Scrape debuts
+        timeout-minutes: 320
         env:
-          START_FROM: ${{ github.event.inputs.start_from || '1' }}
-          WORKERS: ${{ github.event.inputs.workers || '3' }}
+          START_FROM:   ${{ github.event.inputs.start_from   || '1' }}
+          WORKERS:      ${{ github.event.inputs.workers      || '8' }}
+          SAVE_EVERY:   ${{ github.event.inputs.save_every   || '100' }}
+          COMMIT_EVERY: ${{ github.event.inputs.commit_every || '500' }}
         run: |
           python3 << 'PYEOF'
-          import csv, random, re, time, os, gzip, shutil, subprocess
+          import csv, random, re, time, os, gzip, shutil, subprocess, threading
           from pathlib import Path
           from urllib.parse import urlparse
           from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -65,16 +73,19 @@ jobs:
           import requests
           from bs4 import BeautifulSoup
 
-          DATA_DIR    = Path("data/csv")
+          DATA_DIR     = Path("data/csv")
           PLAYERS_FILE = DATA_DIR / "players.csv"
-          GZ_FILE     = DATA_DIR / "players.csv.gz"
+          GZ_FILE      = DATA_DIR / "players.csv.gz"
 
-          START_FROM  = int(os.getenv("START_FROM", "1"))
-          WORKERS     = int(os.getenv("WORKERS", "3"))
-          SAVE_EVERY  = 50
-          COMMIT_EVERY = 250
-          SLEEP_MIN   = 1.0
-          SLEEP_MAX   = 2.0
+          START_FROM   = int(os.getenv("START_FROM",   "1"))
+          WORKERS      = int(os.getenv("WORKERS",      "8"))
+          SAVE_EVERY   = int(os.getenv("SAVE_EVERY",   "100"))
+          COMMIT_EVERY = int(os.getenv("COMMIT_EVERY", "500"))
+
+          # Sneller: kortere sleep, meer workers
+          # Met 8 workers en 0.3-0.8s sleep ≈ 10 spelers/sec ≈ 39K in ~65 min
+          SLEEP_MIN = 0.3
+          SLEEP_MAX = 0.8
 
           HEADERS = {
               "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
@@ -83,25 +94,19 @@ jobs:
               "Referer": "https://www.transfermarkt.be/",
           }
 
-          # Sectietitels in alle TM talen voor 1e en 2e divisie
           HIGHEST_TITLES = {
-              "hoogste divisie",           # nl
-              "highest division",          # en
-              "höchste spielklasse",       # de
-              "division la plus haute",    # fr
-              "massima divisione",         # it
-              "primera division",          # es
-              "primeira divisão",          # pt
-              "en yüksek lig",             # tr
+              "hoogste divisie", "highest division", "höchste spielklasse",
+              "division la plus haute", "massima divisione", "primera division",
+              "primeira divisão", "en yüksek lig",
           }
           SECOND_TITLES = {
-              "2de niveau", "tweede niveau",   # nl
-              "second tier", "second division", "2nd division",  # en
-              "2. spielklasse", "2. liga",      # de
-              "deuxième division",              # fr
-              "seconda divisione",              # it
-              "segunda division",               # es
+              "2de niveau", "tweede niveau", "second tier", "second division",
+              "2nd division", "2. spielklasse", "2. liga", "deuxième division",
+              "seconda divisione", "segunda division",
           }
+
+          save_lock   = threading.Lock()
+          commit_lock = threading.Lock()
 
           def make_session():
               s = requests.Session()
@@ -117,18 +122,19 @@ jobs:
                       w.writerow({k: row.get(k, "") for k in fields})
               tmp.replace(path)
 
-          def git_checkpoint(msg):
+          def git_commit(msg):
               with gzip.open(GZ_FILE, "wb") as fo:
                   with open(PLAYERS_FILE, "rb") as fi:
                       shutil.copyfileobj(fi, fo)
-              for cmd in [
-                  ["git", "config", "user.name",  "ScoutAI Bot"],
-                  ["git", "config", "user.email", "actions@users.noreply.github.com"],
-                  ["git", "add", str(GZ_FILE)],
-                  ["git", "commit", "-m", msg],
-                  ["git", "push"],
-              ]:
-                  subprocess.run(cmd, check=False)
+              subprocess.run(["git", "config", "user.name",  "ScoutAI Bot"],  check=False)
+              subprocess.run(["git", "config", "user.email", "actions@users.noreply.github.com"], check=False)
+              subprocess.run(["git", "add", str(GZ_FILE)], check=False)
+              result = subprocess.run(["git", "commit", "-m", msg], check=False, capture_output=True)
+              if result.returncode == 0:
+                  subprocess.run(["git", "push"], check=False)
+                  print(f"  [COMMIT+PUSH] {msg}", flush=True)
+              else:
+                  print(f"  [COMMIT] Geen wijzigingen", flush=True)
 
           def clean_text(el):
               if not el:
@@ -140,55 +146,51 @@ jobs:
               if not s:
                   return ""
               dt = pd.to_datetime(s, dayfirst=True, errors="coerce")
-              if pd.isna(dt):
-                  return ""
-              return dt.strftime("%Y-%m-%d")
+              return "" if pd.isna(dt) else dt.strftime("%Y-%m-%d")
 
           def build_debut_url(row):
-              player_id = str(row.get("player_id", "")).strip()
+              pid = str(row.get("player_id", "")).strip()
               url = str(row.get("url", "")).strip()
               slug = ""
               if url:
                   try:
                       parts = urlparse(url).path.strip("/").split("/")
                       if "spieler" in parts:
-                          idx = parts.index("spieler")
-                          slug = parts[idx - 1] if idx > 0 else ""
-                          player_id = parts[idx + 1] if idx + 1 < len(parts) else player_id
+                          i = parts.index("spieler")
+                          slug = parts[i - 1] if i > 0 else ""
+                          pid  = parts[i + 1] if i + 1 < len(parts) else pid
                   except:
                       pass
-              if slug:
-                  return f"https://www.transfermarkt.be/{slug}/debuets/spieler/{player_id}"
-              return f"https://www.transfermarkt.be/spieler/debuets/spieler/{player_id}"
+              base = f"https://www.transfermarkt.be/{slug}" if slug else "https://www.transfermarkt.be/spieler"
+              return f"{base}/debuets/spieler/{pid}"
 
-          def fetch(url, session, retries=4):
+          def fetch(url, session, retries=3):
               for i in range(retries):
                   try:
-                      r = session.get(url, timeout=25, allow_redirects=True)
+                      r = session.get(url, timeout=20, allow_redirects=True)
                       if r.status_code == 200:
                           return r, "ok"
                       if r.status_code == 404:
                           return None, "not_found"
                       if r.status_code in (403, 429):
-                          time.sleep(45 * (i + 1))
+                          wait = 30 * (i + 1)
+                          print(f"  HTTP{r.status_code} → wacht {wait}s", flush=True)
+                          time.sleep(wait)
                           continue
-                      time.sleep(5 * (i + 1))
-                  except Exception:
-                      time.sleep(6 * (i + 1))
+                      time.sleep(3 * (i + 1))
+                  except Exception as e:
+                      time.sleep(4 * (i + 1))
               return None, "error"
 
           def parse_debut_page(html):
               soup = BeautifulSoup(html, "lxml")
               result = {
-                  "debut_highest_division_date":        "",
-                  "debut_highest_division_club":        "",
+                  "debut_highest_division_date": "", "debut_highest_division_club": "",
                   "debut_highest_division_competition": "",
-                  "debut_second_tier_date":             "",
-                  "debut_second_tier_club":             "",
-                  "debut_second_tier_competition":      "",
+                  "debut_second_tier_date": "",     "debut_second_tier_club": "",
+                  "debut_second_tier_competition": "",
               }
 
-              # Zoek de debutentabel in de .box div
               table = None
               for div in soup.select("div.box"):
                   h2 = div.select_one("h2.content-box-headline")
@@ -200,26 +202,23 @@ jobs:
               if not table:
                   return result
 
-              current_section = ""
-
+              current = ""
               for tr in table.select("tbody tr"):
-                  # Sectie-header rij
                   hd = tr.select_one("td.hauptlink[colspan]")
                   if hd:
-                      current_section = clean_text(hd).lower().strip()
+                      current = clean_text(hd).lower().strip()
                       continue
 
                   cells = tr.find_all("td")
                   if len(cells) < 4:
                       continue
 
-                  # Kolommen: [comp logo] [comp naam] [club] [datum] [wedstrijd] [trainer] [leeftijd]
-                  competition = clean_text(cells[1])
-                  date_val    = parse_date(clean_text(cells[3]))
+                  date_val = parse_date(clean_text(cells[3]))
                   if not date_val:
                       continue
 
-                  # Club: img title heeft prioriteit (exacte naam), anders a title
+                  competition = clean_text(cells[1])
+
                   club = ""
                   img = cells[2].find("img")
                   if img and img.get("title"):
@@ -229,18 +228,15 @@ jobs:
                       if a:
                           club = (a.get("title") or clean_text(a)).strip()
 
-                  # Match sectietitel
-                  if current_section in HIGHEST_TITLES:
-                      if not result["debut_highest_division_date"]:
-                          result["debut_highest_division_date"]        = date_val
-                          result["debut_highest_division_club"]        = club
-                          result["debut_highest_division_competition"] = competition
+                  if current in HIGHEST_TITLES and not result["debut_highest_division_date"]:
+                      result["debut_highest_division_date"]        = date_val
+                      result["debut_highest_division_club"]        = club
+                      result["debut_highest_division_competition"] = competition
 
-                  elif current_section in SECOND_TITLES:
-                      if not result["debut_second_tier_date"]:
-                          result["debut_second_tier_date"]             = date_val
-                          result["debut_second_tier_club"]             = club
-                          result["debut_second_tier_competition"]      = competition
+                  elif current in SECOND_TITLES and not result["debut_second_tier_date"]:
+                      result["debut_second_tier_date"]             = date_val
+                      result["debut_second_tier_club"]             = club
+                      result["debut_second_tier_competition"]      = competition
 
                   if result["debut_highest_division_date"] and result["debut_second_tier_date"]:
                       break
@@ -249,15 +245,19 @@ jobs:
 
           def scrape_one(row):
               session = make_session()
-              url = build_debut_url(row)
-              r, status = fetch(url, session)
-              if not r:
+              try:
+                  url = build_debut_url(row)
+                  r, status = fetch(url, session)
+                  if r:
+                      parsed = parse_debut_page(r.text)
+                      for k, v in parsed.items():
+                          row[k] = v
+                  time.sleep(random.uniform(SLEEP_MIN, SLEEP_MAX))
                   return row, status
-              parsed = parse_debut_page(r.text)
-              for k, v in parsed.items():
-                  row[k] = v
-              time.sleep(random.uniform(SLEEP_MIN, SLEEP_MAX))
-              return row, "ok"
+              except Exception as e:
+                  return row, f"error:{e}"
+              finally:
+                  session.close()
 
           # ── Laden ─────────────────────────────────────────────────────────
           with open(PLAYERS_FILE, encoding="utf-8") as f:
@@ -266,18 +266,14 @@ jobs:
               rows   = list(reader)
 
           DEBUT_COLS = [
-              "debut_highest_division_date",
-              "debut_highest_division_club",
+              "debut_highest_division_date", "debut_highest_division_club",
               "debut_highest_division_competition",
-              "debut_second_tier_date",
-              "debut_second_tier_club",
+              "debut_second_tier_date",      "debut_second_tier_club",
               "debut_second_tier_competition",
           ]
           for col in DEBUT_COLS:
               if col not in fields:
                   fields.append(col)
-
-          row_map = {str((r.get("player_id") or "").strip()): r for r in rows}
 
           todo = []
           already = 0
@@ -291,55 +287,74 @@ jobs:
                   continue
               todo.append((idx, row))
 
-          print(f"Spelers totaal:  {len(rows)}")
-          print(f"Al verwerkt:     {already}")
-          print(f"Nog te doen:     {len(todo)}")
-          print(f"Workers:         {WORKERS}")
+          print(f"Spelers totaal : {len(rows)}")
+          print(f"Al verwerkt    : {already}")
+          print(f"Nog te doen    : {len(todo)}")
+          print(f"Workers        : {WORKERS}")
+          print(f"Sleep          : {SLEEP_MIN}-{SLEEP_MAX}s")
+          est = len(todo) * ((SLEEP_MIN + SLEEP_MAX) / 2) / WORKERS / 60
+          print(f"Geschatte tijd : ~{est:.0f} min", flush=True)
 
-          processed = 0
-          since_save = 0
+          processed    = 0
+          since_save   = 0
           since_commit = 0
+          t_start      = time.time()
 
           with ThreadPoolExecutor(max_workers=WORKERS) as ex:
-              BATCH = 120
+              BATCH = 200
               for batch_start in range(0, len(todo), BATCH):
-                  batch = todo[batch_start:batch_start + BATCH]
+                  batch   = todo[batch_start:batch_start + BATCH]
                   futures = {ex.submit(scrape_one, row): (idx, row) for idx, row in batch}
 
                   for fut in as_completed(futures):
-                      idx, orig = futures[fut]
-                      updated_row, status = fut.result()
-                      name = (updated_row.get("name") or "").strip()[:35]
-                      pid  = (updated_row.get("player_id") or "").strip()
+                      idx, _ = futures[fut]
+                      row, status = fut.result()
 
-                      highest = updated_row.get("debut_highest_division_date") or "-"
-                      second  = updated_row.get("debut_second_tier_date") or "-"
+                      name    = (row.get("name") or "")[:30]
+                      pid     = (row.get("player_id") or "")
+                      highest = row.get("debut_highest_division_date") or "-"
+                      second  = row.get("debut_second_tier_date")      or "-"
 
-                      print(
-                          f"[{idx:5d}/{len(rows)}] {pid:8s} {name:<35s}"
-                          f" -> {status:<10s} | highest:{highest} | second:{second}"
-                      )
-
-                      processed   += 1
-                      since_save  += 1
+                      processed    += 1
+                      since_save   += 1
                       since_commit += 1
 
+                      elapsed = time.time() - t_start
+                      speed   = processed / elapsed * 60  # per minuut
+                      remain  = (len(todo) - processed) / (processed / elapsed) / 60 if processed else 0
+
+                      print(
+                          f"[{idx:5d}/{len(rows)}] {pid:8s} {name:<30s}"
+                          f" {status:<10s} | H:{highest} S:{second}"
+                          f" | {speed:.0f}/min ~{remain:.0f}min over",
+                          flush=True
+                      )
+
                       if since_save >= SAVE_EVERY:
-                          save_rows(PLAYERS_FILE, fields, rows)
+                          with save_lock:
+                              save_rows(PLAYERS_FILE, fields, rows)
                           since_save = 0
-                          print(f"  [SAVE] {processed} verwerkt")
+                          print(f"  [SAVE] {processed}/{len(todo)} verwerkt", flush=True)
 
-                      if since_commit >= 250:
-                          save_rows(PLAYERS_FILE, fields, rows)
-                          ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-                          git_checkpoint(f"ScoutAI debuts checkpoint [{ts}]")
+                      if since_commit >= COMMIT_EVERY:
+                          with commit_lock:
+                              save_rows(PLAYERS_FILE, fields, rows)
+                              ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+                              git_commit(f"ScoutAI debuts [{processed}/{len(todo)}] {ts}")
                           since_commit = 0
-                          print(f"  [COMMIT] {processed} verwerkt")
 
+          # Finale opslag + commit
           save_rows(PLAYERS_FILE, fields, rows)
           ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-          git_checkpoint(f"ScoutAI debuts volledig [{ts}]")
-          print(f"\nKlaar: {processed} bijgewerkt")
+          git_commit(f"ScoutAI debuts KLAAR [{len(todo)} spelers] {ts}")
+
+          total = time.time() - t_start
+          found_h = sum(1 for r in rows if r.get("debut_highest_division_date"))
+          found_s = sum(1 for r in rows if r.get("debut_second_tier_date"))
+          print(f"\n{'='*60}")
+          print(f"✅ Klaar in {total/60:.1f} min")
+          print(f"   1e divisie debut gevonden: {found_h:,}")
+          print(f"   2e divisie debut gevonden: {found_s:,}")
           PYEOF
 
       - name: Summary
