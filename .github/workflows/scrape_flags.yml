@@ -25,12 +25,15 @@ jobs:
           python3 << 'PYEOF'
           import gzip, shutil
           from pathlib import Path
+
           gz = Path('data/csv/competitions.csv.gz')
           if gz.exists():
               with gzip.open(gz, 'rb') as f_in:
                   with open('data/csv/competitions.csv', 'wb') as f_out:
                       shutil.copyfileobj(f_in, f_out)
               print(f"Gedecomprimeerd: {gz.stat().st_size // 1024} KB")
+          else:
+              raise FileNotFoundError("data/csv/competitions.csv.gz niet gevonden")
           PYEOF
 
       - name: Stap 1 - Vlaggen en logo's scrapen per competitie
@@ -44,7 +47,10 @@ jobs:
 
           DATA = Path('data/csv')
           BASE = 'https://www.transfermarkt.co.uk'
-          START_FROM = 931   # 1-based index; hervat vanaf rij 931
+
+          # Zet op 1 om alles opnieuw te doen
+          # Zet bv op 931 om te hervatten vanaf daar
+          START_FROM = 1
           SAVE_EVERY = 25
 
           HEADERS = {
@@ -68,7 +74,7 @@ jobs:
                           print(f'  403 - wacht {wait}s...', end='')
                           time.sleep(wait)
                       elif r.status_code == 405:
-                          print(f' HTTP405', end='')
+                          print(' HTTP405', end='')
                           time.sleep(5 * (i + 1))
                       else:
                           print(f' HTTP{r.status_code}', end='')
@@ -81,7 +87,14 @@ jobs:
           def abs_url(src):
               if not src:
                   return ''
-              return src if src.startswith('http') else urljoin('https://tmssl.akamaized.net', src)
+              if src.startswith('http'):
+                  return src
+              return urljoin('https://tmssl.akamaized.net', src)
+
+          def norm(s):
+              s = (s or '').strip().lower()
+              s = re.sub(r'\s+', ' ', s)
+              return s
 
           def save_rows(comp_file, fields, rows):
               with open(comp_file, 'w', newline='', encoding='utf-8') as f:
@@ -90,32 +103,77 @@ jobs:
                   for row in rows:
                       w.writerow({k: row.get(k, '') for k in fields})
 
-          def find_flag_and_logo(soup, comp_id):
+          def is_logo_src(src):
+              src_l = (src or '').lower()
+              return (
+                  '/images/logo/' in src_l or
+                  '/images/logo/homepagewappen150x150/' in src_l or
+                  '/images/logo/header/' in src_l or
+                  '/images/logo/tiny/' in src_l or
+                  '/images/logo/small/' in src_l
+              )
+
+          def score_logo_candidate(src, comp_id_l, comp_name_l, alt_l, title_l, in_header=False, from_meta=False):
+              score = 0
+              src_l = (src or '').lower()
+
+              if from_meta:
+                  score += 200
+
+              if in_header:
+                  score += 50
+
+              if f'/{comp_id_l}.png' in src_l:
+                  score += 300
+              if f'/{comp_id_l}?' in src_l:
+                  score += 300
+              if f'/{comp_id_l}.svg' in src_l:
+                  score += 300
+
+              if '/images/logo/homepagewappen150x150/' in src_l:
+                  score += 80
+              elif '/images/logo/header/' in src_l:
+                  score += 60
+              elif '/images/logo/' in src_l:
+                  score += 40
+
+              if comp_name_l:
+                  if comp_name_l == alt_l or comp_name_l == title_l:
+                      score += 120
+                  elif comp_name_l in alt_l or comp_name_l in title_l:
+                      score += 80
+                  elif alt_l in comp_name_l and len(alt_l) > 3:
+                      score += 40
+                  elif title_l in comp_name_l and len(title_l) > 3:
+                      score += 40
+
+              return score
+
+          def find_flag_and_logo(soup, comp_id, comp_name=''):
               flag_id = ''
               flag_url = ''
               logo_url = ''
 
-              header_box = soup.select_one('.data-header__box')
+              comp_id_l = norm(comp_id)
+              comp_name_l = norm(comp_name)
 
-              if header_box:
-                  flag_img = header_box.select_one('img.data-header__box__flag')
-                  if flag_img:
-                      src = flag_img.get('src', '')
-                      m = re.search(r'/images/flagge/[^/]+/(\d+)\.', src)
-                      if m:
-                          flag_id = m.group(1)
-                          flag_url = abs_url(src)
+              # ── 1. Vlag heel specifiek uit header ─────────────────────
+              flag_img = soup.select_one('img.data-header__box__flag')
+              if flag_img:
+                  src = flag_img.get('src', '')
+                  m = re.search(r'/images/flagge/[^/]+/(\d+)\.', src)
+                  if m:
+                      flag_id = m.group(1)
+                      flag_url = abs_url(src)
 
-                  for img in header_box.find_all('img', src=True):
-                      src = img.get('src', '')
-                      if '/images/logo/' in src or f'/{comp_id.lower()}.png' in src.lower():
-                          logo_url = abs_url(src)
-                          break
-
+              # fallback vlag
               if not flag_id:
                   for img in soup.find_all('img', src=True):
                       src = img.get('src', '')
+                      cls = ' '.join(img.get('class', []))
                       if '/images/flagge/' not in src:
+                          continue
+                      if 'flag' not in cls.lower() and 'data-header__box__flag' not in cls.lower():
                           continue
                       m = re.search(r'/images/flagge/[^/]+/(\d+)\.', src)
                       if m:
@@ -123,12 +181,83 @@ jobs:
                           flag_url = abs_url(src)
                           break
 
-              if not logo_url:
-                  for img in soup.find_all('img', src=True):
-                      src = img.get('src', '')
-                      if '/images/logo/' in src or f'/{comp_id.lower()}.png' in src.lower():
-                          logo_url = abs_url(src)
-                          break
+              # ── 2. Logo kandidaten verzamelen en scoren ───────────────
+              candidates = []
+
+              # 2a. og:image / twitter:image
+              for attr_name, attr_value in [('property', 'og:image'), ('name', 'twitter:image')]:
+                  tag = soup.find('meta', attrs={attr_name: attr_value})
+                  if tag and tag.get('content'):
+                      src = abs_url(tag.get('content'))
+                      if is_logo_src(src) or f'/{comp_id_l}.png' in src.lower():
+                          candidates.append({
+                              'src': src,
+                              'score': score_logo_candidate(
+                                  src=src,
+                                  comp_id_l=comp_id_l,
+                                  comp_name_l=comp_name_l,
+                                  alt_l='',
+                                  title_l='',
+                                  in_header=False,
+                                  from_meta=True
+                              )
+                          })
+
+              # 2b. header-box eerst
+              header_box = soup.select_one('.data-header__box')
+              if header_box:
+                  for img in header_box.find_all('img', src=True):
+                      src = abs_url(img.get('src', ''))
+                      alt_l = norm(img.get('alt', ''))
+                      title_l = norm(img.get('title', ''))
+
+                      # vlag skippen
+                      if '/images/flagge/' in src.lower():
+                          continue
+
+                      if is_logo_src(src) or comp_id_l in src.lower():
+                          candidates.append({
+                              'src': src,
+                              'score': score_logo_candidate(
+                                  src=src,
+                                  comp_id_l=comp_id_l,
+                                  comp_name_l=comp_name_l,
+                                  alt_l=alt_l,
+                                  title_l=title_l,
+                                  in_header=True,
+                                  from_meta=False
+                              )
+                          })
+
+              # 2c. pagina-breed
+              for img in soup.find_all('img', src=True):
+                  src = abs_url(img.get('src', ''))
+                  alt_l = norm(img.get('alt', ''))
+                  title_l = norm(img.get('title', ''))
+
+                  if '/images/flagge/' in src.lower():
+                      continue
+
+                  if is_logo_src(src) or comp_id_l in src.lower():
+                      candidates.append({
+                          'src': src,
+                          'score': score_logo_candidate(
+                              src=src,
+                              comp_id_l=comp_id_l,
+                              comp_name_l=comp_name_l,
+                              alt_l=alt_l,
+                              title_l=title_l,
+                              in_header=False,
+                              from_meta=False
+                          )
+                      })
+
+              # 2d. beste logo kiezen
+              if candidates:
+                  candidates = sorted(candidates, key=lambda x: x['score'], reverse=True)
+                  best = candidates[0]
+                  if best['score'] >= 60:
+                      logo_url = best['src']
 
               return flag_id, flag_url, logo_url
 
@@ -156,12 +285,9 @@ jobs:
               if i < START_FROM:
                   continue
 
-              comp_id  = (row.get('competition_id') or '').strip()
+              comp_id = (row.get('competition_id') or '').strip()
+              comp_name = (row.get('name') or '').strip()
               comp_url = (row.get('url') or '').strip()
-
-              # sla reeds volledig verwerkte rijen over
-              if row.get('flag_id') and row.get('logo_url'):
-                  continue
 
               if not comp_url:
                   print(f'[{i:4d}/{len(rows)}] {comp_id:12s} NO_URL')
@@ -173,23 +299,28 @@ jobs:
               r = get(comp_url)
               if not r:
                   print('SKIP')
-                  # NIET leegmaken; bestaande waarden behouden
                   continue
 
               soup = BeautifulSoup(r.text, 'html.parser')
-              new_flag_id, new_flag_url, new_logo_url = find_flag_and_logo(soup, comp_id)
+              new_flag_id, new_flag_url, new_logo_url = find_flag_and_logo(soup, comp_id, comp_name)
 
-              # Alleen overschrijven als we effectief iets gevonden hebben
+              # vlag alleen invullen als leeg of fout
               if new_flag_id:
                   row['flag_id'] = new_flag_id
               if new_flag_url:
                   row['flag_url'] = new_flag_url
+
+              # logo alleen overschrijven als we effectief iets zinnigs vonden
               if new_logo_url:
                   row['logo_url'] = new_logo_url
 
               updated += 1
 
-              print(f'flag:{row.get("flag_id","-") or "-":5s} logo:{"ok" if row.get("logo_url") else "-"}')
+              print(
+                  f'flag:{(row.get("flag_id","-") or "-"):5s} '
+                  f'logo:{"ok" if row.get("logo_url") else "-"} '
+                  f'-> {(row.get("logo_url") or "")[:80]}'
+              )
 
               if updated % SAVE_EVERY == 0:
                   save_rows(comp_file, fields, rows)
