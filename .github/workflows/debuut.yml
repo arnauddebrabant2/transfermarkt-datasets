@@ -44,8 +44,18 @@ jobs:
           import requests
           from bs4 import BeautifulSoup
 
-          PLAYERS_FILE = Path("data/csv/players.csv")
           GZ_FILE      = Path("data/csv/players.csv.gz")
+          PLAYERS_FILE = Path("data/csv/players.csv")
+
+          # Decompress als alleen .gz bestaat
+          if GZ_FILE.exists() and not PLAYERS_FILE.exists():
+              print(f"Decomprimeren: {GZ_FILE}", flush=True)
+              import gzip as _gz, shutil as _sh
+              with _gz.open(GZ_FILE, "rb") as fi, open(PLAYERS_FILE, "wb") as fo:
+                  _sh.copyfileobj(fi, fo)
+              print(f"  Klaar: {PLAYERS_FILE.stat().st_size // 1024} KB", flush=True)
+          elif not PLAYERS_FILE.exists() and not GZ_FILE.exists():
+              raise FileNotFoundError("Geen players.csv of players.csv.gz gevonden in data/csv/")
 
           WORKERS       = int(os.getenv("WORKERS",       "4"))
           SAVE_EVERY    = int(os.getenv("SAVE_EVERY",    "50"))
