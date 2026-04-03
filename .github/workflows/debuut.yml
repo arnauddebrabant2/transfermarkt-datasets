@@ -1,4 +1,4 @@
-name: Scrape Transfermarkt Debuts
+name: Scrape Player Debuts
 
 on:
   workflow_dispatch:
@@ -15,14 +15,11 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Install dependencies
         run: |
-          pip install requests beautifulsoup4 pandas lxml
-
-      - name: Maak output map aan
-        run: mkdir -p data/csv data/tmp
+          pip install requests beautifulsoup4 lxml pandas
 
       - name: Decompress players.csv.gz
         run: |
@@ -30,47 +27,47 @@ jobs:
           import gzip, shutil
           from pathlib import Path
 
-          gz = Path('data/csv/players.csv.gz')
-          out = Path('data/csv/players.csv')
+          gz = Path("data/csv/players.csv.gz")
+          csv_path = Path("data/csv/players.csv")
 
           if gz.exists():
-              with gzip.open(gz, 'rb') as f_in, open(out, 'wb') as f_out:
-                  shutil.copyfileobj(f_in, f_out)
-              print(f"Gedecomprimeerd: {gz.name} -> {out.name}")
-          elif out.exists():
+              with gzip.open(gz, "rb") as f_in:
+                  with open(csv_path, "wb") as f_out:
+                      shutil.copyfileobj(f_in, f_out)
+              print(f"Gedecomprimeerd: {gz} -> {csv_path}")
+          elif csv_path.exists():
               print("players.csv bestaat al")
           else:
-              raise FileNotFoundError("Geen players.csv.gz of players.csv gevonden")
+              raise FileNotFoundError("Geen data/csv/players.csv.gz of data/csv/players.csv gevonden")
           PYEOF
 
-      - name: Scrape debuten
-        timeout-minutes: 320
+      - name: Scrape debuts from Transfermarkt
+        timeout-minutes: 300
         run: |
           python3 << 'PYEOF'
+          import csv
+          import random
           import re
           import time
-          import random
+          from pathlib import Path
+          from urllib.parse import urlparse
+
           import pandas as pd
           import requests
-          from pathlib import Path
           from bs4 import BeautifulSoup
 
-          DATA = Path("data/csv")
-          TMP = Path("data/tmp")
-          TMP.mkdir(exist_ok=True)
-
-          PLAYERS_FILE = DATA / "players.csv"
-          CHECKPOINT_FILE = TMP / "debut_checkpoint.csv"
+          DATA_DIR = Path("data/csv")
+          PLAYERS_FILE = DATA_DIR / "players.csv"
 
           START_FROM = 1          # 1-based index
-          SAVE_EVERY = 25
-          MIN_SLEEP = 2.5
-          MAX_SLEEP = 5.5
+          SAVE_EVERY = 50
+          SLEEP_MIN = 1.2
+          SLEEP_MAX = 2.2
 
           HEADERS = {
-              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-              "Accept-Language": "nl-BE,nl;q=0.9,en-GB;q=0.8,en;q=0.7",
-              "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+              "Accept-Language": "nl-BE,nl;q=0.9,en;q=0.8",
+              "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
               "Referer": "https://www.transfermarkt.be/",
               "Cache-Control": "no-cache",
               "Pragma": "no-cache",
@@ -79,311 +76,246 @@ jobs:
           session = requests.Session()
           session.headers.update(HEADERS)
 
-          DATE_RE = re.compile(r'(\d{4}-\d{2}-\d{2}|\d{2}\.\d{2}\.\d{4}|\d{2}/\d{2}/\d{4})')
+          def save_rows(path, fields, rows):
+              with open(path, "w", newline="", encoding="utf-8") as f:
+                  w = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore")
+                  w.writeheader()
+                  for row in rows:
+                      w.writerow({k: row.get(k, "") for k in fields})
 
-          def normalize_date(s):
+          def clean_text(x):
+              if not x:
+                  return ""
+              return re.sub(r"\s+", " ", x.get_text(" ", strip=True)).strip()
+
+          def parse_date(s):
+              s = (s or "").strip()
               if not s:
                   return ""
-              s = str(s).strip()
-              try:
-                  dt = pd.to_datetime(s, dayfirst=True, errors="coerce")
-                  if pd.isna(dt):
-                      return ""
-                  return dt.strftime("%Y-%m-%d")
-              except:
+              dt = pd.to_datetime(s, dayfirst=True, errors="coerce")
+              if pd.isna(dt):
                   return ""
+              return dt.strftime("%Y-%m-%d")
 
-          def build_debut_urls(player_url, player_id):
-              urls = []
+          def extract_player_id_and_slug(row):
+              player_id = str(row.get("player_id", "")).strip()
+              url = str(row.get("url", "")).strip()
 
-              if player_url and str(player_url).strip():
-                  u = str(player_url).strip()
+              if player_id and url:
+                  try:
+                      parts = urlparse(url).path.strip("/").split("/")
+                      if "spieler" in parts:
+                          idx = parts.index("spieler")
+                          slug = parts[idx - 1] if idx - 1 >= 0 else ""
+                          pid = parts[idx + 1] if idx + 1 < len(parts) else player_id
+                          return pid, slug
+                  except:
+                      pass
 
-                  # algemene vervangingen op bestaande speler-url
-                  patterns = [
-                      (r'/profil/spieler/\d+', f'/debuets/spieler/{player_id}'),
-                      (r'/marktwertverlauf/spieler/\d+', f'/debuets/spieler/{player_id}'),
-                      (r'/leistungsdaten/spieler/\d+', f'/debuets/spieler/{player_id}'),
-                      (r'/transfers/spieler/\d+', f'/debuets/spieler/{player_id}'),
-                      (r'/verletzungen/spieler/\d+', f'/debuets/spieler/{player_id}'),
-                      (r'/geruechte/spieler/\d+', f'/debuets/spieler/{player_id}'),
-                  ]
-                  for pat, repl in patterns:
-                      if re.search(pat, u):
-                          urls.append(re.sub(pat, repl, u))
+              return player_id, ""
 
-                  # fallback door alles na speler slug opnieuw te bouwen
-                  m = re.search(r'^(https?://[^/]+/[^/]+)/[^/]+/spieler/(\d+)', u)
-                  if m:
-                      base_slug = m.group(1)
-                      pid = m.group(2)
-                      urls.append(f"{base_slug}/debuets/spieler/{pid}")
+          def build_debut_url(player_id, slug):
+              slug = (slug or "").strip().strip("/")
+              if slug:
+                  return f"https://www.transfermarkt.be/{slug}/debuets/spieler/{player_id}"
+              return f"https://www.transfermarkt.be/spieler/debuets/spieler/{player_id}"
 
-              # harde fallbacks
-              urls.extend([
-                  f"https://www.transfermarkt.be/spieler/debuets/spieler/{player_id}",
-                  f"https://www.transfermarkt.co.uk/spieler/debuets/spieler/{player_id}",
-                  f"https://www.transfermarkt.com/spieler/debuets/spieler/{player_id}",
-              ])
-
-              # unique
-              seen = set()
-              out = []
-              for u in urls:
-                  if u and u not in seen:
-                      seen.add(u)
-                      out.append(u)
-              return out
-
-          def get(url, retries=3):
+          def get(url, retries=4):
               last_status = None
-              for attempt in range(retries):
+              for i in range(retries):
                   try:
                       r = session.get(url, timeout=25, allow_redirects=True)
                       last_status = r.status_code
 
                       if r.status_code == 200:
-                          txt = r.text or ""
-                          low = txt.lower()
-                          if "please enable js" in low or "access denied" in low or "forbidden" in low:
-                              return None, "blocked"
                           return r, "ok"
 
                       if r.status_code in (403, 429):
-                          time.sleep(20 * (attempt + 1))
-                      elif r.status_code in (404,):
-                          return None, "not_found"
-                      else:
-                          time.sleep(5 * (attempt + 1))
-                  except Exception:
-                      time.sleep(5 * (attempt + 1))
+                          wait = 45 * (i + 1)
+                          print(f"  HTTP{r.status_code} wacht {wait}s", end="")
+                          time.sleep(wait)
+                          continue
 
-              if last_status in (403, 429):
+                      if r.status_code in (404,):
+                          return None, "not_found"
+
+                      if r.status_code in (301, 302, 303, 307, 308):
+                          time.sleep(2)
+                          continue
+
+                      if r.status_code in (401, 405, 406):
+                          time.sleep(10 * (i + 1))
+                          continue
+
+                      time.sleep(5 * (i + 1))
+                  except Exception:
+                      time.sleep(6 * (i + 1))
+
+              if last_status in (403, 429, 401, 405, 406):
                   return None, "blocked"
               if last_status == 404:
                   return None, "not_found"
               return None, "error"
 
-          def clean_text(x):
-              return re.sub(r'\s+', ' ', str(x or '')).strip()
-
-          def extract_date_from_text(text):
-              text = clean_text(text)
-              m = DATE_RE.search(text)
-              if not m:
-                  return ""
-              return normalize_date(m.group(1))
-
-          def extract_competition_from_row(cells):
-              texts = [clean_text(td.get_text(" ", strip=True)) for td in cells]
-              texts = [t for t in texts if t]
-              if not texts:
-                  return ""
-
-              # neem eerste niet-datum, niet puur numerieke, niet mini-label tekst
-              bad_parts = {"datum", "date", "club", "verein", "age", "leeftijd"}
-              for t in texts:
-                  low = t.lower()
-                  if extract_date_from_text(t):
-                      continue
-                  if low in bad_parts:
-                      continue
-                  if re.fullmatch(r'[\d\W]+', t):
-                      continue
-                  if len(t) < 3:
-                      continue
-                  return t
-              return ""
-
           def parse_debut_page(html):
               soup = BeautifulSoup(html, "lxml")
 
-              page_text = soup.get_text(" ", strip=True).lower()
-              if "debu" not in page_text and "debut" not in page_text:
-                  return None
-
-              pro_date = ""
-              pro_comp = ""
-              first_date = ""
-              first_comp = ""
-
-              # Strategie 1: zoek blocks/tables met relevante headings
-              tables = soup.find_all("table")
-              for table in tables:
-                  container_text = clean_text(table.get_text(" ", strip=True)).lower()
-
-                  is_pro_table = any(x in container_text for x in [
-                      "profdebuut", "prodebuut", "professional debut", "profidebüt", "profidebuet"
-                  ])
-                  is_first_table = any(x in container_text for x in [
-                      "debuut in hoogste divisie", "debut in top-flight", "top-flight debut",
-                      "debuut eerste divisie", "debuut 1ste elftal", "erstliga-debüt"
-                  ])
-
-                  if not is_pro_table and not is_first_table:
-                      continue
-
-                  rows = table.find_all("tr")
-                  for tr in rows:
-                      cells = tr.find_all(["td", "th"])
-                      if not cells:
-                          continue
-
-                      row_text = clean_text(tr.get_text(" ", strip=True))
-                      row_date = extract_date_from_text(row_text)
-                      row_comp = extract_competition_from_row(cells)
-
-                      if is_pro_table and not pro_date and row_date:
-                          pro_date = row_date
-                          pro_comp = row_comp
-
-                      if is_first_table and not first_date and row_date:
-                          first_date = row_date
-                          first_comp = row_comp
-
-              # Strategie 2: zoek labels globaal in de pagina en kijk nearby text
-              if not pro_date or not first_date:
-                  all_rows = soup.find_all(["tr", "div", "li", "p"])
-                  for el in all_rows:
-                      txt = clean_text(el.get_text(" ", strip=True))
-                      low = txt.lower()
-
-                      if not pro_date and any(x in low for x in ["profdebuut", "prodebuut", "professional debut", "profidebüt"]):
-                          row_date = extract_date_from_text(txt)
-                          if row_date:
-                              pro_date = row_date
-                              if not pro_comp:
-                                  pro_comp = txt
-
-                      if not first_date and any(x in low for x in ["top-flight debut", "debuut in hoogste divisie", "debuut eerste divisie", "erstliga-debüt"]):
-                          row_date = extract_date_from_text(txt)
-                          if row_date:
-                              first_date = row_date
-                              if not first_comp:
-                                  first_comp = txt
-
-              return {
-                  "pro_debut_date": pro_date,
-                  "pro_debut_competition": clean_text(pro_comp)[:180],
-                  "first_team_debut_date": first_date,
-                  "first_team_debut_competition": clean_text(first_comp)[:180],
+              result = {
+                  "pro_debut_date": "",
+                  "pro_debut_club": "",
+                  "pro_debut_competition": "",
+                  "first_team_debut_date": "",
+                  "first_team_debut_club": "",
+                  "first_team_debut_competition": "",
               }
 
-          def save_checkpoint(df):
-              df.to_csv(CHECKPOINT_FILE, index=False, encoding="utf-8")
-              df.to_csv(PLAYERS_FILE, index=False, encoding="utf-8")
+              box = None
+              for div in soup.select("div.box"):
+                  h2 = div.select_one("h2.content-box-headline")
+                  if h2 and "debut" in clean_text(h2).lower():
+                      box = div
+                      break
 
-          # laad bestaande data
-          if CHECKPOINT_FILE.exists():
-              players = pd.read_csv(CHECKPOINT_FILE, low_memory=False)
-              print("Checkpoint geladen")
-          else:
-              players = pd.read_csv(PLAYERS_FILE, low_memory=False)
+              if not box:
+                  return result
 
-          for col in [
+              table = box.select_one("table")
+              if not table:
+                  return result
+
+              current_section = None
+
+              for tr in table.select("tbody tr"):
+                  section_td = tr.select_one("td.hauptlink[colspan]")
+                  if section_td:
+                      current_section = clean_text(section_td).lower()
+                      continue
+
+                  cells = tr.find_all("td")
+                  if len(cells) < 4:
+                      continue
+
+                  competition_cell = cells[1]
+                  club_cell = cells[2]
+                  date_cell = cells[3]
+
+                  competition = clean_text(competition_cell)
+                  date_val = parse_date(clean_text(date_cell))
+
+                  club_link = club_cell.select_one("a[title]")
+                  club_name = ""
+                  if club_link:
+                      club_name = (club_link.get("title") or "").strip()
+                  if not club_name:
+                      club_name = clean_text(club_cell)
+
+                  # Hoogste divisie => debuut 1ste elftal
+                  if current_section == "hoogste divisie":
+                      if not result["first_team_debut_date"]:
+                          result["first_team_debut_date"] = date_val
+                          result["first_team_debut_club"] = club_name
+                          result["first_team_debut_competition"] = competition
+
+                  # 2de niveau => profdebuut
+                  elif current_section in ("2de niveau", "tweede niveau", "second tier", "2. niveau"):
+                      if not result["pro_debut_date"]:
+                          result["pro_debut_date"] = date_val
+                          result["pro_debut_club"] = club_name
+                          result["pro_debut_competition"] = competition
+
+              return result
+
+          rows = []
+          fields = []
+
+          with open(PLAYERS_FILE, encoding="utf-8") as f:
+              reader = csv.DictReader(f)
+              fields = list(reader.fieldnames or [])
+              rows = list(reader)
+
+          debut_cols = [
               "pro_debut_date",
+              "pro_debut_club",
               "pro_debut_competition",
               "first_team_debut_date",
+              "first_team_debut_club",
               "first_team_debut_competition",
-              "debut_scrape_status",
-              "debut_scrape_url",
-          ]:
-              if col not in players.columns:
-                  players[col] = ""
+          ]
 
-          total = len(players)
-          already = ((players["debut_scrape_status"].fillna("") != "")).sum()
-          print(f"Spelers: {total}")
-          print(f"Al verwerkt: {already}")
+          for col in debut_cols:
+              if col not in fields:
+                  fields.append(col)
+
+          already_done = sum(
+              1 for r in rows
+              if (r.get("pro_debut_date") or r.get("first_team_debut_date"))
+          )
+
+          print(f"Spelers: {len(rows)}")
+          print(f"Al verwerkt: {already_done}")
           print(f"Start vanaf: {START_FROM}")
 
           processed = 0
+          checked = 0
 
-          for idx, row in players.iterrows():
-              rownum = idx + 1
-              if rownum < START_FROM:
+          for idx, row in enumerate(rows, start=1):
+              if idx < START_FROM:
                   continue
 
-              status_now = str(row.get("debut_scrape_status", "") or "").strip()
-              if status_now in {"ok", "not_found"}:
-                  continue
-
-              player_id = str(row.get("player_id", "") or "").strip()
-              player_name = clean_text(row.get("name", ""))
+              player_id, slug = extract_player_id_and_slug(row)
+              player_name = (row.get("name") or "").strip()
 
               if not player_id:
-                  players.at[idx, "debut_scrape_status"] = "no_player_id"
+                  print(f"[{idx:5d}/{len(rows)}] {'-':8s} {player_name[:35]:35s} -> no_player_id")
                   continue
 
-              player_url = str(row.get("url", "") or "").strip()
-              urls = build_debut_urls(player_url, player_id)
+              # skip als al minstens één van beide debuten gezet is
+              if row.get("pro_debut_date") or row.get("first_team_debut_date"):
+                  continue
 
-              final_status = "not_found"
-              found_data = None
-              used_url = ""
+              checked += 1
+              url = build_debut_url(player_id, slug)
 
-              for url in urls:
-                  r, st = get(url, retries=3)
+              r, status = get(url)
 
-                  if st == "ok" and r is not None:
-                      parsed = parse_debut_page(r.text)
-                      if parsed is not None:
-                          found_data = parsed
-                          used_url = url
-                          final_status = "ok"
-                          break
-                      else:
-                          final_status = "parse_failed"
+              if not r:
+                  print(
+                      f"[{idx:5d}/{len(rows)}] {player_id:8s} {player_name[:35]:35s} "
+                      f"-> {status:10s} | pro:- | first:-"
+                  )
+                  continue
 
-                  elif st == "blocked":
-                      final_status = "blocked"
-                      used_url = url
-                      # niet verder blijven proberen op hetzelfde moment
-                      break
-                  elif st == "not_found":
-                      final_status = "not_found"
-                      used_url = url
-                      continue
-                  else:
-                      final_status = st
-                      used_url = url
-                      continue
+              parsed = parse_debut_page(r.text)
 
-              if found_data:
-                  players.at[idx, "pro_debut_date"] = found_data.get("pro_debut_date", "") or players.at[idx, "pro_debut_date"]
-                  players.at[idx, "pro_debut_competition"] = found_data.get("pro_debut_competition", "") or players.at[idx, "pro_debut_competition"]
-                  players.at[idx, "first_team_debut_date"] = found_data.get("first_team_debut_date", "") or players.at[idx, "first_team_debut_date"]
-                  players.at[idx, "first_team_debut_competition"] = found_data.get("first_team_debut_competition", "") or players.at[idx, "first_team_debut_competition"]
+              row["pro_debut_date"] = parsed["pro_debut_date"]
+              row["pro_debut_club"] = parsed["pro_debut_club"]
+              row["pro_debut_competition"] = parsed["pro_debut_competition"]
 
-              players.at[idx, "debut_scrape_status"] = final_status
-              players.at[idx, "debut_scrape_url"] = used_url
-
-              pro_show = players.at[idx, "pro_debut_date"] if str(players.at[idx, "pro_debut_date"]).strip() else "-"
-              first_show = players.at[idx, "first_team_debut_date"] if str(players.at[idx, "first_team_debut_date"]).strip() else "-"
-
-              print(f"[{rownum:5d}/{total}] {player_id:8s} {player_name[:35]:35s} -> {final_status:11s} | pro:{pro_show} | first:{first_show}")
+              row["first_team_debut_date"] = parsed["first_team_debut_date"]
+              row["first_team_debut_club"] = parsed["first_team_debut_club"]
+              row["first_team_debut_competition"] = parsed["first_team_debut_competition"]
 
               processed += 1
 
+              pro_show = row["pro_debut_date"] or "-"
+              first_show = row["first_team_debut_date"] or "-"
+
+              print(
+                  f"[{idx:5d}/{len(rows)}] {player_id:8s} {player_name[:35]:35s} "
+                  f"-> ok         | pro:{pro_show} | first:{first_show}"
+              )
+
               if processed % SAVE_EVERY == 0:
-                  save_checkpoint(players)
+                  save_rows(PLAYERS_FILE, fields, rows)
                   print(f"  [SAVE] {processed} verwerkt sinds start")
 
-              # cooldown
-              if final_status == "blocked":
-                  save_checkpoint(players)
-                  print("  [BLOCKED] lange cooldown 180s")
-                  time.sleep(180)
-              else:
-                  time.sleep(random.uniform(MIN_SLEEP, MAX_SLEEP))
+              time.sleep(random.uniform(SLEEP_MIN, SLEEP_MAX))
 
-          save_checkpoint(players)
-          print("\nKlaar.")
-          print(f"Met pro_debut_date: {(players['pro_debut_date'].fillna('').astype(str).str.strip() != '').sum()}")
-          print(f"Met first_team_debut_date: {(players['first_team_debut_date'].fillna('').astype(str).str.strip() != '').sum()}")
+          save_rows(PLAYERS_FILE, fields, rows)
+          print(f"\nKlaar: {processed} bijgewerkt, {checked} gecontroleerd")
           PYEOF
 
-      - name: Gzip en commit
+      - name: Gzip and commit
         run: |
           git config user.name "ScoutAI Bot"
           git config user.email "actions@users.noreply.github.com"
@@ -391,13 +323,12 @@ jobs:
           gzip -f data/csv/players.csv
           echo "players.csv.gz: $(wc -c < data/csv/players.csv.gz) bytes"
 
-          git add data/csv/players.csv.gz data/tmp/debut_checkpoint.csv
+          git add data/csv/players.csv.gz
           TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
-          git commit -m "ScoutAI: scrape debuts from Transfermarkt [${TIMESTAMP}]" || echo "Geen wijzigingen"
+          git commit -m "ScoutAI: player debuts added [${TIMESTAMP}]" || echo "Geen wijzigingen"
           git push
 
-      - name: Samenvatting
+      - name: Summary
         run: |
-          echo "=== DEBUT SCRAPE KLAAR ==="
-          [ -f data/csv/players.csv.gz ] && echo "data/csv/players.csv.gz: $(wc -c < data/csv/players.csv.gz) bytes"
-          [ -f data/tmp/debut_checkpoint.csv ] && echo "data/tmp/debut_checkpoint.csv: $(wc -c < data/tmp/debut_checkpoint.csv) bytes"
+          echo "=== PLAYER DEBUT SCRAPE KLAAR ==="
+          echo "data/csv/players.csv.gz: $(wc -c < data/csv/players.csv.gz) bytes"
