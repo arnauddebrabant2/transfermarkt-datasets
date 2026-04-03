@@ -1,4 +1,4 @@
-name: Scrape Player Debuts
+name: Scrape Debuts - Eerste en Tweede Divisie
 
 on:
   workflow_dispatch:
@@ -11,35 +11,16 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
       - name: Install dependencies
         run: pip install requests beautifulsoup4
 
-      - name: Decompress players.csv.gz
-        run: |
-          python3 << 'PYEOF'
-          import gzip, shutil
-          from pathlib import Path
-
-          gz = Path("data/csv/players.csv.gz")
-          csvf = Path("data/csv/players.csv")
-
-          if gz.exists():
-              with gzip.open(gz, "rb") as f_in, open(csvf, "wb") as f_out:
-                  shutil.copyfileobj(f_in, f_out)
-              print(f"Decompressed: {gz} -> {csvf}")
-          else:
-              raise FileNotFoundError("data/csv/players.csv.gz niet gevonden")
-          PYEOF
-
-      - name: Scrape debuts and checkpoint every 250
+      - name: Scrape debuts
         timeout-minutes: 320
         env:
           WORKERS: "4"
@@ -64,37 +45,38 @@ jobs:
           from bs4 import BeautifulSoup
 
           PLAYERS_FILE = Path("data/csv/players.csv")
-          GZ_FILE = Path("data/csv/players.csv.gz")
+          GZ_FILE      = Path("data/csv/players.csv.gz")
 
-          WORKERS = int(os.getenv("WORKERS", "4"))
-          SAVE_EVERY = int(os.getenv("SAVE_EVERY", "50"))
-          COMMIT_EVERY = int(os.getenv("COMMIT_EVERY", "250"))
-          START_FROM = int(os.getenv("START_FROM", "1"))
-          BATCH_SIZE = int(os.getenv("BATCH_SIZE", "120"))
-
-          USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+          WORKERS       = int(os.getenv("WORKERS",       "4"))
+          SAVE_EVERY    = int(os.getenv("SAVE_EVERY",    "50"))
+          COMMIT_EVERY  = int(os.getenv("COMMIT_EVERY",  "250"))
+          START_FROM    = int(os.getenv("START_FROM",    "1"))
+          BATCH_SIZE    = int(os.getenv("BATCH_SIZE",    "120"))
 
           HEADERS = {
-              "User-Agent": USER_AGENT,
-              "Accept-Language": "nl-BE,nl;q=0.9,en;q=0.8,de;q=0.7",
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+              "Accept-Language": "nl-BE,nl;q=0.9,en;q=0.8",
               "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
               "Referer": "https://www.transfermarkt.be/",
           }
 
-          FIRST_DIV_CODES = {
-              "GB1","L1","FR1","IT1","ES1","BE1","NL1","PO1","TR1","GR1","A1","C1",
-              "RU1","UKR1","PL1","RO1","TS1","UNG1","SER1","SLO1","SC1","DK1","SE1",
-              "NO1","KR1","SLN1","ALB1","BOS1","MKD1","MNE1","FI1","IS1","IR1","NIR1",
-              "WAL1","GEO1","AZE1","ARM1","KAS1","WER1","MOL1","LIT1","LV1","EST1",
-              "BUL1","KOS1","ISR1","ZYP1","LUX1","MLT1","FRO1","BRA1","ARG1","JAP1",
-              "KOR1","MLS","MLS1","SAR1","CHN1"
+          # ── Competitiecodes per niveau ────────────────────────────────────
+          FIRST_DIV = {
+              "GB1","L1","FR1","IT1","ES1","BE1","NL1","PO1","TR1","GR1",
+              "A1","C1","RU1","UKR1","PL1","RO1","TS1","UNG1","SER1","SLO1",
+              "SC1","DK1","SE1","NO1","KR1","SLN1","ALB1","BOS1","MKD1",
+              "MNE1","FI1","IS1","IR1","NIR1","WAL1","GEO1","AZE1","ARM1",
+              "KAS1","WER1","MOL1","LIT1","LV1","EST1","BUL1","KOS1","ISR1",
+              "ZYP1","LUX1","MLT1","FRO1","BRA1","ARG1","JAP1","JAP2",
+              "KOR1","MLS","MLS1","SAR1","CHN1","UAE1","QSL","SA1",
+          }
+          SECOND_DIV = {
+              "GB2","L2","FR2","IT2","ES2","BE2","NL2","PO2","TR2","GR2",
+              "A2","C2","RU2","PL2","RO2","TS2","UNG2","SER2","SC2","DK2",
+              "SE2","NO2","BRA2","KOR2","ARG2",
           }
 
-          SECOND_DIV_CODES = {
-              "GB2","L2","FR2","IT2","ES2","BE2","NL2","PO2","TR2","GR2","A2","C2",
-              "RU2","PL2","RO2","TS2","UNG2","SER2","SC2","DK2","SE2","NO2","BRA2"
-          }
-
+          # ── Hulpfuncties ──────────────────────────────────────────────────
           def make_session():
               s = requests.Session()
               s.headers.update(HEADERS)
@@ -114,215 +96,236 @@ jobs:
               tmp.replace(PLAYERS_FILE)
 
           def gzip_players():
-              with open(PLAYERS_FILE, "rb") as f_in, gzip.open(GZ_FILE, "wb") as f_out:
-                  shutil.copyfileobj(f_in, f_out)
+              with open(PLAYERS_FILE, "rb") as fi, gzip.open(GZ_FILE, "wb") as fo:
+                  shutil.copyfileobj(fi, fo)
 
           def git_checkpoint(msg):
               gzip_players()
-              run_cmd(["git", "config", "user.name", "ScoutAI Bot"])
+              run_cmd(["git", "config", "user.name",  "ScoutAI Bot"])
               run_cmd(["git", "config", "user.email", "actions@users.noreply.github.com"])
               run_cmd(["git", "add", str(GZ_FILE)])
               run_cmd(["git", "commit", "-m", msg])
               run_cmd(["git", "push"])
 
-          def parse_date_text(text):
+          def build_debut_url(player_url):
+              """
+              Zet een speler-profiel URL om naar de debut URL.
+              Input:  https://www.transfermarkt.be/romelu-lukaku/profil/spieler/54765
+              Output: https://www.transfermarkt.be/romelu-lukaku/debuets/spieler/54765
+              """
+              url = (player_url or "").strip()
+              if not url:
+                  return ""
+              # Vervang /profil/ of /startseite/ of /leistungsdaten/ door /debuets/
+              url = re.sub(r'/(profil|startseite|leistungsdaten|transfers|marktwertverlauf)/',
+                           '/debuets/', url)
+              # Als er nog steeds geen /debuets/ in zit, probeer het zelf op te bouwen
+              if '/debuets/' not in url:
+                  # Haal player ID op uit URL
+                  m = re.search(r'/spieler/(\d+)', url)
+                  if m:
+                      pid = m.group(1)
+                      # Haal naam op uit URL (eerste segment na domein)
+                      parts = url.split('/')
+                      name = parts[3] if len(parts) > 3 else 'spieler'
+                      url = f"https://www.transfermarkt.be/{name}/debuets/spieler/{pid}"
+              return url
+
+          def parse_date(text):
+              """
+              Parse TM datum tekst naar YYYY-MM-DD.
+              Formats: "3 apr. 2021", "Apr 3, 2021", "03/04/21"
+              """
               if not text:
                   return ""
+              text = text.strip().replace("\xa0", " ")
 
-              text = text.strip().lower().replace("\xa0", " ")
+              # Probeer DD/MM/YY of DD/MM/YYYY
+              m = re.match(r'^(\d{1,2})[./](\d{1,2})[./](\d{2,4})$', text)
+              if m:
+                  d, mo, y = m.groups()
+                  y = ("20" + y) if len(y) == 2 else y
+                  return f"{y}-{mo.zfill(2)}-{d.zfill(2)}"
+
               months = {
-                  "jan.": "01", "jan": "01",
-                  "feb.": "02", "feb": "02",
-                  "mrt.": "03", "mrt": "03", "mar.": "03", "mar": "03",
-                  "apr.": "04", "apr": "04",
-                  "mei": "05", "may": "05",
-                  "jun.": "06", "jun": "06",
-                  "jul.": "07", "jul": "07",
-                  "aug.": "08", "aug": "08",
-                  "sep.": "09", "sep": "09",
-                  "okt.": "10", "okt": "10", "oct.": "10", "oct": "10",
-                  "nov.": "11", "nov": "11",
-                  "dec.": "12", "dec": "12",
+                  "jan":  "01", "feb": "02", "mrt": "03", "mar": "03",
+                  "apr":  "04", "mei": "05", "may": "05", "jun": "06",
+                  "jul":  "07", "aug": "08", "sep": "09", "okt": "10",
+                  "oct":  "10", "nov": "11", "dec": "12",
               }
 
-              parts = text.split()
-              if len(parts) < 3:
-                  return ""
+              # "3 apr. 2021" of "3 apr 2021"
+              m = re.match(r'^(\d{1,2})[\.\s]+([a-zA-Z]+)\.?\s+(\d{4})$', text)
+              if m:
+                  d, mon, y = m.groups()
+                  mon_num = months.get(mon[:3].lower(), "")
+                  if mon_num:
+                      return f"{y}-{mon_num}-{d.zfill(2)}"
 
-              day = re.sub(r"\D", "", parts[0]).zfill(2)
-              mon = months.get(parts[1], "")
-              year = re.sub(r"\D", "", parts[2])
+              # "apr. 3, 2021" of "Apr 3 2021"
+              m = re.match(r'^([a-zA-Z]+)\.?\s+(\d{1,2}),?\s+(\d{4})$', text)
+              if m:
+                  mon, d, y = m.groups()
+                  mon_num = months.get(mon[:3].lower(), "")
+                  if mon_num:
+                      return f"{y}-{mon_num}-{d.zfill(2)}"
 
-              if not (day and mon and year):
-                  return ""
-              return f"{year}-{mon}-{day}"
-
-          def normalize_text(s):
-              return re.sub(r"\s+", " ", (s or "").strip().lower())
-
-          def extract_comp_code_from_row(tr):
-              if not tr:
-                  return ""
-              for a in tr.find_all("a", href=True):
-                  href = a.get("href", "")
-                  m = re.search(r"/wettbewerb/([A-Za-z0-9]+)", href, re.I)
-                  if m:
-                      return m.group(1).upper()
               return ""
 
-          def extract_club_name_from_row(tr):
-              if not tr:
-                  return ""
-              tds = tr.find_all("td", recursive=False)
-              if len(tds) < 3:
-                  return ""
+          def get_comp_code(tr):
+              """Haal competitiecode op uit een tabelrij."""
+              for a in tr.find_all("a", href=True):
+                  m = re.search(r'/wettbewerb/([A-Za-z0-9]+)', a["href"])
+                  if m:
+                      return m.group(1).upper()
+              # Probeer ook via img title of alt
+              for img in tr.find_all("img"):
+                  title = img.get("title", "") or img.get("alt", "")
+                  if title:
+                      return title.upper()
+              return ""
 
-              club_td = tds[2]
+          def parse_debut_page(html):
+              """
+              Parse de TM debut pagina en return dict met datum + club per niveau.
 
-              img = club_td.find("img")
-              if img and img.get("title"):
-                  return img.get("title", "").strip()
+              TM debut pagina structuur:
+              <table>
+                <tbody>
+                  <tr class="bg_Torwart"> ← sectie header met competitienaam
+                    <td class="hauptlink" colspan="...">Hoogste divisie</td>
+                  </tr>
+                  <tr>  ← data rij
+                    <td>competitie icon</td>
+                    <td>competitienaam (met <a href="/wettbewerb/GB1">)</td>
+                    <td>datum</td>
+                    <td>thuisclub</td>
+                    <td>x - y</td>
+                    <td>uitclub</td>
+                    <td>minuten</td>
+                  </tr>
+                  ...meer secties...
+              """
+              soup = BeautifulSoup(html, "html.parser")
+              result = {
+                  "hoogste_divisie_debut_date":  "",
+                  "hoogste_divisie_debut_club":  "",
+                  "tweede_niveau_debut_date":    "",
+                  "tweede_niveau_debut_club":    "",
+              }
 
-              a = club_td.find("a")
-              if a:
-                  return a.get("title", "").strip() or a.get_text(" ", strip=True)
+              # Zoek alle responsive-table divs (er kan er meer dan één zijn)
+              tables = soup.select("div.responsive-table table")
+              if not tables:
+                  # Fallback: gewoon alle tables
+                  tables = soup.find_all("table")
 
-              return club_td.get_text(" ", strip=True)
-
-          def extract_date_from_row(tr):
-              if not tr:
-                  return ""
-              tds = tr.find_all("td", recursive=False)
-              if len(tds) < 4:
-                  return ""
-              return parse_date_text(tds[3].get_text(" ", strip=True))
-
-          def get_rows_with_sections(soup):
-              table = soup.select_one("div.responsive-table table")
-              if not table:
-                  return []
-
-              tbody = table.find("tbody")
-              if not tbody:
-                  return []
-
-              rows = []
-              current_section = ""
-
-              for tr in tbody.find_all("tr", recursive=False):
-                  head = tr.find("td", class_="hauptlink")
-                  if head:
-                      current_section = normalize_text(head.get_text(" ", strip=True))
+              for table in tables:
+                  tbody = table.find("tbody")
+                  if not tbody:
                       continue
 
-                  tds = tr.find_all("td", recursive=False)
-                  if len(tds) < 4:
-                      continue
+                  rows = tbody.find_all("tr", recursive=False)
 
-                  rows.append({
-                      "section": current_section,
-                      "tr": tr,
-                      "comp_code": extract_comp_code_from_row(tr),
-                  })
-              return rows
+                  for tr in rows:
+                      tds = tr.find_all("td", recursive=False)
+                      if not tds:
+                          continue
 
-          def is_first_division_section(section):
-              s = normalize_text(section)
-              return any(x in s for x in [
-                  "hoogste divisie",
-                  "highest division",
-                  "top division",
-                  "first division",
-                  "1st division",
-                  "erste liga",
-                  "erste division",
-                  "premier division",
-                  "eerste divisie",
-              ])
+                      # Skip sectie-header rijen (hebben hauptlink class of colspan)
+                      if tds[0].get("colspan") or tr.find("td", class_="hauptlink"):
+                          continue
 
-          def is_second_division_section(section):
-              s = normalize_text(section)
-              return any(x in s for x in [
-                  "2de niveau",
-                  "2e niveau",
-                  "tweede niveau",
-                  "second division",
-                  "2nd division",
-                  "second tier",
-                  "2. liga",
-                  "2. division",
-                  "eerste klasse b",
-              ])
+                      # Data rij moet minstens 3 kolommen hebben
+                      if len(tds) < 3:
+                          continue
 
-          def pick_row(rows, wanted="first"):
-              # 1) eerst via sectietitel
-              if wanted == "first":
-                  for row in rows:
-                      if is_first_division_section(row["section"]):
-                          return row["tr"]
-              else:
-                  for row in rows:
-                      if is_second_division_section(row["section"]):
-                          return row["tr"]
+                      # Haal competitiecode op
+                      comp_code = get_comp_code(tr)
+                      if not comp_code:
+                          # Probeer uit de eerste td
+                          for a in tds[0].find_all("a", href=True) + (tds[1].find_all("a", href=True) if len(tds) > 1 else []):
+                              m = re.search(r'/wettbewerb/([A-Za-z0-9]+)', a["href"])
+                              if m:
+                                  comp_code = m.group(1).upper()
+                                  break
 
-              # 2) fallback via competitiecode
-              if wanted == "first":
-                  for row in rows:
-                      if row["comp_code"] in FIRST_DIV_CODES:
-                          return row["tr"]
-              else:
-                  for row in rows:
-                      if row["comp_code"] in SECOND_DIV_CODES:
-                          return row["tr"]
+                      # Zoek de datum — staat in de td met een datumachtige tekst
+                      # TM kolommen: [vlag/icon] [comp naam] [datum] [thuisclub] [score] [uitclub] [mins]
+                      # Maar soms ook: [comp icon] [datum] [thuisclub] [score] [uitclub]
+                      datum = ""
+                      club  = ""
 
-              return None
+                      for i, td in enumerate(tds):
+                          txt = td.get_text(" ", strip=True)
+                          # Datum herkenning
+                          if not datum and re.search(r'\d{1,2}[\s./][a-zA-Z]+[\s./]\d{4}|\d{1,2}/\d{1,2}/\d{2,4}', txt):
+                              datum = parse_date(txt)
+
+                      # Club: zoek de eerste td met een club-link (verein of startseite/verein)
+                      for td in tds:
+                          for a in td.find_all("a", href=True):
+                              if "/verein/" in a["href"] or "startseite/verein" in a["href"]:
+                                  club = (a.get("title") or a.get_text(strip=True)).strip()
+                                  if club:
+                                      break
+                          if club:
+                              break
+
+                      if not datum:
+                          continue
+
+                      # Sla op per niveau op basis van competitiecode
+                      if comp_code in FIRST_DIV and not result["hoogste_divisie_debut_date"]:
+                          result["hoogste_divisie_debut_date"] = datum
+                          result["hoogste_divisie_debut_club"] = club
+
+                      elif comp_code in SECOND_DIV and not result["tweede_niveau_debut_date"]:
+                          result["tweede_niveau_debut_date"] = datum
+                          result["tweede_niveau_debut_club"] = club
+
+                      # Stop als beide gevonden
+                      if result["hoogste_divisie_debut_date"] and result["tweede_niveau_debut_date"]:
+                          break
+
+                  if result["hoogste_divisie_debut_date"] and result["tweede_niveau_debut_date"]:
+                      break
+
+              return result
 
           def scrape_one(player_id, player_url):
-              url = (player_url or "").strip()
+              url = build_debut_url(player_url)
               if not url:
                   return {"status": "no_url"}
 
-              debut_url = re.sub(r"/profil/", "/debuets/", url)
-              if "/debuets/" not in debut_url:
-                  debut_url = url.rstrip("/") + "/debuets"
-
               session = make_session()
-
               try:
-                  r = session.get(debut_url, timeout=20)
+                  r = session.get(url, timeout=20)
 
                   if r.status_code == 404:
                       return {"status": "not_found"}
                   if r.status_code in (403, 429):
+                      time.sleep(30)
                       return {"status": "blocked"}
                   if r.status_code != 200:
                       return {"status": f"http_{r.status_code}"}
 
-                  soup = BeautifulSoup(r.text, "html.parser")
-                  rows = get_rows_with_sections(soup)
-
-                  first_row = pick_row(rows, "first")
-                  second_row = pick_row(rows, "second")
-
-                  return {
-                      "status": "ok",
-                      "hoogste_divisie_debut_date": extract_date_from_row(first_row),
-                      "hoogste_divisie_debut_club": extract_club_name_from_row(first_row),
-                      "tweede_niveau_debut_date": extract_date_from_row(second_row),
-                      "tweede_niveau_debut_club": extract_club_name_from_row(second_row),
-                  }
+                  result = parse_debut_page(r.text)
+                  result["status"] = "ok"
+                  return result
 
               except requests.RequestException:
                   return {"status": "request_error"}
               except Exception as e:
-                  return {"status": f"error:{type(e).__name__}"}
+                  return {"status": f"error:{type(e).__name__}:{e}"}
               finally:
                   session.close()
 
+          # ── Hoofdlogica ────────────────────────────────────────────────────
           with open(PLAYERS_FILE, encoding="utf-8") as f:
               reader = csv.DictReader(f)
               fields = list(reader.fieldnames or [])
-              rows = list(reader)
+              rows   = list(reader)
 
           new_cols = [
               "hoogste_divisie_debut_date",
@@ -334,37 +337,31 @@ jobs:
               if c not in fields:
                   fields.append(c)
 
-          todo = []
+          todo    = []
           already = 0
 
           for idx, row in enumerate(rows, start=1):
               if idx < START_FROM:
                   continue
-
               if row.get("hoogste_divisie_debut_date") or row.get("tweede_niveau_debut_date"):
                   already += 1
                   continue
-
-              pid = (row.get("player_id") or "").strip()
-              purl = (row.get("url") or "").strip()
-              name = (row.get("name") or "").strip()
-
+              pid  = (row.get("player_id") or "").strip()
+              purl = (row.get("url")       or "").strip()
+              name = (row.get("name")      or "").strip()
               if not pid or not purl:
                   continue
-
               todo.append((idx, pid, name, purl))
 
-          print(f"Spelers: {len(rows)}", flush=True)
-          print(f"Al verwerkt: {already}", flush=True)
-          print(f"Start vanaf: {START_FROM}", flush=True)
-          print(f"Nog te doen: {len(todo)}", flush=True)
-          print(f"Workers: {WORKERS}", flush=True)
-          print(f"Batch size: {BATCH_SIZE}", flush=True)
+          print(f"Spelers totaal:  {len(rows)}", flush=True)
+          print(f"Al verwerkt:     {already}",   flush=True)
+          print(f"Start vanaf:     {START_FROM}", flush=True)
+          print(f"Nog te doen:     {len(todo)}",  flush=True)
+          print(f"Workers:         {WORKERS}",    flush=True)
 
-          processed_since_save = 0
+          processed_since_save   = 0
           processed_since_commit = 0
-          total_done = 0
-
+          total_done             = 0
           row_map = {str((r.get("player_id") or "").strip()): r for r in rows}
 
           with ThreadPoolExecutor(max_workers=WORKERS) as ex:
@@ -374,7 +371,7 @@ jobs:
 
                   for idx, pid, name, purl in batch:
                       futures[ex.submit(scrape_one, pid, purl)] = (idx, pid, name)
-                      time.sleep(0.02)
+                      time.sleep(0.05)
 
                   for fut in as_completed(futures):
                       idx, pid, name = futures[fut]
@@ -384,44 +381,43 @@ jobs:
                           continue
 
                       if res.get("status") == "ok":
-                          row["hoogste_divisie_debut_date"] = res.get("hoogste_divisie_debut_date", "") or row.get("hoogste_divisie_debut_date", "")
-                          row["hoogste_divisie_debut_club"] = res.get("hoogste_divisie_debut_club", "") or row.get("hoogste_divisie_debut_club", "")
-                          row["tweede_niveau_debut_date"] = res.get("tweede_niveau_debut_date", "") or row.get("tweede_niveau_debut_date", "")
-                          row["tweede_niveau_debut_club"] = res.get("tweede_niveau_debut_club", "") or row.get("tweede_niveau_debut_club", "")
+                          for col in new_cols:
+                              val = res.get(col, "")
+                              # Alleen overschrijven als er nog niets staat
+                              if val and not row.get(col):
+                                  row[col] = val
 
-                      total_done += 1
+                      total_done           += 1
                       processed_since_save += 1
                       processed_since_commit += 1
 
-                      top = row.get("hoogste_divisie_debut_date") or "-"
-                      second = row.get("tweede_niveau_debut_date") or "-"
+                      top    = row.get("hoogste_divisie_debut_date") or "-"
+                      second = row.get("tweede_niveau_debut_date")   or "-"
                       print(
-                          f"[{idx:5d}/{len(rows)}] {pid:<8} {name[:35]:<35} -> {res.get('status','?'):<12} | hoogste:{top} | tweede:{second}",
-                          flush=True
+                          f"[{idx:5d}/{len(rows)}] {pid:<8} {name[:30]:<30}"
+                          f" {res.get('status','?'):<14}"
+                          f" | 1e:{top}  2e:{second}",
+                          flush=True,
                       )
 
                       if processed_since_save >= SAVE_EVERY:
                           save_rows(rows, fields)
                           processed_since_save = 0
-                          print(f"  [SAVE] {total_done} verwerkt sinds start", flush=True)
+                          print(f"  [SAVE] {total_done} verwerkt", flush=True)
 
                       if processed_since_commit >= COMMIT_EVERY:
                           save_rows(rows, fields)
                           ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
                           git_checkpoint(f"ScoutAI debuts checkpoint [{ts}]")
                           processed_since_commit = 0
-                          print(f"  [COMMIT/PUSH] {total_done} verwerkt sinds start", flush=True)
+                          print(f"  [COMMIT] {total_done} verwerkt", flush=True)
 
                   save_rows(rows, fields)
-                  print(f"  [BATCH DONE] {min(batch_start + BATCH_SIZE, len(todo))}/{len(todo)} todo verwerkt", flush=True)
+                  done_so_far = min(batch_start + BATCH_SIZE, len(todo))
+                  print(f"  [BATCH] {done_so_far}/{len(todo)} klaar", flush=True)
 
           save_rows(rows, fields)
           ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-          git_checkpoint(f"ScoutAI debuts full [{ts}]")
-          print("Klaar.", flush=True)
+          git_checkpoint(f"ScoutAI debuts volledig [{ts}]")
+          print(f"\nKlaar! {total_done} spelers verwerkt.", flush=True)
           PYEOF
-
-      - name: Summary
-        run: |
-          echo "=== DEBUT SCRAPE KLAAR ==="
-          ls -lh data/csv/players.csv.gz
