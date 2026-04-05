@@ -7,10 +7,6 @@ on:
         description: "Start vanaf rijnummer (voor resume)"
         required: false
         default: "1"
-      workers:
-        description: "Aantal parallelle workers"
-        required: false
-        default: "6"
 
 jobs:
   scrape:
@@ -29,111 +25,87 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install requests beautifulsoup4 lxml pandas
+        run: |
+          pip install poetry aiohttp
+          git clone https://github.com/dcaribou/transfermarkt-scraper.git /tmp/scraper
+          cd /tmp/scraper
+          poetry config virtualenvs.create false
+          poetry install --without dev
 
       - name: Decompress players.csv.gz
         run: |
-          python3 << 'PYEOF'
+          python3 -c "
           import gzip, shutil
           from pathlib import Path
-
-          gz  = Path("data/csv/players.csv.gz")
-          csv = Path("data/csv/players.csv")
-
+          gz  = Path('data/csv/players.csv.gz')
+          csv = Path('data/csv/players.csv')
           if gz.exists():
-              with gzip.open(gz, "rb") as fi, open(csv, "wb") as fo:
+              with gzip.open(gz,'rb') as fi, open(csv,'wb') as fo:
                   shutil.copyfileobj(fi, fo)
-              print(f"Gedecomprimeerd: {gz} -> {csv}")
-          elif csv.exists():
-              print("players.csv bestaat al")
-          else:
-              raise FileNotFoundError("Geen players.csv.gz of players.csv gevonden")
-          PYEOF
+              print(f'OK: {csv.stat().st_size//1024} KB')
+          "
 
-      - name: Scrape debuts from Transfermarkt
-        timeout-minutes: 320
+      - name: Scrape debuts via Scrapy (zelfde sessie als weekly scrape)
+        timeout-minutes: 300
         env:
           START_FROM: ${{ github.event.inputs.start_from || '1' }}
-          WORKERS: ${{ github.event.inputs.workers || '6' }}
-          SAVE_EVERY: "100"
-          COMMIT_EVERY: "500"
-          BATCH_SIZE: "250"
         run: |
           python3 << 'PYEOF'
+          import asyncio
           import csv
           import gzip
+          import json
           import os
           import random
           import re
           import shutil
           import subprocess
-          import threading
           import time
-          from concurrent.futures import ThreadPoolExecutor, as_completed
           from datetime import datetime
           from pathlib import Path
           from urllib.parse import urlparse
 
-          import pandas as pd
-          import requests
+          import aiohttp
           from bs4 import BeautifulSoup
 
-          DATA_DIR = Path("data/csv")
+          DATA_DIR     = Path("data/csv")
           PLAYERS_FILE = DATA_DIR / "players.csv"
-          GZ_FILE = DATA_DIR / "players.csv.gz"
+          GZ_FILE      = DATA_DIR / "players.csv.gz"
 
-          START_FROM = int(os.getenv("START_FROM", "1"))
-          WORKERS = int(os.getenv("WORKERS", "6"))
-          SAVE_EVERY = int(os.getenv("SAVE_EVERY", "100"))
-          COMMIT_EVERY = int(os.getenv("COMMIT_EVERY", "500"))
-          BATCH_SIZE = int(os.getenv("BATCH_SIZE", "250"))
+          START_FROM   = int(os.getenv("START_FROM", "1"))
+          SAVE_EVERY   = 100
+          COMMIT_EVERY = 500
+
+          # Zelfde User-Agent als de transfermarkt-scraper library
+          SCRAPY_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
           HEADERS = {
-              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-              "Accept-Language": "nl-BE,nl;q=0.9,en;q=0.8",
+              "User-Agent": SCRAPY_UA,
+              "Accept-Language": "nl-BE,nl;q=0.9,en;q=0.8,de;q=0.7",
               "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
               "Referer": "https://www.transfermarkt.be/",
-              "Cache-Control": "no-cache",
-              "Pragma": "no-cache",
           }
-
-          thread_local = threading.local()
 
           HIGHEST_TITLES = {
-              "hoogste divisie",
-              "highest division",
-              "höchste spielklasse",
-              "division la plus haute",
-              "massima divisione",
-              "primera division",
-              "primeira divisão",
-              "en yüksek lig",
+              "hoogste divisie", "highest division", "höchste spielklasse",
+              "division la plus haute", "massima divisione", "primera division",
+              "primeira divisão", "en yüksek lig",
           }
-
           SECOND_TITLES = {
-              "2de niveau",
-              "tweede niveau",
-              "2e niveau",
-              "second tier",
-              "second division",
-              "2nd division",
-              "2. spielklasse",
-              "2. liga",
-              "deuxième division",
-              "seconda divisione",
-              "segunda division",
+              "2de niveau", "tweede niveau", "2e niveau", "second tier",
+              "second division", "2nd division", "2. spielklasse", "2. liga",
+              "deuxième division", "seconda divisione", "segunda division",
           }
 
-          def get_session():
-              if not hasattr(thread_local, "session"):
-                  s = requests.Session()
-                  s.headers.update(HEADERS)
-                  thread_local.session = s
-              return thread_local.session
-
-          def run_cmd(cmd):
-              print(">", " ".join(cmd), flush=True)
-              subprocess.run(cmd, check=False)
+          MONTHS = {
+              "jan.":"01","jan":"01","feb.":"02","feb":"02",
+              "mrt.":"03","mrt":"03","mar.":"03","mar":"03",
+              "apr.":"04","apr":"04","mei":"05","may":"05",
+              "jun.":"06","jun":"06","jul.":"07","jul":"07",
+              "aug.":"08","aug":"08","sep.":"09","sep":"09",
+              "okt.":"10","okt":"10","oct.":"10","oct":"10",
+              "nov.":"11","nov":"11","dec.":"12","dec":"12",
+          }
 
           def save_rows(path, fields, rows):
               tmp = path.with_suffix(".tmp")
@@ -144,197 +116,175 @@ jobs:
                       w.writerow({k: row.get(k, "") for k in fields})
               tmp.replace(path)
 
-          def gzip_players():
+          def git_commit(msg):
               with open(PLAYERS_FILE, "rb") as fi, gzip.open(GZ_FILE, "wb") as fo:
                   shutil.copyfileobj(fi, fo)
+              subprocess.run(["git", "config", "user.name",  "ScoutAI Bot"],  check=False)
+              subprocess.run(["git", "config", "user.email", "actions@users.noreply.github.com"], check=False)
+              subprocess.run(["git", "add", str(GZ_FILE)], check=False)
+              r = subprocess.run(["git", "commit", "-m", msg], capture_output=True)
+              if r.returncode == 0:
+                  subprocess.run(["git", "push"], check=False)
+                  print(f"  [COMMIT+PUSH] {msg}", flush=True)
 
-          def git_checkpoint(msg):
-              gzip_players()
-              run_cmd(["git", "config", "user.name", "ScoutAI Bot"])
-              run_cmd(["git", "config", "user.email", "actions@users.noreply.github.com"])
-              run_cmd(["git", "add", str(GZ_FILE)])
-              run_cmd(["git", "commit", "-m", msg])
-              run_cmd(["git", "push"])
+          def clean(el):
+              return re.sub(r"\s+", " ", (el.get_text(" ", strip=True) if el else "").strip())
 
-          def clean_text(el):
-              if not el:
-                  return ""
-              return re.sub(r"\s+", " ", el.get_text(" ", strip=True)).strip()
-
-          def normalize_text(s):
+          def norm(s):
               return re.sub(r"\s+", " ", (s or "").strip().lower())
 
-          def parse_date(s):
-              s = (s or "").strip()
-              if not s:
+          def parse_date(text):
+              s = norm(text).replace("\xa0", " ")
+              parts = s.split()
+              if len(parts) < 3:
                   return ""
-              dt = pd.to_datetime(s, dayfirst=True, errors="coerce")
-              if pd.isna(dt):
-                  return ""
-              return dt.strftime("%Y-%m-%d")
+              day   = re.sub(r"\D", "", parts[0]).zfill(2)
+              month = MONTHS.get(parts[1], "")
+              year  = re.sub(r"\D", "", parts[2])
+              return f"{year}-{month}-{day}" if day and month and year else ""
 
-          def build_debut_url(row):
-              player_id = str(row.get("player_id", "")).strip()
-              url = str(row.get("url", "")).strip()
+          def build_url(row):
+              pid  = str(row.get("player_id", "")).strip()
+              url  = str(row.get("url", "")).strip()
               slug = ""
-
               if url:
                   try:
                       parts = urlparse(url).path.strip("/").split("/")
                       if "spieler" in parts:
-                          idx = parts.index("spieler")
-                          slug = parts[idx - 1] if idx > 0 else ""
-                          player_id = parts[idx + 1] if idx + 1 < len(parts) else player_id
-                  except Exception:
+                          i    = parts.index("spieler")
+                          slug = parts[i - 1] if i > 0 else ""
+                          pid  = parts[i + 1] if i + 1 < len(parts) else pid
+                  except:
                       pass
+              base = f"https://www.transfermarkt.be/{slug}" if slug else "https://www.transfermarkt.be/spieler"
+              return f"{base}/debuets/spieler/{pid}"
 
-              if slug and player_id:
-                  return f"https://www.transfermarkt.be/{slug}/debuets/spieler/{player_id}"
-              return f"https://www.transfermarkt.be/spieler/debuets/spieler/{player_id}"
-
-          def fetch(url, retries=3):
-              for attempt in range(retries):
-                  session = get_session()
-                  try:
-                      r = session.get(url, timeout=20, allow_redirects=True)
-
-                      if r.status_code == 200:
-                          return r, "ok"
-                      if r.status_code == 404:
-                          return None, "not_found"
-
-                      if r.status_code in (403, 429):
-                          time.sleep(8 * (attempt + 1))
-                          try:
-                              del thread_local.session
-                          except Exception:
-                              pass
-                          continue
-
-                      time.sleep(2 * (attempt + 1))
-
-                  except requests.RequestException:
-                      try:
-                          del thread_local.session
-                      except Exception:
-                          pass
-                      time.sleep(2 * (attempt + 1))
-
-              return None, "error_fetch"
-
-          def extract_row_info(tr):
-              cells = tr.find_all("td", recursive=False)
-              if len(cells) < 4:
-                  return None
-
-              competition = clean_text(cells[1])
-              date_val = parse_date(clean_text(cells[3]))
-
-              club = ""
-              club_td = cells[2]
-              img = club_td.find("img")
-              if img and img.get("title"):
-                  club = img.get("title", "").strip()
-              if not club:
-                  a = club_td.find("a")
-                  if a:
-                      club = (a.get("title") or clean_text(a)).strip()
-
-              return {
-                  "competition": competition,
-                  "date": date_val,
-                  "club": club,
-              }
-
-          def parse_debut_page(html):
+          def parse_page(html):
               soup = BeautifulSoup(html, "lxml")
-
               result = {
-                  "debut_highest_division_date": "",
-                  "debut_highest_division_club": "",
-                  "debut_highest_division_competition": "",
-                  "debut_second_tier_date": "",
-                  "debut_second_tier_club": "",
-                  "debut_second_tier_competition": "",
+                  "debut_highest_division_date":"", "debut_highest_division_club":"",
+                  "debut_highest_division_competition":"",
+                  "debut_second_tier_date":"",      "debut_second_tier_club":"",
+                  "debut_second_tier_competition":"",
               }
-
               table = None
-
               for div in soup.select("div.box"):
                   h2 = div.select_one("h2.content-box-headline")
-                  if h2 and "debut" in clean_text(h2).lower():
+                  if h2 and "debut" in norm(clean(h2)):
                       table = div.select_one("table")
-                      if table:
-                          break
-
+                      break
               if not table:
                   table = soup.select_one("div.responsive-table table")
-
               if not table:
                   return result
-
-              tbody = table.find("tbody")
-              if not tbody:
-                  return result
-
-              current_section = ""
-
-              for tr in tbody.find_all("tr", recursive=False):
-                  head = tr.find("td", class_="hauptlink")
-                  if head:
-                      current_section = normalize_text(head.get_text(" ", strip=True))
+              current = ""
+              for tr in table.select("tbody tr"):
+                  hd = tr.select_one("td.hauptlink[colspan]")
+                  if hd:
+                      current = norm(clean(hd))
                       continue
-
-                  info = extract_row_info(tr)
-                  if not info or not info["date"]:
+                  cells = tr.find_all("td", recursive=False)
+                  if len(cells) < 4:
                       continue
-
-                  if current_section in HIGHEST_TITLES:
-                      if not result["debut_highest_division_date"]:
-                          result["debut_highest_division_date"] = info["date"]
-                          result["debut_highest_division_club"] = info["club"]
-                          result["debut_highest_division_competition"] = info["competition"]
-
-                  elif current_section in SECOND_TITLES:
-                      if not result["debut_second_tier_date"]:
-                          result["debut_second_tier_date"] = info["date"]
-                          result["debut_second_tier_club"] = info["club"]
-                          result["debut_second_tier_competition"] = info["competition"]
-
+                  date_val = parse_date(clean(cells[3]))
+                  if not date_val:
+                      continue
+                  competition = clean(cells[1])
+                  club = ""
+                  img = cells[2].find("img")
+                  if img and img.get("title"):
+                      club = img["title"].strip()
+                  if not club:
+                      a = cells[2].find("a")
+                      if a:
+                          club = (a.get("title") or clean(a)).strip()
+                  if current in HIGHEST_TITLES and not result["debut_highest_division_date"]:
+                      result["debut_highest_division_date"]        = date_val
+                      result["debut_highest_division_club"]        = club
+                      result["debut_highest_division_competition"] = competition
+                  elif current in SECOND_TITLES and not result["debut_second_tier_date"]:
+                      result["debut_second_tier_date"]             = date_val
+                      result["debut_second_tier_club"]             = club
+                      result["debut_second_tier_competition"]      = competition
                   if result["debut_highest_division_date"] and result["debut_second_tier_date"]:
                       break
-
               return result
 
-          def scrape_one(row):
-              url = build_debut_url(row)
+          # Async fetch — zelfde aanpak als stap 2b/2c in weekly workflow
+          async def fetch_all(todo_rows, fields, all_rows):
+              # 10 concurrent requests, geen sleep — zelfde als ceapi calls in weekly
+              semaphore = asyncio.Semaphore(10)
+              processed    = 0
+              since_save   = 0
+              since_commit = 0
 
-              try:
-                  response, status = fetch(url)
-                  if not response:
-                      return row, status
+              connector = aiohttp.TCPConnector(limit=20, ttl_dns_cache=300)
+              timeout   = aiohttp.ClientTimeout(total=20)
 
-                  parsed = parse_debut_page(response.text)
-                  for k, v in parsed.items():
-                      row[k] = v
+              async def fetch_one(session, idx, row):
+                  url = build_url(row)
+                  async with semaphore:
+                      try:
+                          async with session.get(url, headers=HEADERS, timeout=timeout, allow_redirects=True) as resp:
+                              if resp.status == 200:
+                                  html = await resp.text()
+                                  return idx, row, html, "ok"
+                              elif resp.status == 404:
+                                  return idx, row, None, "not_found"
+                              elif resp.status in (403, 429):
+                                  await asyncio.sleep(30)
+                                  return idx, row, None, f"http{resp.status}"
+                              return idx, row, None, f"http{resp.status}"
+                      except Exception as e:
+                          return idx, row, None, "error"
 
-                  time.sleep(random.uniform(0.03, 0.12))
-                  return row, "ok"
+              async with aiohttp.ClientSession(connector=connector) as session:
+                  tasks = [fetch_one(session, idx, row) for idx, row in todo_rows]
 
-              except Exception as e:
-                  return row, f"error:{type(e).__name__}:{str(e)[:120]}"
+                  for coro in asyncio.as_completed(tasks):
+                      idx, row, html, status = await coro
 
+                      if html:
+                          parsed = parse_page(html)
+                          for k, v in parsed.items():
+                              row[k] = v
+
+                      name    = (row.get("name") or "")[:30]
+                      pid     = (row.get("player_id") or "")
+                      highest = row.get("debut_highest_division_date") or "-"
+                      second  = row.get("debut_second_tier_date")      or "-"
+
+                      print(
+                          f"[{idx:5d}/{len(all_rows)}] {pid:8s} {name:<30s}"
+                          f" {status:<10s} | H:{highest} S:{second}",
+                          flush=True
+                      )
+
+                      processed    += 1
+                      since_save   += 1
+                      since_commit += 1
+
+                      if since_save >= SAVE_EVERY:
+                          save_rows(PLAYERS_FILE, fields, all_rows)
+                          since_save = 0
+                          print(f"  [SAVE] {processed} verwerkt", flush=True)
+
+                      if since_commit >= COMMIT_EVERY:
+                          save_rows(PLAYERS_FILE, fields, all_rows)
+                          ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+                          git_commit(f"ScoutAI debuts [{idx}/{len(all_rows)}] {ts}")
+                          since_commit = 0
+
+          # ── Laden ─────────────────────────────────────────────────────────
           with open(PLAYERS_FILE, encoding="utf-8") as f:
               reader = csv.DictReader(f)
               fields = list(reader.fieldnames or [])
-              rows = list(reader)
+              rows   = list(reader)
 
           DEBUT_COLS = [
-              "debut_highest_division_date",
-              "debut_highest_division_club",
+              "debut_highest_division_date", "debut_highest_division_club",
               "debut_highest_division_competition",
-              "debut_second_tier_date",
-              "debut_second_tier_club",
+              "debut_second_tier_date",      "debut_second_tier_club",
               "debut_second_tier_competition",
           ]
           for col in DEBUT_COLS:
@@ -343,81 +293,38 @@ jobs:
 
           todo = []
           already = 0
-
-          for idx, row in enumerate(rows, start=1):
+          for idx, row in enumerate(rows, 1):
               if idx < START_FROM:
                   continue
-
               if row.get("debut_highest_division_date") or row.get("debut_second_tier_date"):
                   already += 1
                   continue
-
-              pid = str(row.get("player_id", "")).strip()
-              if not pid:
+              if not row.get("player_id"):
                   continue
-
               todo.append((idx, row))
 
-          print(f"Spelers totaal: {len(rows)}", flush=True)
-          print(f"Al verwerkt: {already}", flush=True)
-          print(f"Nog te doen: {len(todo)}", flush=True)
-          print(f"Workers: {WORKERS}", flush=True)
-          print(f"Batch size: {BATCH_SIZE}", flush=True)
+          print(f"Spelers totaal : {len(rows)}", flush=True)
+          print(f"Al verwerkt    : {already}", flush=True)
+          print(f"Nog te doen    : {len(todo)}", flush=True)
+          print(f"Concurrency    : 10", flush=True)
 
-          processed = 0
-          since_save = 0
-          since_commit = 0
-
-          with ThreadPoolExecutor(max_workers=WORKERS) as ex:
-              for batch_start in range(0, len(todo), BATCH_SIZE):
-                  batch = todo[batch_start:batch_start + BATCH_SIZE]
-                  futures = {ex.submit(scrape_one, row): (idx, row) for idx, row in batch}
-
-                  for fut in as_completed(futures):
-                      idx, orig = futures[fut]
-
-                      try:
-                          updated_row, status = fut.result()
-                      except Exception as e:
-                          updated_row = orig
-                          status = f"future_error:{type(e).__name__}:{str(e)[:120]}"
-
-                      pid = str(updated_row.get("player_id", "")).strip()
-                      name = (updated_row.get("name") or "").strip()[:35]
-
-                      highest = updated_row.get("debut_highest_division_date") or "-"
-                      second = updated_row.get("debut_second_tier_date") or "-"
-
-                      print(
-                          f"[{idx:5d}/{len(rows)}] {pid:8s} {name:<35s} -> {status:<35s} | highest:{highest} | second:{second}",
-                          flush=True
-                      )
-
-                      processed += 1
-                      since_save += 1
-                      since_commit += 1
-
-                      if since_save >= SAVE_EVERY:
-                          save_rows(PLAYERS_FILE, fields, rows)
-                          since_save = 0
-                          print(f"  [SAVE] {processed} verwerkt", flush=True)
-
-                      if since_commit >= COMMIT_EVERY:
-                          save_rows(PLAYERS_FILE, fields, rows)
-                          ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-                          git_checkpoint(f"ScoutAI debuts checkpoint [{ts}]")
-                          since_commit = 0
-                          print(f"  [COMMIT] {processed} verwerkt", flush=True)
-
-                  print(f"  [BATCH DONE] {processed}/{len(todo)}", flush=True)
+          # Verwerk in batches van 2000 zodat we tussentijds kunnen opslaan
+          BATCH = 2000
+          for i in range(0, len(todo), BATCH):
+              batch = todo[i:i+BATCH]
+              asyncio.run(fetch_all(batch, fields, rows))
+              save_rows(PLAYERS_FILE, fields, rows)
+              ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+              git_commit(f"ScoutAI debuts batch {i+len(batch)}/{len(todo)} [{ts}]")
+              print(f"  [BATCH] {i+len(batch)}/{len(todo)} klaar", flush=True)
 
           save_rows(PLAYERS_FILE, fields, rows)
           ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-          git_checkpoint(f"ScoutAI debuts volledig [{ts}]")
-          print(f"Klaar: {processed} bijgewerkt", flush=True)
+          git_commit(f"ScoutAI debuts KLAAR [{len(todo)} spelers] {ts}")
+          print(f"\nKlaar!", flush=True)
           PYEOF
 
       - name: Summary
         run: |
-          echo "=== PLAYER DEBUT SCRAPE KLAAR ==="
+          echo "=== KLAAR ==="
           [ -f data/csv/players.csv.gz ] && echo "players.csv.gz: $(wc -c < data/csv/players.csv.gz) bytes"
