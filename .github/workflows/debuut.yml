@@ -299,12 +299,20 @@ jobs:
               if col not in fields:
                   fields.append(col)
 
+          def has_real_date(row):
+              """Alleen overslaan als er een echte datum staat (formaat YYYY-MM-DD)."""
+              h = (row.get("debut_highest_division_date") or "").strip()
+              s = (row.get("debut_second_tier_date") or "").strip()
+              import re
+              date_pattern = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+              return bool(date_pattern.match(h) or date_pattern.match(s))
+
           todo = []
           already = 0
           for idx, row in enumerate(rows, 1):
               if idx < START_FROM:
                   continue
-              if row.get("debut_highest_division_date") or row.get("debut_second_tier_date"):
+              if has_real_date(row):
                   already += 1
                   continue
               if not row.get("player_id"):
