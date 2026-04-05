@@ -75,7 +75,7 @@ jobs:
 
           # Batch van 400 requests, dan 5 min pauze + nieuwe sessie
           REQUESTS_PER_BATCH = 400
-          PAUSE_BETWEEN_BATCHES = 60  # seconden
+          PAUSE_BETWEEN_BATCHES = 120  # seconden
 
           SCRAPY_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
