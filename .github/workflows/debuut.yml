@@ -26,7 +26,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install poetry aiohttp
+          pip install poetry aiohttp beautifulsoup4 lxml
           git clone https://github.com/dcaribou/transfermarkt-scraper.git /tmp/scraper
           cd /tmp/scraper
           poetry config virtualenvs.create false
