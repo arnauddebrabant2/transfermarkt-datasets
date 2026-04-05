@@ -75,7 +75,7 @@ jobs:
 
           # Batch van 400 requests, dan 5 min pauze + nieuwe sessie
           REQUESTS_PER_BATCH = 400
-          PAUSE_BETWEEN_BATCHES = 120  # seconden
+          PAUSE_BETWEEN_BATCHES = 60  # seconden
 
           SCRAPY_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
@@ -217,19 +217,31 @@ jobs:
               connector = aiohttp.TCPConnector(limit=20, ttl_dns_cache=300)
               timeout   = aiohttp.ClientTimeout(total=20)
 
+              first_debug = True
+
               async def fetch_one(session, idx, row):
+                  nonlocal first_debug
                   url = build_url(row)
                   async with semaphore:
+                      await asyncio.sleep(0.5)
                       try:
                           async with session.get(url, headers=HEADERS, timeout=timeout, allow_redirects=True) as resp:
                               if resp.status == 200:
                                   html = await resp.text()
+                                  if first_debug:
+                                      first_debug = False
+                                      has_debut = "debut" in html.lower()
+                                      has_table = "responsive-table" in html
+                                      print(f"  [DEBUG] len={len(html)} has_debut={has_debut} has_table={has_table}", flush=True)
+                                      print(f"  [DEBUG] url={url}", flush=True)
+                                  if len(html) < 3000:
+                                      return idx, row, None, f"leeg({len(html)})"
                                   return idx, row, html, "ok"
                               elif resp.status == 404:
                                   return idx, row, None, "not_found"
                               return idx, row, None, f"http{resp.status}"
-                      except Exception:
-                          return idx, row, None, "error"
+                      except Exception as e:
+                          return idx, row, None, f"error:{e}"
 
               # Nieuwe sessie = nieuwe cookies, legt TM rate limiter om de tuin
               async with aiohttp.ClientSession(connector=connector) as session:
