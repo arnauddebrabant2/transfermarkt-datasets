@@ -45,7 +45,7 @@ jobs:
               print(f'OK: {csv.stat().st_size//1024} KB')
           "
 
-      - name: Scrape debuts via Scrapy (zelfde sessie als weekly scrape)
+      - name: Scrape debuts via aiohttp met pauzes
         timeout-minutes: 300
         env:
           START_FROM: ${{ github.event.inputs.start_from || '1' }}
@@ -54,13 +54,10 @@ jobs:
           import asyncio
           import csv
           import gzip
-          import json
           import os
-          import random
           import re
           import shutil
           import subprocess
-          import time
           from datetime import datetime
           from pathlib import Path
           from urllib.parse import urlparse
@@ -76,7 +73,10 @@ jobs:
           SAVE_EVERY   = 100
           COMMIT_EVERY = 500
 
-          # Zelfde User-Agent als de transfermarkt-scraper library
+          # Batch van 400 requests, dan 5 min pauze + nieuwe sessie
+          REQUESTS_PER_BATCH = 400
+          PAUSE_BETWEEN_BATCHES = 300  # seconden
+
           SCRAPY_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
           HEADERS = {
@@ -126,6 +126,8 @@ jobs:
               if r.returncode == 0:
                   subprocess.run(["git", "push"], check=False)
                   print(f"  [COMMIT+PUSH] {msg}", flush=True)
+              else:
+                  print(f"  [COMMIT] Geen wijzigingen", flush=True)
 
           def clean(el):
               return re.sub(r"\s+", " ", (el.get_text(" ", strip=True) if el else "").strip())
@@ -210,14 +212,8 @@ jobs:
                       break
               return result
 
-          # Async fetch — zelfde aanpak als stap 2b/2c in weekly workflow
-          async def fetch_all(todo_rows, fields, all_rows):
-              # 10 concurrent requests, geen sleep — zelfde als ceapi calls in weekly
+          async def fetch_batch(todo_batch, fields, all_rows, processed_total, since_save, since_commit):
               semaphore = asyncio.Semaphore(10)
-              processed    = 0
-              since_save   = 0
-              since_commit = 0
-
               connector = aiohttp.TCPConnector(limit=20, ttl_dns_cache=300)
               timeout   = aiohttp.ClientTimeout(total=20)
 
@@ -231,15 +227,13 @@ jobs:
                                   return idx, row, html, "ok"
                               elif resp.status == 404:
                                   return idx, row, None, "not_found"
-                              elif resp.status in (403, 429):
-                                  await asyncio.sleep(30)
-                                  return idx, row, None, f"http{resp.status}"
                               return idx, row, None, f"http{resp.status}"
-                      except Exception as e:
+                      except Exception:
                           return idx, row, None, "error"
 
+              # Nieuwe sessie = nieuwe cookies, legt TM rate limiter om de tuin
               async with aiohttp.ClientSession(connector=connector) as session:
-                  tasks = [fetch_one(session, idx, row) for idx, row in todo_rows]
+                  tasks = [fetch_one(session, idx, row) for idx, row in todo_batch]
 
                   for coro in asyncio.as_completed(tasks):
                       idx, row, html, status = await coro
@@ -260,20 +254,22 @@ jobs:
                           flush=True
                       )
 
-                      processed    += 1
-                      since_save   += 1
-                      since_commit += 1
+                      processed_total += 1
+                      since_save      += 1
+                      since_commit    += 1
 
                       if since_save >= SAVE_EVERY:
                           save_rows(PLAYERS_FILE, fields, all_rows)
                           since_save = 0
-                          print(f"  [SAVE] {processed} verwerkt", flush=True)
+                          print(f"  [SAVE] {processed_total} verwerkt", flush=True)
 
                       if since_commit >= COMMIT_EVERY:
                           save_rows(PLAYERS_FILE, fields, all_rows)
                           ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
                           git_commit(f"ScoutAI debuts [{idx}/{len(all_rows)}] {ts}")
                           since_commit = 0
+
+              return processed_total, since_save, since_commit
 
           # ── Laden ─────────────────────────────────────────────────────────
           with open(PLAYERS_FILE, encoding="utf-8") as f:
@@ -303,25 +299,44 @@ jobs:
                   continue
               todo.append((idx, row))
 
-          print(f"Spelers totaal : {len(rows)}", flush=True)
-          print(f"Al verwerkt    : {already}", flush=True)
-          print(f"Nog te doen    : {len(todo)}", flush=True)
-          print(f"Concurrency    : 10", flush=True)
+          print(f"Spelers totaal    : {len(rows)}", flush=True)
+          print(f"Al verwerkt       : {already}", flush=True)
+          print(f"Nog te doen       : {len(todo)}", flush=True)
+          print(f"Batch grootte     : {REQUESTS_PER_BATCH}", flush=True)
+          print(f"Pauze per batch   : {PAUSE_BETWEEN_BATCHES}s", flush=True)
 
-          # Verwerk in batches van 2000 zodat we tussentijds kunnen opslaan
-          BATCH = 2000
-          for i in range(0, len(todo), BATCH):
-              batch = todo[i:i+BATCH]
-              asyncio.run(fetch_all(batch, fields, rows))
+          processed_total = 0
+          since_save      = 0
+          since_commit    = 0
+          batch_num       = 0
+
+          for i in range(0, len(todo), REQUESTS_PER_BATCH):
+              batch     = todo[i:i + REQUESTS_PER_BATCH]
+              batch_num += 1
+
+              print(f"\n=== BATCH {batch_num} ({i+1}–{i+len(batch)} van {len(todo)}) ===", flush=True)
+
+              processed_total, since_save, since_commit = asyncio.run(
+                  fetch_batch(batch, fields, rows, processed_total, since_save, since_commit)
+              )
+
+              # Opslaan + commit na elke batch
               save_rows(PLAYERS_FILE, fields, rows)
               ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-              git_commit(f"ScoutAI debuts batch {i+len(batch)}/{len(todo)} [{ts}]")
-              print(f"  [BATCH] {i+len(batch)}/{len(todo)} klaar", flush=True)
+              git_commit(f"ScoutAI debuts batch {batch_num} [{i+len(batch)}/{len(todo)}] {ts}")
+              since_commit = 0
+
+              # Pauze tussen batches (niet na de laatste)
+              if i + REQUESTS_PER_BATCH < len(todo):
+                  print(f"\n  ⏸️  Pauze {PAUSE_BETWEEN_BATCHES}s (TM rate limit reset)...", flush=True)
+                  import time
+                  time.sleep(PAUSE_BETWEEN_BATCHES)
+                  print(f"  ▶️  Verder met batch {batch_num + 1}!", flush=True)
 
           save_rows(PLAYERS_FILE, fields, rows)
           ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-          git_commit(f"ScoutAI debuts KLAAR [{len(todo)} spelers] {ts}")
-          print(f"\nKlaar!", flush=True)
+          git_commit(f"ScoutAI debuts KLAAR [{processed_total} bijgewerkt] {ts}")
+          print(f"\n✅ Klaar: {processed_total} bijgewerkt", flush=True)
           PYEOF
 
       - name: Summary
