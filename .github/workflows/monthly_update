@@ -1,0 +1,731 @@
+name: Monthly ScoutAI Update
+
+on:
+  schedule:
+    - cron: '0 4 * * 1'  # Elke maandag om 04:00 UTC
+  workflow_dispatch:
+    inputs:
+      days_back:
+        description: "Hoeveel dagen terug ophalen (default 35)"
+        required: false
+        default: "35"
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install transfermarkt-scraper
+        run: |
+          pip install poetry aiohttp asyncio
+          git clone https://github.com/dcaribou/transfermarkt-scraper.git /tmp/scraper
+          cd /tmp/scraper
+          poetry config virtualenvs.create false
+          poetry install --without dev
+          echo 'USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"' >> /tmp/scraper/tfmkt/settings.py
+          echo 'ROBOTSTXT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"' >> /tmp/scraper/tfmkt/settings.py
+          python3 $GITHUB_WORKSPACE/patch_scraper.py
+
+      - name: Maak output map aan
+        run: mkdir -p data/raw data/csv
+
+      - name: Stap 0 - Bestaande CSV data decomprimeren
+        run: |
+          python3 << 'PYEOF'
+          import gzip, shutil
+          from pathlib import Path
+          CSV = Path('data/csv')
+          for gz_file in sorted(CSV.glob('*.csv.gz')):
+              stem = gz_file.stem
+              out_name = 'appearances_existing.csv' if stem == 'appearances.csv' else stem
+              out_path = CSV / out_name
+              print(f"Decomprimeer {gz_file.name} → {out_name} ({gz_file.stat().st_size // 1024} KB)")
+              with gzip.open(gz_file, 'rb') as f_in:
+                  with open(out_path, 'wb') as f_out:
+                      shutil.copyfileobj(f_in, f_out)
+          PYEOF
+
+      - name: Stap 1 - Bepaal huidig seizoen
+        id: season
+        run: |
+          python3 << 'PYEOF'
+          from datetime import datetime
+          import os
+          now = datetime.utcnow()
+          # Seizoen start in juli: jul 2025 → seizoen 2025, jan 2026 → nog steeds 2025
+          season = now.year if now.month >= 7 else now.year - 1
+          print(f"Huidig seizoen: {season}")
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f"current_season={season}\n")
+          PYEOF
+
+      - name: Stap 2 - Clubs scrapen (huidig seizoen)
+        run: |
+          cd /tmp/scraper
+          SEASON=${{ steps.season.outputs.current_season }}
+          echo "=== Clubs seizoen $SEASON ==="
+          python -m tfmkt clubs \
+            -p $GITHUB_WORKSPACE/data/competitions.json \
+            -s $SEASON \
+            >> $GITHUB_WORKSPACE/data/raw/clubs.json || true
+          echo "Clubs nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/clubs.json)"
+
+      - name: Stap 3 - Spelers scrapen (huidig seizoen)
+        run: |
+          cd /tmp/scraper
+          SEASON=${{ steps.season.outputs.current_season }}
+          echo "=== Spelers seizoen $SEASON ==="
+          python -m tfmkt players \
+            -p $GITHUB_WORKSPACE/data/raw/clubs.json \
+            -s $SEASON \
+            >> $GITHUB_WORKSPACE/data/raw/players.json || true
+          echo "Spelers nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/players.json)"
+
+      - name: Stap 4 - Marktwaarden ophalen
+        timeout-minutes: 30
+        continue-on-error: true
+        run: |
+          python3 << 'PYEOF'
+          import json, asyncio, aiohttp
+          from pathlib import Path
+          RAW = Path('data/raw')
+          PLAYERS_FILE = RAW / 'players.json'
+          MV_FILE = RAW / 'market_values.json'
+          MV_API = "https://www.transfermarkt.com/ceapi/marketValueDevelopment/graph/"
+          HEADERS = {
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+              "Accept": "application/json"
+          }
+          def get_player_ids():
+              ids, seen = [], set()
+              if not PLAYERS_FILE.exists(): return ids
+              with open(PLAYERS_FILE, encoding='utf-8') as f:
+                  for line in f:
+                      line = line.strip()
+                      if not line: continue
+                      try:
+                          p = json.loads(line)
+                          href = p.get('href', '')
+                          parts = href.rstrip('/').split('/')
+                          if 'spieler' in parts:
+                              pid = parts[parts.index('spieler') + 1]
+                              if pid and pid not in seen:
+                                  ids.append(pid); seen.add(pid)
+                      except: pass
+              return ids
+          async def fetch_mv(session, player_id, semaphore):
+              async with semaphore:
+                  url = f"{MV_API}{player_id}"
+                  try:
+                      async with session.get(url, headers=HEADERS, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                          if resp.status == 200:
+                              data = await resp.json(content_type=None)
+                              values = data.get('list', [])
+                              if values:
+                                  return player_id, values[-1].get('mw', '')
+                  except: pass
+                  return player_id, None
+          async def main():
+              player_ids = get_player_ids()
+              print(f"Marktwaarden ophalen voor {len(player_ids)} spelers...")
+              semaphore = asyncio.Semaphore(5)
+              results = {}
+              async with aiohttp.ClientSession() as session:
+                  tasks = [fetch_mv(session, pid, semaphore) for pid in player_ids]
+                  done = 0
+                  for coro in asyncio.as_completed(tasks):
+                      pid, mv = await coro
+                      if mv: results[pid] = mv
+                      done += 1
+                      if done % 500 == 0:
+                          print(f"  {done}/{len(player_ids)} verwerkt, {len(results)} met waarde")
+              print(f"Klaar: {len(results)} marktwaarden")
+              with open(MV_FILE, 'w', encoding='utf-8') as f:
+                  json.dump(results, f)
+          asyncio.run(main())
+          PYEOF
+
+      - name: Wacht na marktwaarden (IP cooldown)
+        run: sleep 300
+
+      - name: Stap 5 - Transfers ophalen
+        timeout-minutes: 30
+        continue-on-error: true
+        run: |
+          python3 << 'PYEOF'
+          import json, asyncio, aiohttp
+          from pathlib import Path
+          RAW = Path('data/raw')
+          PLAYERS_FILE = RAW / 'players.json'
+          TRANSFERS_FILE = RAW / 'transfers.json'
+          TRANSFERS_API = "https://www.transfermarkt.co.uk/ceapi/transferHistory/list/"
+          HEADERS = {"User-Agent": "transfermarkt-datasets/1.0", "Accept": "application/json"}
+          def get_player_ids():
+              ids, seen = [], set()
+              if not PLAYERS_FILE.exists(): return ids
+              with open(PLAYERS_FILE, encoding='utf-8') as f:
+                  for line in f:
+                      line = line.strip()
+                      if not line: continue
+                      try:
+                          p = json.loads(line)
+                          href = p.get('href', '')
+                          parts = href.rstrip('/').split('/')
+                          if 'spieler' in parts:
+                              pid = parts[parts.index('spieler') + 1]
+                              if pid and pid not in seen:
+                                  ids.append(pid); seen.add(pid)
+                      except: pass
+              return ids
+          async def fetch_transfers(session, player_id, semaphore):
+              async with semaphore:
+                  url = f"{TRANSFERS_API}{player_id}"
+                  try:
+                      async with session.get(url, headers=HEADERS, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                          if resp.status == 200:
+                              data = await resp.json(content_type=None)
+                              return player_id, data.get('transfers', [])
+                  except: pass
+                  return player_id, []
+          async def main():
+              player_ids = get_player_ids()
+              print(f"Transfers ophalen voor {len(player_ids)} spelers...")
+              semaphore = asyncio.Semaphore(10)
+              all_transfers = []
+              async with aiohttp.ClientSession() as session:
+                  tasks = [fetch_transfers(session, pid, semaphore) for pid in player_ids]
+                  done = 0
+                  for coro in asyncio.as_completed(tasks):
+                      pid, transfers = await coro
+                      for t in transfers:
+                          t['player_id'] = pid
+                          all_transfers.append(t)
+                      done += 1
+                      if done % 500 == 0:
+                          print(f"  {done}/{len(player_ids)} verwerkt, {len(all_transfers)} transfers")
+              print(f"Klaar: {len(all_transfers)} transfers")
+              with open(TRANSFERS_FILE, 'w', encoding='utf-8') as f:
+                  for t in all_transfers:
+                      f.write(json.dumps(t) + '\n')
+          asyncio.run(main())
+          PYEOF
+
+      - name: Wacht na transfers (IP cooldown)
+        run: sleep 180
+
+      - name: Stap 6 - Historische marktwaarden ophalen
+        timeout-minutes: 30
+        continue-on-error: true
+        run: |
+          python3 << 'PYEOF'
+          import json, asyncio, aiohttp
+          from pathlib import Path
+          RAW = Path('data/raw')
+          PLAYERS_FILE = RAW / 'players.json'
+          VALUATIONS_FILE = RAW / 'valuations.json'
+          MV_API = "https://www.transfermarkt.com/ceapi/marketValueDevelopment/graph/"
+          HEADERS = {"User-Agent": "transfermarkt-datasets/1.0", "Accept": "application/json"}
+          def get_player_ids():
+              ids, seen = [], set()
+              if not PLAYERS_FILE.exists(): return ids
+              with open(PLAYERS_FILE, encoding='utf-8') as f:
+                  for line in f:
+                      line = line.strip()
+                      if not line: continue
+                      try:
+                          p = json.loads(line)
+                          href = p.get('href', '')
+                          parts = href.rstrip('/').split('/')
+                          if 'spieler' in parts:
+                              pid = parts[parts.index('spieler') + 1]
+                              if pid and pid not in seen:
+                                  ids.append(pid); seen.add(pid)
+                      except: pass
+              return ids
+          async def fetch_valuations(session, player_id, semaphore):
+              async with semaphore:
+                  url = f"{MV_API}{player_id}"
+                  try:
+                      async with session.get(url, headers=HEADERS, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                          if resp.status == 200:
+                              data = await resp.json(content_type=None)
+                              return player_id, data.get('list', [])
+                  except: pass
+                  return player_id, []
+          async def main():
+              player_ids = get_player_ids()
+              print(f"Valuations ophalen voor {len(player_ids)} spelers...")
+              semaphore = asyncio.Semaphore(10)
+              all_vals = []
+              async with aiohttp.ClientSession() as session:
+                  tasks = [fetch_valuations(session, pid, semaphore) for pid in player_ids]
+                  done = 0
+                  for coro in asyncio.as_completed(tasks):
+                      pid, values = await coro
+                      for v in values:
+                          v['player_id'] = pid
+                          all_vals.append(v)
+                      done += 1
+                      if done % 500 == 0:
+                          print(f"  {done}/{len(player_ids)} verwerkt, {len(all_vals)} waardes")
+              print(f"Klaar: {len(all_vals)} valuations")
+              with open(VALUATIONS_FILE, 'w', encoding='utf-8') as f:
+                  for v in all_vals:
+                      f.write(json.dumps(v) + '\n')
+          asyncio.run(main())
+          PYEOF
+
+      - name: Stap 7 - Wedstrijden scrapen (huidig seizoen)
+        timeout-minutes: 60
+        run: |
+          cd /tmp/scraper
+          SEASON=${{ steps.season.outputs.current_season }}
+          echo "=== Wedstrijden seizoen $SEASON ==="
+          python -m tfmkt games \
+            -p $GITHUB_WORKSPACE/data/competitions.json \
+            -s $SEASON \
+            >> $GITHUB_WORKSPACE/data/raw/games.json || true
+          echo "Wedstrijden nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/games.json)"
+
+      - name: Stap 8 - Optredens scrapen (alleen spelers met recente wedstrijden)
+        timeout-minutes: 120
+        continue-on-error: true
+        run: |
+          SEASON=${{ steps.season.outputs.current_season }}
+          DAYS_BACK=${{ github.event.inputs.days_back || '35' }}
+          # Maak een gefilterde players.json met alleen spelers van clubs die recent gespeeld hebben
+          python3 << PYEOF
+          import json, gzip
+          from datetime import datetime, timedelta
+          from pathlib import Path
+          import os
+          days_back = int(os.environ.get('DAYS_BACK', '35'))
+          cutoff = datetime.utcnow() - timedelta(days=days_back)
+          RAW = Path('data/raw')
+          CSV = Path('data/csv')
+          # Bepaal welke clubs recent gespeeld hebben uit games.json
+          recent_club_ids = set()
+          games_file = RAW / 'games.json'
+          if games_file.exists():
+              with open(games_file, encoding='utf-8') as f:
+                  for line in f:
+                      line = line.strip()
+                      if not line: continue
+                      try:
+                          g = json.loads(line)
+                          date_raw = g.get('date', '') or ''
+                          date_parsed = None
+                          for fmt in ('%d/%m/%y', '%Y-%m-%d', '%d/%m/%Y'):
+                              try: date_parsed = datetime.strptime(date_raw, fmt); break
+                              except: pass
+                          if date_parsed and date_parsed >= cutoff:
+                              home = (g.get('home_club') or {}).get('href', '')
+                              away = (g.get('away_club') or {}).get('href', '')
+                              for href in [home, away]:
+                                  if href:
+                                      parts = href.rstrip('/').split('/')
+                                      if 'verein' in parts:
+                                          recent_club_ids.add(parts[parts.index('verein')+1])
+                      except: pass
+          print(f"Clubs met recente wedstrijden: {len(recent_club_ids)}")
+          # Filter players.json op die clubs
+          kept = 0
+          with open(RAW / 'players.json', encoding='utf-8') as fin,                open(RAW / 'players_recent.json', 'w', encoding='utf-8') as fout:
+              for line in fin:
+                  line = line.strip()
+                  if not line: continue
+                  try:
+                      p = json.loads(line)
+                      club_href = (p.get('parent') or {}).get('href', '')
+                      parts = club_href.rstrip('/').split('/')
+                      club_id = parts[parts.index('verein')+1] if 'verein' in parts else ''
+                      if club_id in recent_club_ids:
+                          fout.write(line + '\n')
+                          kept += 1
+                  except: pass
+          print(f"Spelers gefilterd voor appearances: {kept}")
+          PYEOF
+          cd /tmp/scraper
+          echo "=== Optredens seizoen $SEASON (alleen recente clubs) ==="
+          python -m tfmkt appearances \
+            -p $GITHUB_WORKSPACE/data/raw/players_recent.json \
+            -s $SEASON \
+            >> $GITHUB_WORKSPACE/data/raw/appearances.json || true
+          echo "Optredens gescraped: $(wc -l < $GITHUB_WORKSPACE/data/raw/appearances.json)"
+        env:
+          DAYS_BACK: ${{ github.event.inputs.days_back || '35' }}
+
+      - name: Stap 9 - JSON naar CSV omzetten en samenvoegen
+        run: |
+          python3 << 'PYEOF'
+          import json, csv
+          from pathlib import Path
+          from datetime import datetime, timedelta
+          import os
+
+          DAYS_BACK = int(os.environ.get('DAYS_BACK', '35'))
+          cutoff = datetime.utcnow() - timedelta(days=DAYS_BACK)
+
+          RAW = Path('data/raw')
+          OUT = Path('data/csv')
+          OUT.mkdir(exist_ok=True)
+
+          def load_jsonl(path):
+              items = []
+              if not path.exists(): return items
+              with open(path, encoding='utf-8') as f:
+                  for line in f:
+                      line = line.strip()
+                      if line:
+                          try: items.append(json.loads(line))
+                          except: pass
+              return items
+
+          def load_csv_existing(path):
+              rows = []
+              if not path.exists(): return rows
+              with open(path, encoding='utf-8') as f:
+                  reader = csv.DictReader(f)
+                  for row in reader:
+                      rows.append(row)
+              return rows
+
+          def extract_id(href):
+              if not href: return ''
+              parts = href.rstrip('/').split('/')
+              for key in ['wettbewerb', 'verein', 'spieler', 'spielbericht']:
+                  if key in parts:
+                      idx = parts.index(key)
+                      if idx + 1 < len(parts):
+                          return parts[idx + 1]
+              return parts[-1] if parts else ''
+
+          def parse_market_value(mv_str):
+              if not mv_str: return ''
+              mv_str = str(mv_str).strip()
+              try:
+                  multiplier = 1
+                  if 'm' in mv_str.lower():
+                      multiplier = 1_000_000
+                      mv_str = mv_str.lower().replace('m','').replace('€','').replace('£','').strip()
+                  elif 'k' in mv_str.lower() or 'th.' in mv_str.lower():
+                      multiplier = 1_000
+                      mv_str = mv_str.lower().replace('k','').replace('th.','').replace('€','').replace('£','').strip()
+                  else:
+                      mv_str = mv_str.replace('€','').replace('£','').replace(',','').strip()
+                  return int(float(mv_str) * multiplier)
+              except: return ''
+
+          def _fix_encoding(s):
+              if not s: return s
+              return str(s).replace('â\x82\xac', '€').replace('Â', '').replace('â‚¬', '€')
+
+          # Laad marktwaarden lookup
+          mv_lookup = {}
+          mv_file = RAW / 'market_values.json'
+          if mv_file.exists():
+              with open(mv_file, encoding='utf-8') as f:
+                  mv_raw = json.load(f)
+                  for pid, mv in mv_raw.items():
+                      mv_lookup[str(pid)] = parse_market_value(mv)
+              print(f"Marktwaarden geladen: {len(mv_lookup)}")
+
+          # ── CLUBS ──
+          clubs = load_jsonl(RAW / 'clubs.json')
+          club_lookup = {}
+          new_club_rows = []
+          for c in clubs:
+              comp_href = c.get('parent', {}).get('href', '')
+              comp_id = extract_id(comp_href)
+              club_id = c.get('id') or extract_id(c.get('href', ''))
+              club_lookup[c.get('href', '')] = {'club_id': club_id, 'name': c.get('name', ''), 'competition_id': comp_id}
+              new_club_rows.append({
+                  'club_id': club_id, 'name': c.get('name', ''),
+                  'domestic_competition_id': comp_id,
+                  'squad_size': c.get('squad_size', ''),
+                  'average_age': c.get('average_age', ''),
+                  'total_market_value': c.get('total_market_value', ''),
+                  'coach_name': c.get('coach_name', ''),
+                  'url': f"https://www.transfermarkt.co.uk{c.get('href', '')}",
+              })
+          existing_clubs = load_csv_existing(OUT / 'clubs.csv')
+          club_id_map = {r['club_id']: r for r in existing_clubs if r.get('club_id')}
+          for r in new_club_rows:
+              if r.get('club_id'):
+                  club_id_map[str(r['club_id'])] = r
+          merged_clubs = list(club_id_map.values())
+          if merged_clubs:
+              with open(OUT / 'clubs.csv', 'w', newline='', encoding='utf-8') as f:
+                  w = csv.DictWriter(f, fieldnames=list(merged_clubs[0].keys()))
+                  w.writeheader(); w.writerows(merged_clubs)
+              print(f'clubs.csv: {len(merged_clubs)} rijen (+{len(merged_clubs)-len(existing_clubs)} nieuw)')
+
+          # ── SPELERS ──
+          players = load_jsonl(RAW / 'players.json')
+          new_player_rows = []
+          for p in players:
+              club_href = p.get('parent', {}).get('href', '')
+              club_info = club_lookup.get(club_href, {})
+              player_id = p.get('id') or extract_id(p.get('href', ''))
+              height_raw = p.get('height', '') or ''
+              try: height_cm = int(float(height_raw.replace('m','').replace(',','.').strip()) * 100)
+              except: height_cm = ''
+              pos = p.get('position', '') or ''
+              pos_map = {
+                  'goalkeeper': 'Goalkeeper',
+                  'centre-back': 'Defender', 'left-back': 'Defender', 'right-back': 'Defender', 'defender': 'Defender',
+                  'attacking midfield': 'Midfield', 'midfielder': 'Midfield', 'midfield': 'Midfield',
+                  'centre-forward': 'Attack', 'left winger': 'Attack', 'right winger': 'Attack', 'forward': 'Attack', 'attack': 'Attack'
+              }
+              position = next((v for k, v in pos_map.items() if k in pos.lower()), 'Midfield')
+              mv = mv_lookup.get(str(player_id), '')
+              if not mv:
+                  mv_raw = p.get('current_market_value') or ''
+                  try: mv = int(str(mv_raw).replace('€','').replace(',','').strip()) if mv_raw else ''
+                  except: mv = ''
+              mv_high_raw = p.get('highest_market_value') or ''
+              try: mv_high = int(str(mv_high_raw).replace('€','').replace(',','').strip()) if mv_high_raw else ''
+              except: mv_high = ''
+              first_name = p.get('name', '') or ''
+              last_name = p.get('last_name', '') or ''
+              full_name = f"{first_name} {last_name}".strip() or first_name
+              new_player_rows.append({
+                  'player_id': player_id,
+                  'name': full_name,
+                  'first_name': first_name,
+                  'last_name': last_name,
+                  'date_of_birth': p.get('date_of_birth', ''),
+                  'age': p.get('age', ''),
+                  'country_of_citizenship': p.get('citizenship', ''),
+                  'country_of_birth': (p.get('place_of_birth') or {}).get('country', ''),
+                  'position': position,
+                  'sub_position': pos,
+                  'foot': p.get('foot', ''),
+                  'height_in_cm': height_cm,
+                  'market_value_in_eur': mv,
+                  'highest_market_value_in_eur': mv_high,
+                  'contract_expiration_date': p.get('contract_expires', ''),
+                  'current_club_id': club_info.get('club_id', ''),
+                  'current_club_name': club_info.get('name', ''),
+                  'current_club_domestic_competition_id': club_info.get('competition_id', ''),
+                  'image_url': p.get('image_url', ''),
+                  'url': f"https://www.transfermarkt.co.uk{p.get('href', '')}",
+              })
+          # Merge: nieuwe data overschrijft bestaande op player_id
+          existing_players = load_csv_existing(OUT / 'players.csv')
+          player_id_map = {r['player_id']: r for r in existing_players if r.get('player_id')}
+          # Bewaar debut kolommen van bestaande spelers
+          debut_cols = [
+              'hoogste_divisie_debut_date', 'hoogste_divisie_debut_club',
+              'tweede_niveau_debut_date', 'tweede_niveau_debut_club',
+              'debut_highest_division_date', 'debut_highest_division_club', 'debut_highest_division_competition',
+              'debut_second_tier_date', 'debut_second_tier_club', 'debut_second_tier_competition',
+          ]
+          for r in new_player_rows:
+              pid = str(r.get('player_id', ''))
+              if pid:
+                  # Kopieer debut kolommen van bestaande rij als die bestaan
+                  if pid in player_id_map:
+                      old_row = player_id_map[pid]
+                      for col in debut_cols:
+                          if col in old_row and old_row[col]:
+                              r[col] = old_row[col]
+                  player_id_map[pid] = r
+          merged_players = list(player_id_map.values())
+          if merged_players:
+              # Zorg dat alle kolommen aanwezig zijn in elke rij
+              all_cols = list(merged_players[0].keys())
+              for col in debut_cols:
+                  if col not in all_cols:
+                      all_cols.append(col)
+              with open(OUT / 'players.csv', 'w', newline='', encoding='utf-8') as f:
+                  w = csv.DictWriter(f, fieldnames=all_cols, extrasaction='ignore')
+                  w.writeheader()
+                  for row in merged_players:
+                      w.writerow({k: row.get(k, '') for k in all_cols})
+              print(f'players.csv: {len(merged_players)} rijen (+{len(merged_players)-len(existing_players)} nieuw)')
+
+          # ── OPTREDENS (alleen laatste maand) ──
+          appearances = load_jsonl(RAW / 'appearances.json')
+          new_app_rows = []
+          for a in appearances:
+              parent = a.get('parent') or {}
+              player_id = extract_id(parent.get('href', ''))
+              player_club_id = extract_id((parent.get('current_club') or {}).get('href', ''))
+              result_raw = a.get('result')
+              if isinstance(result_raw, dict): result_href = result_raw.get('href', '')
+              elif isinstance(result_raw, str): result_href = result_raw
+              else: result_href = ''
+              game_id = extract_id(result_href)
+              date = a.get('date', '')
+              appearance_id = f"{player_id}_{date.replace('/', '')}" if player_id and date else ''
+              min_raw = a.get('minutes_played', '') or ''
+              try: minutes_played = int(str(min_raw).replace("'", "").strip())
+              except: minutes_played = 0
+              def card_count(val):
+                  if val is None or val == '' or val == 0: return 0
+                  return 1
+              def safe_int(val):
+                  try: return int(val) if val != '' and val is not None else 0
+                  except: return 0
+              new_app_rows.append({
+                  'appearance_id': appearance_id,
+                  'game_id': game_id,
+                  'player_id': player_id,
+                  'player_club_id': player_club_id,
+                  'date': date,
+                  'player_name': f"{parent.get('name', '')} {parent.get('last_name', '')}".strip(),
+                  'competition_id': a.get('competition_code', ''),
+                  'yellow_cards': card_count(a.get('yellow_cards')),
+                  'red_cards': card_count(a.get('red_cards')),
+                  'goals': safe_int(a.get('goals')),
+                  'assists': safe_int(a.get('assists')),
+                  'minutes_played': minutes_played,
+                  'type': a.get('type', ''),
+              })
+          existing_apps = load_csv_existing(OUT / 'appearances_existing.csv')
+          app_id_map = {r['appearance_id']: r for r in existing_apps if r.get('appearance_id')}
+          new_count = 0
+          for r in new_app_rows:
+              if r['appearance_id']:
+                  if r['appearance_id'] not in app_id_map:
+                      new_count += 1
+                  app_id_map[r['appearance_id']] = r
+          merged_apps = list(app_id_map.values())
+          if merged_apps:
+              all_cols = list(merged_apps[0].keys())
+              with open(OUT / 'appearances.csv', 'w', newline='', encoding='utf-8') as f:
+                  w = csv.DictWriter(f, fieldnames=all_cols, extrasaction='ignore')
+                  w.writeheader()
+                  for row in merged_apps:
+                      w.writerow({k: row.get(k, '') for k in all_cols})
+              print(f'appearances.csv: {len(merged_apps)} rijen (+{new_count} nieuw van laatste {DAYS_BACK} dagen)')
+
+          # ── WEDSTRIJDEN ──
+          games = load_jsonl(RAW / 'games.json')
+          new_game_rows = []
+          for g in games:
+              result = g.get('result', '') or ''
+              try:
+                  home_goals, away_goals = result.split(':')
+                  home_goals = home_goals.strip(); away_goals = away_goals.strip()
+              except: home_goals, away_goals = '', ''
+              home_id = extract_id((g.get('home_club') or {}).get('href', ''))
+              away_id = extract_id((g.get('away_club') or {}).get('href', ''))
+              comp_id = (g.get('parent') or {}).get('country_code', '') or \
+                        extract_id((g.get('parent') or {}).get('href', ''))
+              new_game_rows.append({
+                  'game_id': g.get('game_id', ''),
+                  'competition_id': comp_id,
+                  'season': g.get('season', ''),
+                  'date': g.get('date', ''),
+                  'home_club_id': home_id,
+                  'away_club_id': away_id,
+                  'home_club_goals': home_goals,
+                  'away_club_goals': away_goals,
+                  'home_club_name': g.get('home_club_name', ''),
+                  'away_club_name': g.get('away_club_name', ''),
+                  'stadium': g.get('stadium', ''),
+                  'attendance': g.get('attendance', ''),
+                  'url': f"https://www.transfermarkt.co.uk{g.get('href', '')}",
+              })
+          existing_games = load_csv_existing(OUT / 'games.csv')
+          game_id_map = {r['game_id']: r for r in existing_games if r.get('game_id')}
+          for r in new_game_rows:
+              if r['game_id']:
+                  game_id_map[str(r['game_id'])] = r
+          merged_games = list(game_id_map.values())
+          if merged_games:
+              with open(OUT / 'games.csv', 'w', newline='', encoding='utf-8') as f:
+                  w = csv.DictWriter(f, fieldnames=list(merged_games[0].keys()))
+                  w.writeheader(); w.writerows(merged_games)
+              print(f'games.csv: {len(merged_games)} rijen (+{len(merged_games)-len(existing_games)} nieuw)')
+
+          # ── TRANSFERS ──
+          transfers_raw = load_jsonl(RAW / 'transfers.json')
+          new_transfer_rows = []
+          for t in transfers_raw:
+              player_id = str(t.get('player_id', ''))
+              new_transfer_rows.append({
+                  'player_id':                player_id,
+                  'transfer_date':            t.get('date', '') or t.get('transferDate', ''),
+                  'transfer_season':          t.get('season', ''),
+                  'from_club_name':           str(t.get('from', '') or t.get('fromClubName', '')),
+                  'to_club_name':             str(t.get('to', '') or t.get('toClubName', '')),
+                  'transfer_fee':             _fix_encoding(t.get('fee', '') or t.get('transferFee', '')),
+                  'market_value_at_transfer': _fix_encoding(t.get('mv', '') or t.get('marketValue', '')),
+              })
+          existing_transfers = load_csv_existing(OUT / 'transfers.csv')
+          transfer_key = lambda r: f"{r.get('player_id','')}_{r.get('transfer_date','')}_{r.get('to_club_name','')}"
+          transfer_map = {transfer_key(r): r for r in existing_transfers}
+          for r in new_transfer_rows:
+              transfer_map[transfer_key(r)] = r
+          merged_transfers = list(transfer_map.values())
+          if merged_transfers:
+              with open(OUT / 'transfers.csv', 'w', newline='', encoding='utf-8') as f:
+                  w = csv.DictWriter(f, fieldnames=list(merged_transfers[0].keys()))
+                  w.writeheader(); w.writerows(merged_transfers)
+              print(f'transfers.csv: {len(merged_transfers)} rijen (+{len(merged_transfers)-len(existing_transfers)} nieuw)')
+
+          # ── VALUATIONS ──
+          valuations_raw = load_jsonl(RAW / 'valuations.json')
+          new_val_rows = []
+          for v in valuations_raw:
+              player_id = str(v.get('player_id', ''))
+              mv_raw = v.get('market_value', '') or v.get('mw', '')
+              new_val_rows.append({
+                  'player_id':           player_id,
+                  'date':                v.get('datum_mw', ''),
+                  'date_timestamp':      v.get('date_x', ''),
+                  'market_value_in_eur': parse_market_value(str(mv_raw)) if mv_raw else '',
+                  'club_name':           v.get('verein', ''),
+                  'age':                 v.get('age', ''),
+              })
+          existing_vals = load_csv_existing(OUT / 'player_valuations.csv')
+          val_key = lambda r: f"{r.get('player_id','')}_{r.get('date','')}"
+          val_map = {val_key(r): r for r in existing_vals}
+          for r in new_val_rows:
+              val_map[val_key(r)] = r
+          merged_vals = list(val_map.values())
+          if merged_vals:
+              with open(OUT / 'player_valuations.csv', 'w', newline='', encoding='utf-8') as f:
+                  w = csv.DictWriter(f, fieldnames=list(merged_vals[0].keys()))
+                  w.writeheader(); w.writerows(merged_vals)
+              print(f'player_valuations.csv: {len(merged_vals)} rijen (+{len(merged_vals)-len(existing_vals)} nieuw)')
+
+          # Ruim tijdelijk bestand op
+          for tmp in ['appearances_existing.csv', 'appearances_raw.json']:
+              p = Path(f'data/csv/{tmp}') if tmp.endswith('.csv') else Path(f'data/raw/{tmp}')
+              if p.exists(): p.unlink()
+
+          print('Conversie en samenvoegen klaar!')
+          PYEOF
+        env:
+          DAYS_BACK: ${{ github.event.inputs.days_back || '35' }}
+
+      - name: Commit en push CSV's
+        run: |
+          git config user.name "ScoutAI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          for f in data/csv/*.csv; do [ -f "$f" ] && gzip -f "$f" || true; done
+          git add data/csv/
+          TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
+          SEASON=${{ steps.season.outputs.current_season }}
+          git commit -m "ScoutAI monthly update: ${TIMESTAMP} [seizoen ${SEASON}]" || echo "Geen wijzigingen"
+          git push
+
+      - name: Samenvatting
+        run: |
+          echo "=== UPDATE KLAAR ==="
+          for f in data/csv/*.csv.gz; do
+            echo "$f: $(wc -c < $f) bytes"
+          done
