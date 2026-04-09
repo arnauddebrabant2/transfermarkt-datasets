@@ -590,7 +590,7 @@ jobs:
                   'goals': safe_int(a.get('goals')),
                   'assists': safe_int(a.get('assists')),
                   'minutes_played': minutes_played,
-                  'type': a.get('type', ''),
+                  'position_in_game': str(a.get('position_in_game', '') or '').strip(),
               })
           existing_apps = load_csv_existing(OUT / 'appearances_existing.csv')
           app_id_map = {r['appearance_id']: r for r in existing_apps if r.get('appearance_id')}
