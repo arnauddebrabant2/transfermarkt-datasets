@@ -296,26 +296,30 @@ jobs:
             >> $GITHUB_WORKSPACE/data/raw/games.json || true
           echo "Wedstrijden nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/games.json)"
 
-      - name: Stap 8 - Optredens scrapen (alleen spelers met recente wedstrijden)
+      - name: Stap 8 - Optredens scrapen (alle clubs, games scraping vaak geblokkeerd)
         timeout-minutes: 120
         continue-on-error: true
         run: |
           SEASON=${{ steps.season.outputs.current_season }}
           DAYS_BACK=${{ github.event.inputs.days_back || '35' }}
-          # Maak een gefilterde players.json met alleen spelers van clubs die recent gespeeld hebben
           python3 << PYEOF
-          import json, gzip
+          import json, gzip, csv
           from datetime import datetime, timedelta
           from pathlib import Path
           import os
           days_back = int(os.environ.get('DAYS_BACK', '35'))
           cutoff = datetime.utcnow() - timedelta(days=days_back)
-          RAW = Path('data/raw')
-          CSV = Path('data/csv')
-          # Bepaal welke clubs recent gespeeld hebben uit games.json
+          WORKSPACE = Path(os.environ.get('GITHUB_WORKSPACE', '.'))
+          RAW = WORKSPACE / 'data/raw'
+          CSV = WORKSPACE / 'data/csv'
+
+          # Strategie: gebruik bestaande games.csv.gz om recent actieve clubs te bepalen
+          # TM blokkeert vaak de games scraper vanuit GitHub Actions (405)
           recent_club_ids = set()
+
+          # Probeer eerst games.json (vers gescraped)
           games_file = RAW / 'games.json'
-          if games_file.exists():
+          if games_file.exists() and games_file.stat().st_size > 100:
               with open(games_file, encoding='utf-8') as f:
                   for line in f:
                       line = line.strip()
@@ -335,27 +339,60 @@ jobs:
                                       parts = href.rstrip('/').split('/')
                                       if 'verein' in parts:
                                           recent_club_ids.add(parts[parts.index('verein')+1])
+              print(f"Clubs uit games.json: {len(recent_club_ids)}")
+
+          # Fallback: gebruik bestaande games.csv.gz als games.json leeg/geblokkeerd was
+          if len(recent_club_ids) < 10:
+              print("games.json leeg of geblokkeerd — gebruik bestaande games.csv.gz als fallback")
+              for gz in [CSV / 'games.csv.gz', CSV / 'games.csv']:
+                  if gz.exists():
+                      opener = gzip.open if str(gz).endswith('.gz') else open
+                      try:
+                          with opener(gz, 'rt', encoding='utf-8') as f:
+                              reader = csv.DictReader(f)
+                              for row in reader:
+                                  date_raw = row.get('date', '') or ''
+                                  date_parsed = None
+                                  for fmt in ('%d/%m/%y', '%Y-%m-%d', '%d/%m/%Y'):
+                                      try: date_parsed = datetime.strptime(date_raw, fmt); break
+                                      except: pass
+                                  if date_parsed and date_parsed >= cutoff:
+                                      for col in ['home_club_id', 'away_club_id']:
+                                          cid = row.get(col, '').strip()
+                                          if cid and cid != 'nan':
+                                              recent_club_ids.add(cid)
+                          print(f"Clubs uit bestaande games CSV: {len(recent_club_ids)}")
+                          break
+                      except Exception as e:
+                          print(f"Fout bij lezen games CSV: {e}")
+
+          # Als nog steeds geen clubs gevonden: scrape voor ALLE spelers
+          if len(recent_club_ids) < 5:
+              print("Geen recente clubs gevonden — scrape voor ALLE spelers (volledige run)")
+              import shutil
+              shutil.copy(RAW / 'players.json', RAW / 'players_recent.json')
+          else:
+              print(f"Totaal clubs met recente wedstrijden: {len(recent_club_ids)}")
+              kept = 0
+              players_in = RAW / 'players.json'
+              players_out = RAW / 'players_recent.json'
+              with open(players_in, encoding='utf-8') as fin, open(players_out, 'w', encoding='utf-8') as fout:
+                  for line in fin:
+                      line = line.strip()
+                      if not line: continue
+                      try:
+                          p = json.loads(line)
+                          club_href = (p.get('parent') or {}).get('href', '')
+                          parts = club_href.rstrip('/').split('/')
+                          club_id = parts[parts.index('verein')+1] if 'verein' in parts else ''
+                          if club_id in recent_club_ids:
+                              fout.write(line + '\n')
+                              kept += 1
                       except: pass
-          print(f"Clubs met recente wedstrijden: {len(recent_club_ids)}")
-          # Filter players.json op die clubs
-          kept = 0
-          with open(RAW / 'players.json', encoding='utf-8') as fin,                open(RAW / 'players_recent.json', 'w', encoding='utf-8') as fout:
-              for line in fin:
-                  line = line.strip()
-                  if not line: continue
-                  try:
-                      p = json.loads(line)
-                      club_href = (p.get('parent') or {}).get('href', '')
-                      parts = club_href.rstrip('/').split('/')
-                      club_id = parts[parts.index('verein')+1] if 'verein' in parts else ''
-                      if club_id in recent_club_ids:
-                          fout.write(line + '\n')
-                          kept += 1
-                  except: pass
-          print(f"Spelers gefilterd voor appearances: {kept}")
+              print(f"Spelers gefilterd voor appearances: {kept}")
           PYEOF
           cd /tmp/scraper
-          echo "=== Optredens seizoen $SEASON (alleen recente clubs) ==="
+          echo "=== Optredens seizoen $SEASON ==="
           python -m tfmkt appearances \
             -p $GITHUB_WORKSPACE/data/raw/players_recent.json \
             -s $SEASON \
