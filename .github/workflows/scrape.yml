@@ -46,7 +46,7 @@ jobs:
               stem = gz_file.stem  # bv appearances.csv
               out_name = 'appearances_existing.csv' if stem == 'appearances.csv' else stem
               out_path = CSV / out_name
-              print(f"Decomprimeer {gz_file.name} → {out_name} ({gz_file.stat().st_size // 1024} KB)")
+              print(f"Decomprimeer {gz_file.name} -> {out_name} ({gz_file.stat().st_size // 1024} KB)")
               with gzip.open(gz_file, 'rb') as f_in:
                   with open(out_path, 'wb') as f_out:
                       shutil.copyfileobj(f_in, f_out)
@@ -87,7 +87,7 @@ jobs:
           PLAYERS_FILE = RAW / 'players.json'
           MV_FILE = RAW / 'market_values.json'
           MARKET_VALUES_API = "https://www.transfermarkt.com/ceapi/marketValueDevelopment/graph/"
-          HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", "Accept": "application/json"}
+          HEADERS = {"User-Agent": "transfermarkt-datasets/1.0 (https://github.com/dcaribou/transfermarkt-datasets)", "Accept": "application/json"}
           def get_player_ids():
               ids, seen = [], set()
               if not PLAYERS_FILE.exists(): return ids
@@ -105,17 +105,32 @@ jobs:
                                   ids.append(pid); seen.add(pid)
                       except: pass
               return ids
+          first_debug = {'done': False}
           async def fetch_mv(session, player_id, semaphore):
               async with semaphore:
                   url = f"{MARKET_VALUES_API}{player_id}"
                   try:
                       async with session.get(url, headers=HEADERS, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                          if resp.status == 200:
+                          if not first_debug['done']:
+                              first_debug['done'] = True
+                              text = await resp.text()
+                              print(f"  [DEBUG] status={resp.status} len={len(text)} preview={text[:100]}")
+                              try:
+                                  import json as _j
+                                  data = _j.loads(text)
+                              except:
+                                  return player_id, None
+                          else:
+                              if resp.status != 200:
+                                  return player_id, None
                               data = await resp.json(content_type=None)
-                              values = data.get('list', [])
-                              if values:
-                                  return player_id, values[-1].get('mw', '')
-                  except: pass
+                          values = data.get('list', [])
+                          if values:
+                              return player_id, values[-1].get('mw', '')
+                  except Exception as e:
+                      if not first_debug['done']:
+                          first_debug['done'] = True
+                          print(f"  [DEBUG] exception: {e}")
                   return player_id, None
           async def main():
               player_ids = get_player_ids()
@@ -345,12 +360,12 @@ jobs:
                   multiplier = 1
                   if 'm' in mv_str.lower():
                       multiplier = 1_000_000
-                      mv_str = mv_str.lower().replace('m','').replace('€','').replace('£','').strip()
+                      mv_str = mv_str.lower().replace('m','').replace('e','').replace('£','').strip()
                   elif 'k' in mv_str.lower() or 'th.' in mv_str.lower():
                       multiplier = 1_000
-                      mv_str = mv_str.lower().replace('k','').replace('th.','').replace('€','').replace('£','').strip()
+                      mv_str = mv_str.lower().replace('k','').replace('th.','').replace('e','').replace('£','').strip()
                   else:
-                      mv_str = mv_str.replace('€','').replace('£','').replace(',','').strip()
+                      mv_str = mv_str.replace('e','').replace('£','').replace(',','').strip()
                   return int(float(mv_str) * multiplier)
               except: return ''
           # Laad marktwaarden
@@ -412,10 +427,10 @@ jobs:
               mv = mv_lookup.get(str(player_id), '')
               if not mv:
                   mv_raw = p.get('current_market_value') or ''
-                  try: mv = int(str(mv_raw).replace('€','').replace(',','').strip()) if mv_raw else ''
+                  try: mv = int(str(mv_raw).replace('e','').replace(',','').strip()) if mv_raw else ''
                   except: mv = ''
               mv_high_raw = p.get('highest_market_value') or ''
-              try: mv_high = int(str(mv_high_raw).replace('€','').replace(',','').strip()) if mv_high_raw else ''
+              try: mv_high = int(str(mv_high_raw).replace('e','').replace(',','').strip()) if mv_high_raw else ''
               except: mv_high = ''
               first_name = p.get('name', '') or ''
               last_name = p.get('last_name', '') or ''
@@ -444,14 +459,33 @@ jobs:
               })
           existing_players = load_csv_existing(OUT / 'players.csv')
           player_id_map = {r['player_id']: r for r in existing_players if r.get('player_id')}
+          # Bewaar debut kolommen van bestaande spelers
+          debut_cols = [
+              'hoogste_divisie_debut_date', 'hoogste_divisie_debut_club',
+              'tweede_niveau_debut_date', 'tweede_niveau_debut_club',
+              'debut_highest_division_date', 'debut_highest_division_club', 'debut_highest_division_competition',
+              'debut_second_tier_date', 'debut_second_tier_club', 'debut_second_tier_competition',
+          ]
           for r in new_player_rows:
-              if r.get('player_id'):
-                  player_id_map[str(r['player_id'])] = r
+              pid = str(r.get('player_id', ''))
+              if pid:
+                  if pid in player_id_map:
+                      old_row = player_id_map[pid]
+                      for col in debut_cols:
+                          if col in old_row and old_row[col]:
+                              r[col] = old_row[col]
+                  player_id_map[pid] = r
           merged_players = list(player_id_map.values())
           if merged_players:
+              all_cols = list(merged_players[0].keys())
+              for col in debut_cols:
+                  if col not in all_cols:
+                      all_cols.append(col)
               with open(OUT / 'players.csv', 'w', newline='', encoding='utf-8') as f:
-                  w = csv.DictWriter(f, fieldnames=list(merged_players[0].keys()))
-                  w.writeheader(); w.writerows(merged_players)
+                  w = csv.DictWriter(f, fieldnames=all_cols, extrasaction='ignore')
+                  w.writeheader()
+                  for row in merged_players:
+                      w.writerow({k: row.get(k, '') for k in all_cols})
               print(f'players.csv: {len(merged_players)} rijen (was {len(existing_players)}, +{len(merged_players)-len(existing_players)} nieuw)')
           # ── OPTREDENS ──
           appearances = load_jsonl(RAW / 'appearances.json')
@@ -489,17 +523,21 @@ jobs:
                   'goals': safe_int(a.get('goals')),
                   'assists': safe_int(a.get('assists')),
                   'minutes_played': minutes_played,
+                  'position_in_game': str(a.get('position_in_game', '') or '').strip(),
               })
           existing_apps = load_csv_existing(OUT / 'appearances_existing.csv')
-          app_id_map = {r['appearance_id']: r for r in existing_apps}
+          app_id_map = {r['appearance_id']: r for r in existing_apps if r.get('appearance_id')}
           for r in new_app_rows:
               if r['appearance_id']:
                   app_id_map[r['appearance_id']] = r
           merged_apps = list(app_id_map.values())
           if merged_apps:
+              all_app_cols = list(merged_apps[0].keys())
               with open(OUT / 'appearances.csv', 'w', newline='', encoding='utf-8') as f:
-                  w = csv.DictWriter(f, fieldnames=list(merged_apps[0].keys()))
-                  w.writeheader(); w.writerows(merged_apps)
+                  w = csv.DictWriter(f, fieldnames=all_app_cols, extrasaction='ignore')
+                  w.writeheader()
+                  for row in merged_apps:
+                      w.writerow({k: row.get(k, '') for k in all_app_cols})
               print(f'appearances.csv: {len(merged_apps)} rijen (was {len(existing_apps)}, +{len(merged_apps)-len(existing_apps)} nieuw)')
           # ── WEDSTRIJDEN ──
           games = load_jsonl(RAW / 'games.json')
@@ -530,7 +568,7 @@ jobs:
                   'url': f"https://www.transfermarkt.co.uk{g.get('href', '')}",
               })
           existing_games = load_csv_existing(OUT / 'games.csv')
-          game_id_map = {r['game_id']: r for r in existing_games}
+          game_id_map = {r['game_id']: r for r in existing_games if r.get('game_id')}
           for r in new_game_rows:
               if r['game_id']:
                   game_id_map[str(r['game_id'])] = r
@@ -543,18 +581,6 @@ jobs:
           def _fix_encoding(s):
               if not s: return s
               return str(s).replace('â\x82\xac', '€').replace('Â', '').replace('â‚¬', '€')
-          def _club_name(val):
-              if not val: return ''
-              import ast as _ast
-              s = str(val).strip()
-              if s.startswith('{'):
-                  try:
-                      import json as _j
-                      return _j.loads(s.replace("'",'"')).get('clubName', s)
-                  except:
-                      try: return _ast.literal_eval(s).get('clubName', s)
-                      except: pass
-              return s
           # ── TRANSFERS ──
           transfers_raw = load_jsonl(RAW / 'transfers.json')
           new_transfer_rows = []
