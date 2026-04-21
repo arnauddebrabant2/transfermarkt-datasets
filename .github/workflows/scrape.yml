@@ -35,10 +35,10 @@ jobs:
 
           USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
           ROBOTSTXT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-          DOWNLOAD_DELAY = 0.5
+          DOWNLOAD_DELAY = 1
           RANDOMIZE_DOWNLOAD_DELAY = True
-          CONCURRENT_REQUESTS = 6
-          CONCURRENT_REQUESTS_PER_DOMAIN = 6
+          CONCURRENT_REQUESTS = 5
+          CONCURRENT_REQUESTS_PER_DOMAIN = 5
           RETRY_ENABLED = True
           RETRY_TIMES = 5
           RETRY_HTTP_CODES = [403, 429, 500, 502, 503, 504, 522, 524, 408]
