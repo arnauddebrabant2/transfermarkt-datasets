@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  CURRENT_SEASON: '2025'   # Alleen lopend seizoen scrapen - historische data zit al in CSV's
+  CURRENT_SEASON: '2025'
 
 jobs:
   scrape:
@@ -31,7 +31,6 @@ jobs:
           poetry config virtualenvs.create false
           poetry install --without dev
           pip install aiohttp asyncio
-          # Gebalanceerde Scrapy-settings: 6 parallel, 0.5s delay
           cat >> /tmp/scraper/tfmkt/settings.py << 'SETTINGS'
 
           USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -48,12 +47,13 @@ jobs:
           AUTOTHROTTLE_MAX_DELAY = 8
           AUTOTHROTTLE_TARGET_CONCURRENCY = 6.0
           HTTPCACHE_ENABLED = False
+          LOG_LEVEL = "INFO"
           SETTINGS
           if [ -f "$GITHUB_WORKSPACE/patch_scraper.py" ]; then
             python3 $GITHUB_WORKSPACE/patch_scraper.py || echo "Patch niet van toepassing, overslaan"
           fi
 
-      - name: Verifieer scraper versie en Scrapy CLI
+      - name: Verifieer scraper
         run: |
           cd /tmp/scraper
           git describe --tags || git rev-parse HEAD
@@ -79,25 +79,151 @@ jobs:
                       shutil.copyfileobj(f_in, f_out)
           PYEOF
 
-      - name: Stap 1 - Clubs scrapen (alleen huidig seizoen)
+      - name: Reinig competitions.json input
+        run: |
+          python3 << 'PYEOF'
+          # Reinig ook de input-file - v0.4.0 common.py crasht op elke lege regel
+          import json, sys
+          from pathlib import Path
+          src = Path('data/competitions.json')
+          if not src.exists() or src.stat().st_size == 0:
+              print("FOUT: competitions.json ontbreekt!")
+              sys.exit(1)
+          valid = []
+          with open(src, encoding='utf-8') as f:
+              for line in f:
+                  line = line.strip()
+                  if not line: continue
+                  try:
+                      obj = json.loads(line)
+                      if 'href' in obj:
+                          valid.append(obj)
+                  except: pass
+          with open(src, 'w', encoding='utf-8') as f:
+              for item in valid:
+                  f.write(json.dumps(item) + '\n')
+          print(f"competitions.json: {len(valid)} geldige competities")
+          PYEOF
+
+      - name: Stap 1 - Clubs scrapen
         run: |
           cd /tmp/scraper
           echo "=== Clubs seizoen $CURRENT_SEASON ==="
+          # Schrijf naar temp-bestand met -t om format expliciet te zetten
+          rm -f /tmp/clubs_raw.jsonl
           scrapy crawl clubs \
             -a parents=$GITHUB_WORKSPACE/data/competitions.json \
             -a season=$CURRENT_SEASON \
-            -O $GITHUB_WORKSPACE/data/raw/clubs.json:jsonlines || true
-          echo "Clubs: $(wc -l < $GITHUB_WORKSPACE/data/raw/clubs.json 2>/dev/null || echo 0)"
+            -t jsonlines \
+            -o /tmp/clubs_raw.jsonl
+          echo "Clubs raw bestand grootte: $(wc -c < /tmp/clubs_raw.jsonl 2>/dev/null || echo 0) bytes"
+          echo "Clubs raw regels: $(wc -l < /tmp/clubs_raw.jsonl 2>/dev/null || echo 0)"
+          # Kopieer naar workspace
+          cp /tmp/clubs_raw.jsonl $GITHUB_WORKSPACE/data/raw/clubs.json
+          echo "Eerste club (debug):"
+          head -1 $GITHUB_WORKSPACE/data/raw/clubs.json || echo "LEEG"
 
-      - name: Stap 2 - Spelers scrapen (alleen huidig seizoen)
+      - name: Reinig clubs.json (verwijder lege/ongeldige regels)
+        run: |
+          python3 << 'PYEOF'
+          # KRITIEK: common.py in v0.4.0 crasht op EEN ENKELE lege regel of
+          # ongeldige JSON met: json.loads(line) for line in f.readlines()
+          # Zonder deze reiniging krijgt players-spider 0 resultaten.
+          import json, sys
+          from pathlib import Path
+          src = Path('data/raw/clubs.json')
+          if not src.exists() or src.stat().st_size == 0:
+              print("FOUT: clubs.json bestaat niet of is leeg!")
+              sys.exit(1)
+          valid_items, invalid_count = [], 0
+          with open(src, encoding='utf-8') as f:
+              for i, line in enumerate(f):
+                  line = line.strip()
+                  if not line:
+                      continue
+                  try:
+                      obj = json.loads(line)
+                      if '/verein/' in obj.get('href', ''):
+                          valid_items.append(obj)
+                      else:
+                          invalid_count += 1
+                  except Exception as e:
+                      invalid_count += 1
+                      if invalid_count <= 3:
+                          print(f"  Regel {i+1} ongeldig: {e} | content: {line[:150]}")
+          # Schrijf schone versie terug (deduplicate op href)
+          seen_hrefs = set()
+          unique = []
+          for item in valid_items:
+              h = item.get('href', '')
+              if h and h not in seen_hrefs:
+                  seen_hrefs.add(h)
+                  unique.append(item)
+          with open(src, 'w', encoding='utf-8') as f:
+              for item in unique:
+                  f.write(json.dumps(item) + '\n')
+          print(f"clubs.json gereinigd: {len(unique)} unieke clubs (was {len(valid_items)+invalid_count} regels, {invalid_count} ongeldig)")
+          if len(unique) == 0:
+              print("FOUT: geen geldige clubs over na reiniging!")
+              sys.exit(1)
+          PYEOF
+
+      - name: Stap 2 - Spelers scrapen
         run: |
           cd /tmp/scraper
           echo "=== Spelers seizoen $CURRENT_SEASON ==="
+          rm -f /tmp/players_raw.jsonl
           scrapy crawl players \
             -a parents=$GITHUB_WORKSPACE/data/raw/clubs.json \
             -a season=$CURRENT_SEASON \
-            -O $GITHUB_WORKSPACE/data/raw/players.json:jsonlines || true
-          echo "Spelers: $(wc -l < $GITHUB_WORKSPACE/data/raw/players.json 2>/dev/null || echo 0)"
+            -t jsonlines \
+            -o /tmp/players_raw.jsonl
+          echo "Spelers raw bestand grootte: $(wc -c < /tmp/players_raw.jsonl 2>/dev/null || echo 0) bytes"
+          echo "Spelers raw regels: $(wc -l < /tmp/players_raw.jsonl 2>/dev/null || echo 0)"
+          cp /tmp/players_raw.jsonl $GITHUB_WORKSPACE/data/raw/players.json
+          echo "Eerste speler (debug):"
+          head -1 $GITHUB_WORKSPACE/data/raw/players.json || echo "LEEG"
+
+      - name: Reinig players.json (verwijder lege/ongeldige regels)
+        run: |
+          python3 << 'PYEOF'
+          import json, sys
+          from pathlib import Path
+          src = Path('data/raw/players.json')
+          if not src.exists() or src.stat().st_size == 0:
+              print("FOUT: players.json bestaat niet of is leeg!")
+              sys.exit(1)
+          valid_items, invalid_count = [], 0
+          with open(src, encoding='utf-8') as f:
+              for i, line in enumerate(f):
+                  line = line.strip()
+                  if not line:
+                      continue
+                  try:
+                      obj = json.loads(line)
+                      if '/spieler/' in obj.get('href', ''):
+                          valid_items.append(obj)
+                      else:
+                          invalid_count += 1
+                  except Exception as e:
+                      invalid_count += 1
+                      if invalid_count <= 3:
+                          print(f"  Regel {i+1} ongeldig: {e} | content: {line[:150]}")
+          seen = set()
+          unique = []
+          for item in valid_items:
+              h = item.get('href', '')
+              if h and h not in seen:
+                  seen.add(h)
+                  unique.append(item)
+          with open(src, 'w', encoding='utf-8') as f:
+              for item in unique:
+                  f.write(json.dumps(item) + '\n')
+          print(f"players.json gereinigd: {len(unique)} unieke spelers ({invalid_count} regels weggegooid)")
+          if len(unique) == 0:
+              print("FOUT: geen geldige spelers over na reiniging!")
+              sys.exit(1)
+          PYEOF
 
       - name: Stap 2b - Marktwaarden ophalen
         timeout-minutes: 30
@@ -162,9 +288,7 @@ jobs:
           echo "Marktwaarden: $(wc -c < $GITHUB_WORKSPACE/data/raw/market_values.json 2>/dev/null || echo 0) bytes"
 
       - name: Wacht na marktwaarden (IP cooldown)
-        run: |
-          echo "Wachten 3 minuten..."
-          sleep 180
+        run: sleep 180
 
       - name: Stap 2c - Transferhistorie ophalen via API
         timeout-minutes: 30
@@ -230,10 +354,8 @@ jobs:
           PYEOF
           echo "Transfers: $(wc -l < $GITHUB_WORKSPACE/data/raw/transfers.json 2>/dev/null || echo 0)"
 
-      - name: Wacht na transfers (IP cooldown)
-        run: |
-          echo "Wachten 2 minuten..."
-          sleep 120
+      - name: Wacht na transfers
+        run: sleep 120
 
       - name: Stap 2d - Historische marktwaarden ophalen via API
         timeout-minutes: 30
@@ -299,25 +421,18 @@ jobs:
           PYEOF
           echo "Valuations: $(wc -l < $GITHUB_WORKSPACE/data/raw/valuations.json 2>/dev/null || echo 0)"
 
-      - name: Stap 2e - Incrementeel filter - alleen spelers zonder recente data
+      - name: Stap 2e - Incrementeel filter voor appearances
         run: |
           python3 << 'PYEOF'
-          # Filter players.json zodat we alleen appearances scrapen voor spelers
-          # die geen recente data hebben (>7 dagen geleden).
-          # Dit bespaart enorm veel tijd op wekelijkse runs.
           import json, csv
           from pathlib import Path
           from datetime import datetime, timedelta
-
           PLAYERS_FULL = Path('data/raw/players.json')
           PLAYERS_FILTERED = Path('data/raw/players_to_scrape.json')
           APPEARANCES_EXISTING = Path('data/csv/appearances_existing.csv')
-
-          THRESHOLD_DAYS = 7   # spelers met data van <7 dagen geleden slaan we over
+          THRESHOLD_DAYS = 7
           threshold_date = datetime.now() - timedelta(days=THRESHOLD_DAYS)
           print(f"Drempel: spelers met appearance na {threshold_date.date()} overslaan")
-
-          # Bouw map van player_id -> meest recente appearance-datum
           last_seen = {}
           if APPEARANCES_EXISTING.exists():
               with open(APPEARANCES_EXISTING, encoding='utf-8') as f:
@@ -327,7 +442,6 @@ jobs:
                       date_str = row.get('date', '')
                       if not pid or not date_str:
                           continue
-                      # Probeer meerdere date-formats
                       dt = None
                       for fmt in ('%Y-%m-%d', '%m/%d/%y', '%b %d, %Y'):
                           try:
@@ -341,16 +455,13 @@ jobs:
                           last_seen[pid] = dt
               print(f"Historische appearances bekend: {len(last_seen)} unieke spelers")
           else:
-              print("Geen bestaande appearances gevonden - alle spelers worden gescraped")
-
-          # Filter players.json
+              print("Geen bestaande appearances gevonden")
           total, kept = 0, 0
           with open(PLAYERS_FULL, encoding='utf-8') as f_in, \
                open(PLAYERS_FILTERED, 'w', encoding='utf-8') as f_out:
               for line in f_in:
                   line = line.strip()
-                  if not line:
-                      continue
+                  if not line: continue
                   total += 1
                   try:
                       p = json.loads(line)
@@ -361,7 +472,6 @@ jobs:
                   pid = ''
                   if 'spieler' in parts:
                       pid = parts[parts.index('spieler') + 1]
-                  # Hou speler als hij geen recente appearance heeft
                   if pid in last_seen and last_seen[pid] > threshold_date:
                       continue
                   f_out.write(line + '\n')
@@ -369,17 +479,22 @@ jobs:
           print(f"Filter resultaat: {kept}/{total} spelers nog te scrapen ({100*kept//max(total,1)}%)")
           PYEOF
 
-      - name: Stap 3 - Optredens scrapen (incrementeel)
+      - name: Stap 3 - Optredens scrapen
         timeout-minutes: 90
         continue-on-error: true
         run: |
           cd /tmp/scraper
           echo "=== Optredens seizoen $CURRENT_SEASON ==="
+          rm -f /tmp/appearances_raw.jsonl
           scrapy crawl appearances \
             -a parents=$GITHUB_WORKSPACE/data/raw/players_to_scrape.json \
             -a season=$CURRENT_SEASON \
-            -O $GITHUB_WORKSPACE/data/raw/appearances.json:jsonlines || true
-          echo "Optredens nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/appearances.json 2>/dev/null || echo 0)"
+            -t jsonlines \
+            -o /tmp/appearances_raw.jsonl || true
+          if [ -f /tmp/appearances_raw.jsonl ]; then
+            cp /tmp/appearances_raw.jsonl $GITHUB_WORKSPACE/data/raw/appearances.json
+          fi
+          echo "Optredens: $(wc -l < $GITHUB_WORKSPACE/data/raw/appearances.json 2>/dev/null || echo 0)"
 
       - name: Stap 4 - Wedstrijden scrapen
         timeout-minutes: 40
@@ -387,10 +502,15 @@ jobs:
         run: |
           cd /tmp/scraper
           echo "=== Wedstrijden seizoen $CURRENT_SEASON ==="
+          rm -f /tmp/games_raw.jsonl
           scrapy crawl games \
             -a parents=$GITHUB_WORKSPACE/data/competitions.json \
             -a season=$CURRENT_SEASON \
-            -O $GITHUB_WORKSPACE/data/raw/games.json:jsonlines || true
+            -t jsonlines \
+            -o /tmp/games_raw.jsonl || true
+          if [ -f /tmp/games_raw.jsonl ]; then
+            cp /tmp/games_raw.jsonl $GITHUB_WORKSPACE/data/raw/games.json
+          fi
           echo "Wedstrijden: $(wc -l < $GITHUB_WORKSPACE/data/raw/games.json 2>/dev/null || echo 0)"
 
       - name: Stap 5 - JSON naar CSV omzetten en samenvoegen
