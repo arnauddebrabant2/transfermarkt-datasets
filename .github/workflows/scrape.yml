@@ -2,7 +2,7 @@ name: Weekly Transfermarkt Scrape
 
 on:
   schedule:
-    - cron: '0 4 * * 1'  # Elke maandag om 04:00 UTC
+    - cron: '0 4 * * 1'
   workflow_dispatch:
 
 jobs:
@@ -74,7 +74,7 @@ jobs:
           done
           echo "Spelers nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/players.json)"
 
-      - name: Stap 2b - Marktwaarden + valuations van dcaribou dataset
+      - name: Stap 2b - Marktwaarden en valuations van dcaribou dataset
         timeout-minutes: 15
         continue-on-error: true
         run: |
@@ -82,17 +82,13 @@ jobs:
           import urllib.request, gzip, csv, json
           from pathlib import Path
           RAW = Path('data/raw')
-          OUT = Path('data/csv')
-          RAW.mkdir(exist_ok=True); OUT.mkdir(exist_ok=True)
-          # TM ceapi blokkeert requests vanuit GitHub Actions (status 405)
-          # Download marktwaarden van dcaribou's publieke wekelijkse dataset
+          RAW.mkdir(exist_ok=True)
           url = "https://pub-e682421888d945d684bcae8890b0ec20.r2.dev/data/player_valuations.csv.gz"
           dest = RAW / 'player_valuations_dl.csv.gz'
           print("Player valuations downloaden van dcaribou dataset...")
           try:
               urllib.request.urlretrieve(url, dest)
               print(f"Gedownload: {dest.stat().st_size // 1024} KB")
-              # Bouw mv_lookup: meest recente waarde per speler
               mv_lookup = {}
               all_vals = []
               with gzip.open(dest, 'rt', encoding='utf-8') as f:
@@ -105,24 +101,21 @@ jobs:
                       if pid and mv and str(mv).strip() not in ('', 'None', '0'):
                           if pid not in mv_lookup or date > mv_lookup[pid][1]:
                               mv_lookup[pid] = (mv, date)
-              # Schrijf market_values.json
               with open(RAW / 'market_values.json', 'w') as f:
                   json.dump({pid: v[0] for pid, v in mv_lookup.items()}, f)
               print(f"market_values.json: {len(mv_lookup)} spelers")
-              # Schrijf valuations.json voor stap 5
-              with open(RAW / 'valuations.json', 'w', encoding='utf-8') as f:
+              with open(RAW / 'valuations.json', 'w', encoding='utf-8') as fout:
                   for row in all_vals:
-                      f.write(json.dumps(row) + '
-')
+                      fout.write(json.dumps(row) + chr(10))
               print(f"valuations.json: {len(all_vals)} rijen")
               dest.unlink()
           except Exception as e:
               print(f"Download mislukt: {e}")
-              # Schrijf lege bestanden zodat stap 5 niet crasht
               open(RAW / 'market_values.json', 'w').write('{}')
               open(RAW / 'valuations.json', 'w').close()
           PYEOF
           echo "Marktwaarden: $(wc -c < $GITHUB_WORKSPACE/data/raw/market_values.json 2>/dev/null || echo 0) bytes"
+
       - name: Stap 2c - Transferhistorie ophalen via API
         timeout-minutes: 30
         continue-on-error: true
@@ -159,8 +152,7 @@ jobs:
                       async with session.get(url, headers=HEADERS, timeout=aiohttp.ClientTimeout(total=10)) as resp:
                           if resp.status == 200:
                               data = await resp.json(content_type=None)
-                              transfers = data.get('transfers', [])
-                              return player_id, transfers
+                              return player_id, data.get('transfers', [])
                   except: pass
                   return player_id, []
           async def main():
@@ -180,9 +172,9 @@ jobs:
                       if done % 500 == 0:
                           print(f"  {done}/{len(player_ids)} verwerkt, {len(all_transfers)} transfers")
               print(f"Klaar: {len(all_transfers)} transfers gevonden")
-              with open(TRANSFERS_FILE, 'w', encoding='utf-8') as f:
+              with open(TRANSFERS_FILE, 'w', encoding='utf-8') as fout:
                   for t in all_transfers:
-                      f.write(json.dumps(t) + '\n')
+                      fout.write(json.dumps(t) + chr(10))
           asyncio.run(main())
           PYEOF
           echo "Transfers: $(wc -l < $GITHUB_WORKSPACE/data/raw/transfers.json 2>/dev/null || echo 0)"
@@ -192,8 +184,6 @@ jobs:
           echo "Wachten 3 minuten..."
           sleep 180
 
-      - name: Stap 2d - Valuations (al opgehaald in stap 2b)
-        run: echo "Valuations al gedownload van dcaribou in stap 2b"
       - name: Stap 3 - Optredens scrapen
         timeout-minutes: 120
         continue-on-error: true
@@ -208,7 +198,7 @@ jobs:
           done
           echo "Optredens nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/appearances.json)"
 
-      - name: Stap 4 - Wedstrijden ophalen van dcaribou publieke dataset
+      - name: Stap 4 - Wedstrijden van dcaribou dataset
         timeout-minutes: 15
         continue-on-error: true
         run: |
@@ -217,28 +207,26 @@ jobs:
           from pathlib import Path
           RAW = Path('data/raw')
           RAW.mkdir(exist_ok=True)
-          # TM blokkeert games scraper vanuit GitHub Actions IPs
-          # Gebruik dcaribou's publieke dataset als alternatief
           url = "https://pub-e682421888d945d684bcae8890b0ec20.r2.dev/data/games.csv.gz"
-          dest = RAW / 'games_dcaribou.csv.gz'
-          print(f"Games downloaden van dcaribou dataset...")
+          dest = RAW / 'games_dl.csv.gz'
+          print("Games downloaden van dcaribou dataset...")
           try:
               urllib.request.urlretrieve(url, dest)
               print(f"Gedownload: {dest.stat().st_size // 1024} KB")
-              # Converteer naar games.json formaat
               count = 0
-              with gzip.open(dest, 'rt', encoding='utf-8') as f,                    open(RAW / 'games.json', 'w', encoding='utf-8') as out:
-                  reader = csv.DictReader(f)
-                  for row in reader:
-                      out.write(json.dumps(row) + '
-')
-                      count += 1
-              print(f"Games geschreven: {count}")
+              with gzip.open(dest, 'rt', encoding='utf-8') as f:
+                  with open(RAW / 'games.json', 'w', encoding='utf-8') as out:
+                      reader = csv.DictReader(f)
+                      for row in reader:
+                          out.write(json.dumps(row) + chr(10))
+                          count += 1
+              print(f"Games: {count} rijen")
               dest.unlink()
           except Exception as e:
               print(f"Download mislukt: {e}")
+              open(RAW / 'games.json', 'w').close()
           PYEOF
-          echo "Wedstrijden nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/games.json 2>/dev/null || echo 0)"
+          echo "Wedstrijden: $(wc -l < $GITHUB_WORKSPACE/data/raw/games.json 2>/dev/null || echo 0)"
 
       - name: Stap 5 - JSON naar CSV omzetten en samenvoegen
         run: |
@@ -328,7 +316,6 @@ jobs:
                   w.writeheader(); w.writerows(merged_clubs)
               print(f'clubs.csv: {len(merged_clubs)} rijen (was {len(existing_clubs)}, +{len(merged_clubs)-len(existing_clubs)} nieuw)')
           # ── SPELERS ──
-          # Debut kolommen worden door een aparte scraper toegevoegd — bewaar ze hier
           debut_cols = [
               'hoogste_divisie_debut_date', 'hoogste_divisie_debut_club',
               'tweede_niveau_debut_date', 'tweede_niveau_debut_club',
@@ -364,20 +351,14 @@ jobs:
               last_name = p.get('last_name', '') or ''
               full_name = f"{first_name} {last_name}".strip() or first_name
               new_player_rows.append({
-                  'player_id': player_id,
-                  'name': full_name,
-                  'first_name': first_name,
-                  'last_name': last_name,
-                  'date_of_birth': p.get('date_of_birth', ''),
-                  'age': p.get('age', ''),
+                  'player_id': player_id, 'name': full_name,
+                  'first_name': first_name, 'last_name': last_name,
+                  'date_of_birth': p.get('date_of_birth', ''), 'age': p.get('age', ''),
                   'country_of_citizenship': p.get('citizenship', ''),
                   'country_of_birth': (p.get('place_of_birth') or {}).get('country', ''),
-                  'position': position,
-                  'sub_position': pos,
-                  'foot': p.get('foot', ''),
-                  'height_in_cm': height_cm,
-                  'market_value_in_eur': mv,
-                  'highest_market_value_in_eur': mv_high,
+                  'position': position, 'sub_position': pos,
+                  'foot': p.get('foot', ''), 'height_in_cm': height_cm,
+                  'market_value_in_eur': mv, 'highest_market_value_in_eur': mv_high,
                   'contract_expiration_date': p.get('contract_expires', ''),
                   'current_club_id': club_info.get('club_id', ''),
                   'current_club_name': club_info.get('name', ''),
@@ -432,10 +413,8 @@ jobs:
                   try: return int(val) if val != '' and val is not None else 0
                   except: return 0
               new_app_rows.append({
-                  'appearance_id': appearance_id,
-                  'game_id': game_id,
-                  'player_id': player_id,
-                  'player_club_id': player_club_id,
+                  'appearance_id': appearance_id, 'game_id': game_id,
+                  'player_id': player_id, 'player_club_id': player_club_id,
                   'date': date,
                   'player_name': f"{parent.get('name', '')} {parent.get('last_name', '')}".strip(),
                   'competition_id': a.get('competition_code', ''),
@@ -461,29 +440,26 @@ jobs:
                       w.writerow({k: row.get(k, '') for k in all_app_cols})
               print(f'appearances.csv: {len(merged_apps)} rijen (was {len(existing_apps)}, +{len(merged_apps)-len(existing_apps)} nieuw)')
           # ── WEDSTRIJDEN ──
-          # Ondersteunt zowel scraper output als dcaribou CSV formaat
           games = load_jsonl(RAW / 'games.json')
           new_game_rows = []
           for g in games:
-              # dcaribou CSV formaat: kolommen direct beschikbaar
-              if g.get('home_club_goals') is not None or g.get('home_club_id'):
+              if g.get('home_club_id') or g.get('home_club_goals') is not None:
                   new_game_rows.append({
-                      'game_id':        g.get('game_id', ''),
-                      'competition_id': g.get('competition_id', ''),
-                      'season':         g.get('season', ''),
-                      'date':           g.get('date', ''),
-                      'home_club_id':   g.get('home_club_id', ''),
-                      'away_club_id':   g.get('away_club_id', ''),
-                      'home_club_goals':g.get('home_club_goals', ''),
-                      'away_club_goals':g.get('away_club_goals', ''),
-                      'home_club_name': g.get('home_club_name', ''),
-                      'away_club_name': g.get('away_club_name', ''),
-                      'stadium':        g.get('stadium', ''),
-                      'attendance':     g.get('attendance', ''),
-                      'url':            g.get('url', ''),
+                      'game_id':         g.get('game_id', ''),
+                      'competition_id':  g.get('competition_id', ''),
+                      'season':          g.get('season', ''),
+                      'date':            g.get('date', ''),
+                      'home_club_id':    g.get('home_club_id', ''),
+                      'away_club_id':    g.get('away_club_id', ''),
+                      'home_club_goals': g.get('home_club_goals', ''),
+                      'away_club_goals': g.get('away_club_goals', ''),
+                      'home_club_name':  g.get('home_club_name', ''),
+                      'away_club_name':  g.get('away_club_name', ''),
+                      'stadium':         g.get('stadium', ''),
+                      'attendance':      g.get('attendance', ''),
+                      'url':             g.get('url', ''),
                   })
               else:
-                  # Scraper formaat: result als "1:0", clubs als dicts
                   result = g.get('result', '') or ''
                   try:
                       home_goals, away_goals = result.split(':')
@@ -491,22 +467,21 @@ jobs:
                   except: home_goals, away_goals = '', ''
                   home_id = extract_id((g.get('home_club') or {}).get('href', ''))
                   away_id = extract_id((g.get('away_club') or {}).get('href', ''))
-                  comp_id = (g.get('parent') or {}).get('country_code', '') or \
-                            extract_id((g.get('parent') or {}).get('href', ''))
+                  comp_id = (g.get('parent') or {}).get('country_code', '') or                   extract_id((g.get('parent') or {}).get('href', ''))
                   new_game_rows.append({
-                      'game_id':        g.get('game_id', ''),
-                      'competition_id': comp_id,
-                      'season':         g.get('season', '2025'),
-                      'date':           g.get('date', ''),
-                      'home_club_id':   home_id,
-                      'away_club_id':   away_id,
-                      'home_club_goals':home_goals,
-                      'away_club_goals':away_goals,
-                      'home_club_name': g.get('home_club_name', ''),
-                      'away_club_name': g.get('away_club_name', ''),
-                      'stadium':        g.get('stadium', ''),
-                      'attendance':     g.get('attendance', ''),
-                      'url':            f"https://www.transfermarkt.co.uk{g.get('href', '')}",
+                      'game_id':         g.get('game_id', ''),
+                      'competition_id':  comp_id,
+                      'season':          g.get('season', '2025'),
+                      'date':            g.get('date', ''),
+                      'home_club_id':    home_id,
+                      'away_club_id':    away_id,
+                      'home_club_goals': home_goals,
+                      'away_club_goals': away_goals,
+                      'home_club_name':  g.get('home_club_name', ''),
+                      'away_club_name':  g.get('away_club_name', ''),
+                      'stadium':         g.get('stadium', ''),
+                      'attendance':      g.get('attendance', ''),
+                      'url':             f"https://www.transfermarkt.co.uk{g.get('href', '')}",
                   })
           existing_games = load_csv_existing(OUT / 'games.csv')
           game_id_map = {r['game_id']: r for r in existing_games if r.get('game_id')}
@@ -521,19 +496,7 @@ jobs:
               print(f'games.csv: {len(merged_games)} rijen (was {len(existing_games)}, +{len(merged_games)-len(existing_games)} nieuw)')
           def _fix_encoding(s):
               if not s: return s
-              return str(s).replace('â\x82\xac', '€').replace('Â', '').replace('â‚¬', '€')
-          def _club_name(val):
-              if not val: return ''
-              import ast as _ast
-              s = str(val).strip()
-              if s.startswith('{'):
-                  try:
-                      import json as _j
-                      return _j.loads(s.replace("'",'"')).get('clubName', s)
-                  except:
-                      try: return _ast.literal_eval(s).get('clubName', s)
-                      except: pass
-              return s
+              return str(s).replace('¬', 'EUR').replace('Â', '').replace('â¬', 'EUR')
           # ── TRANSFERS ──
           transfers_raw = load_jsonl(RAW / 'transfers.json')
           new_transfer_rows = []
@@ -564,13 +527,13 @@ jobs:
           new_val_rows = []
           for v in valuations_raw:
               player_id = str(v.get('player_id', ''))
-              mv_raw = v.get('market_value', '') or v.get('mw', '')
+              mv_raw = v.get('market_value_in_eur', '') or v.get('market_value', '') or v.get('mw', '')
               new_val_rows.append({
                   'player_id':           player_id,
-                  'date':                v.get('datum_mw', ''),
-                  'date_timestamp':      v.get('date_x', ''),
+                  'date':                v.get('date', '') or v.get('datum_mw', ''),
+                  'date_timestamp':      v.get('date_timestamp', '') or v.get('date_x', ''),
                   'market_value_in_eur': parse_market_value(str(mv_raw)) if mv_raw else '',
-                  'club_name':           v.get('verein', ''),
+                  'club_name':           v.get('club_name', '') or v.get('verein', ''),
                   'age':                 v.get('age', ''),
               })
           existing_vals = load_csv_existing(OUT / 'player_valuations.csv')
@@ -584,7 +547,6 @@ jobs:
                   w = csv.DictWriter(f, fieldnames=list(merged_vals[0].keys()))
                   w.writeheader(); w.writerows(merged_vals)
               print(f'player_valuations.csv: {len(merged_vals)} rijen (was {len(existing_vals)}, +{len(merged_vals)-len(existing_vals)} nieuw)')
-          # Ruim tijdelijk bestand op
           tmp = Path('data/csv/appearances_existing.csv')
           if tmp.exists(): tmp.unlink()
           print('Conversie en samenvoegen klaar!')
