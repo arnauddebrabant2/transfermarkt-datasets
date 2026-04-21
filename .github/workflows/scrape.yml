@@ -496,7 +496,9 @@ jobs:
               print(f'games.csv: {len(merged_games)} rijen (was {len(existing_games)}, +{len(merged_games)-len(existing_games)} nieuw)')
           def _fix_encoding(s):
               if not s: return s
-              return str(s).replace('¬', 'EUR').replace('Â', '').replace('â¬', 'EUR')
+              s = s.replace(chr(226)+chr(130)+chr(172), 'EUR')
+              s = s.replace(chr(194), '')
+              return s
           # ── TRANSFERS ──
           transfers_raw = load_jsonl(RAW / 'transfers.json')
           new_transfer_rows = []
@@ -552,15 +554,14 @@ jobs:
           print('Conversie en samenvoegen klaar!')
           PYEOF
 
-      - name: Commit en push CSV's
+      - name: Commit en push CSVs
         run: |
           git config user.name "ScoutAI Bot"
           git config user.email "actions@users.noreply.github.com"
           for f in data/csv/*.csv; do [ -f "$f" ] && gzip -f "$f" || true; done
           git add data/csv/
-          TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
-          BATCH=$(cat $GITHUB_WORKSPACE/data/competitions.json | python3 -c "import sys,json; lines=[json.loads(l) for l in sys.stdin if l.strip()]; codes=[l.get('country_code','') for l in lines[:3]]; print('+'.join(codes))" 2>/dev/null || echo "batch")
-          git commit -m "ScoutAI data update: ${TIMESTAMP} [${BATCH}...]" || echo "Geen wijzigingen"
+          TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M)
+          git commit -m "ScoutAI data update ${TIMESTAMP}" || echo "Geen wijzigingen"
           git push
 
       - name: Samenvatting
