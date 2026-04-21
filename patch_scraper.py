@@ -103,33 +103,40 @@ def patch_appearances():
 
     src = fpath.read_text()
 
-    # Vang de regel die crasht en maak er een guarded versie van
-    old_line = 'seasoned_full_stats_href = full_stats_href + f"/plus/0?saison={season}"'
-    if old_line not in src:
+    # Vind de crashende regel en behoud de bestaande indentatie
+    # Regex: optionele whitespace + "seasoned_full_stats_href = full_stats_href..."
+    pattern = re.compile(
+        r'^([ \t]*)seasoned_full_stats_href = full_stats_href \+ f"/plus/0\?saison=\{season\}"',
+        re.MULTILINE
+    )
+    m = pattern.search(src)
+    if not m:
         print("  appearances.py: crashende regel niet gevonden (versie mismatch?) - overslaan")
         return False
 
-    # Voeg guard toe: probeer fallback uit response.url, anders skip
-    new_block = '''# PATCH: fallback als full_stats_href None is (TM HTML aanpassing)
-      if full_stats_href is None:
-          # Bouw fallback uit de profile-URL:
-          # /<naam>/profil/spieler/<id> -> /<naam>/leistungsdatendetails/spieler/<id>
-          profile_path = response.url.split('transfermarkt.co.uk')[-1].split('transfermarkt.com')[-1]
-          if '/profil/spieler/' in profile_path:
-              full_stats_href = profile_path.replace('/profil/spieler/', '/leistungsdatendetails/spieler/')
-              self.logger.info("appearances: fallback URL gebruikt voor %s", response.url)
-          else:
-              self.logger.warning("appearances: geen full_stats_href EN geen fallback voor %s - overslaan", response.url)
-              return
-      seasoned_full_stats_href = full_stats_href + f"/plus/0?saison={season}"'''
+    indent = m.group(1)  # behoud exacte indentatie (spaties of tabs)
 
-    new_src = src.replace(old_line, new_block)
+    # Bouw vervangende block met dezelfde indentatie
+    new_block = (
+        f'{indent}# PATCH: fallback als full_stats_href None is (TM HTML aanpassing)\n'
+        f'{indent}if full_stats_href is None:\n'
+        f'{indent}    profile_path = response.url.split("transfermarkt.co.uk")[-1].split("transfermarkt.com")[-1]\n'
+        f'{indent}    if "/profil/spieler/" in profile_path:\n'
+        f'{indent}        full_stats_href = profile_path.replace("/profil/spieler/", "/leistungsdatendetails/spieler/")\n'
+        f'{indent}        self.logger.info("appearances: fallback URL gebruikt voor %s", response.url)\n'
+        f'{indent}    else:\n'
+        f'{indent}        self.logger.warning("appearances: geen full_stats_href en geen fallback voor %s - overslaan", response.url)\n'
+        f'{indent}        return\n'
+        f'{indent}seasoned_full_stats_href = full_stats_href + f"/plus/0?saison={{season}}"'
+    )
+
+    new_src = pattern.sub(lambda _m: new_block, src, count=1)
     if new_src == src:
-        print("  appearances.py: replace mislukt - overslaan")
+        print("  appearances.py: vervanging mislukt - overslaan")
         return False
 
     fpath.write_text(new_src)
-    print("  ✅ appearances.py: None-guard + fallback toegevoegd aan full_stats_href")
+    print(f"  ✅ appearances.py: None-guard + fallback toegevoegd (indent={len(indent)} chars)")
     return True
 
 
