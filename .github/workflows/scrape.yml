@@ -22,19 +22,19 @@ jobs:
       - name: Install transfermarkt-scraper (gepind op v0.4.0, laatste Scrapy-versie)
         run: |
           pip install poetry
-          # BELANGRIJK: pin op v0.4.0 — daarna is de scraper gemigreerd naar Crawlee
-          # en geeft Crawlee HTTP 405 op appearances/games endpoints van Transfermarkt
+          # BELANGRIJK: pin op v0.4.0 — latere main is gemigreerd naar Crawlee
+          # en geeft HTTP 405 op appearances/games endpoints van Transfermarkt
           git clone --branch v0.4.0 --depth 1 \
             https://github.com/dcaribou/transfermarkt-scraper.git /tmp/scraper
           cd /tmp/scraper
           poetry config virtualenvs.create false
           poetry install --without dev
           pip install aiohttp asyncio
-          # Stel User-Agent in zodat Transfermarkt requests accepteert (Scrapy-settings)
-          echo 'USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"' >> /tmp/scraper/tfmkt/settings.py
-          echo 'ROBOTSTXT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"' >> /tmp/scraper/tfmkt/settings.py
-          # Extra Scrapy-stabiliteit: langzamer, retry op 403/429, user-agent strict gebruiken
+          # User-Agent + Scrapy-stabiliteitsinstellingen (v0.4.0 = Scrapy 2.7.1)
           cat >> /tmp/scraper/tfmkt/settings.py << 'SETTINGS'
+
+          USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+          ROBOTSTXT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
           DOWNLOAD_DELAY = 1.0
           RANDOMIZE_DOWNLOAD_DELAY = True
           CONCURRENT_REQUESTS = 4
@@ -46,19 +46,20 @@ jobs:
           AUTOTHROTTLE_START_DELAY = 1
           AUTOTHROTTLE_MAX_DELAY = 10
           SETTINGS
-          # Patch appearances.py bug (full_stats_href kan None zijn) — alleen uitvoeren als bestand bestaat
+          # Patch (laat door als niet relevant op v0.4.0)
           if [ -f "$GITHUB_WORKSPACE/patch_scraper.py" ]; then
-            python3 $GITHUB_WORKSPACE/patch_scraper.py || echo "Patch niet van toepassing op v0.4.0, overslaan"
+            python3 $GITHUB_WORKSPACE/patch_scraper.py || echo "Patch niet van toepassing, overslaan"
           fi
 
-      - name: Verifieer scraper versie
+      - name: Verifieer scraper versie en Scrapy CLI
         run: |
           cd /tmp/scraper
           echo "=== Actieve tag ==="
           git describe --tags || git rev-parse HEAD
-          echo "=== tfmkt is nu: ==="
-          ls tfmkt/
+          echo "=== Scrapy versie ==="
           python -c "import scrapy; print('Scrapy versie:', scrapy.__version__)"
+          echo "=== Beschikbare spiders ==="
+          scrapy list
 
       - name: Maak output map aan
         run: mkdir -p data/raw data/csv
@@ -70,7 +71,7 @@ jobs:
           from pathlib import Path
           CSV = Path('data/csv')
           for gz_file in sorted(CSV.glob('*.csv.gz')):
-              stem = gz_file.stem  # bv appearances.csv
+              stem = gz_file.stem
               out_name = 'appearances_existing.csv' if stem == 'appearances.csv' else stem
               out_path = CSV / out_name
               print(f"Decomprimeer {gz_file.name} → {out_name} ({gz_file.stat().st_size // 1024} KB)")
@@ -84,24 +85,30 @@ jobs:
           cd /tmp/scraper
           for SEASON in 2024 2025; do
             echo "=== Clubs seizoen $SEASON ==="
-            python -m tfmkt clubs \
-              -p $GITHUB_WORKSPACE/data/competitions.json \
-              -s $SEASON \
-              >> $GITHUB_WORKSPACE/data/raw/clubs.json || true
+            scrapy crawl clubs \
+              -a parents=$GITHUB_WORKSPACE/data/competitions.json \
+              -a season=$SEASON \
+              -O /tmp/clubs_$SEASON.jsonl:jsonlines || true
+            if [ -f /tmp/clubs_$SEASON.jsonl ]; then
+              cat /tmp/clubs_$SEASON.jsonl >> $GITHUB_WORKSPACE/data/raw/clubs.json
+            fi
           done
-          echo "Clubs nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/clubs.json)"
+          echo "Clubs nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/clubs.json 2>/dev/null || echo 0)"
 
       - name: Stap 2 - Spelers scrapen
         run: |
           cd /tmp/scraper
           for SEASON in 2024 2025; do
             echo "=== Spelers seizoen $SEASON ==="
-            python -m tfmkt players \
-              -p $GITHUB_WORKSPACE/data/raw/clubs.json \
-              -s $SEASON \
-              >> $GITHUB_WORKSPACE/data/raw/players.json || true
+            scrapy crawl players \
+              -a parents=$GITHUB_WORKSPACE/data/raw/clubs.json \
+              -a season=$SEASON \
+              -O /tmp/players_$SEASON.jsonl:jsonlines || true
+            if [ -f /tmp/players_$SEASON.jsonl ]; then
+              cat /tmp/players_$SEASON.jsonl >> $GITHUB_WORKSPACE/data/raw/players.json
+            fi
           done
-          echo "Spelers nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/players.json)"
+          echo "Spelers nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/players.json 2>/dev/null || echo 0)"
 
       - name: Stap 2b - Marktwaarden ophalen
         timeout-minutes: 30
@@ -311,10 +318,13 @@ jobs:
           cd /tmp/scraper
           for SEASON in 2024 2025; do
             echo "=== Optredens seizoen $SEASON ==="
-            python -m tfmkt appearances \
-              -p $GITHUB_WORKSPACE/data/raw/players.json \
-              -s $SEASON \
-              >> $GITHUB_WORKSPACE/data/raw/appearances.json || true
+            scrapy crawl appearances \
+              -a parents=$GITHUB_WORKSPACE/data/raw/players.json \
+              -a season=$SEASON \
+              -O /tmp/appearances_$SEASON.jsonl:jsonlines || true
+            if [ -f /tmp/appearances_$SEASON.jsonl ]; then
+              cat /tmp/appearances_$SEASON.jsonl >> $GITHUB_WORKSPACE/data/raw/appearances.json
+            fi
           done
           echo "Optredens nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/appearances.json 2>/dev/null || echo 0)"
 
@@ -325,10 +335,13 @@ jobs:
           cd /tmp/scraper
           for SEASON in 2024 2025; do
             echo "=== Wedstrijden seizoen $SEASON ==="
-            python -m tfmkt games \
-              -p $GITHUB_WORKSPACE/data/competitions.json \
-              -s $SEASON \
-              >> $GITHUB_WORKSPACE/data/raw/games.json || true
+            scrapy crawl games \
+              -a parents=$GITHUB_WORKSPACE/data/competitions.json \
+              -a season=$SEASON \
+              -O /tmp/games_$SEASON.jsonl:jsonlines || true
+            if [ -f /tmp/games_$SEASON.jsonl ]; then
+              cat /tmp/games_$SEASON.jsonl >> $GITHUB_WORKSPACE/data/raw/games.json
+            fi
           done
           echo "Wedstrijden nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/games.json 2>/dev/null || echo 0)"
 
@@ -381,7 +394,6 @@ jobs:
                       mv_str = mv_str.replace('€','').replace('£','').replace(',','').strip()
                   return int(float(mv_str) * multiplier)
               except: return ''
-          # Laad marktwaarden
           mv_lookup = {}
           mv_file = RAW / 'market_values.json'
           if mv_file.exists():
@@ -390,7 +402,6 @@ jobs:
                   for pid, mv in mv_raw.items():
                       mv_lookup[str(pid)] = parse_market_value(mv)
               print(f"Marktwaarden geladen: {len(mv_lookup)}")
-          # ── CLUBS ──
           clubs = load_jsonl(RAW / 'clubs.json')
           club_lookup = {}
           new_club_rows = []
@@ -419,7 +430,6 @@ jobs:
                   w = csv.DictWriter(f, fieldnames=list(merged_clubs[0].keys()))
                   w.writeheader(); w.writerows(merged_clubs)
               print(f'clubs.csv: {len(merged_clubs)} rijen (was {len(existing_clubs)}, +{len(merged_clubs)-len(existing_clubs)} nieuw)')
-          # ── SPELERS ──
           players = load_jsonl(RAW / 'players.json')
           new_player_rows = []
           for p in players:
@@ -481,7 +491,6 @@ jobs:
                   w = csv.DictWriter(f, fieldnames=list(merged_players[0].keys()))
                   w.writeheader(); w.writerows(merged_players)
               print(f'players.csv: {len(merged_players)} rijen (was {len(existing_players)}, +{len(merged_players)-len(existing_players)} nieuw)')
-          # ── OPTREDENS ──
           appearances = load_jsonl(RAW / 'appearances.json')
           new_app_rows = []
           for a in appearances:
@@ -529,7 +538,6 @@ jobs:
                   w = csv.DictWriter(f, fieldnames=list(merged_apps[0].keys()))
                   w.writeheader(); w.writerows(merged_apps)
               print(f'appearances.csv: {len(merged_apps)} rijen (was {len(existing_apps)}, +{len(merged_apps)-len(existing_apps)} nieuw)')
-          # ── WEDSTRIJDEN ──
           games = load_jsonl(RAW / 'games.json')
           new_game_rows = []
           for g in games:
@@ -571,19 +579,6 @@ jobs:
           def _fix_encoding(s):
               if not s: return s
               return str(s).replace('â\x82\xac', '€').replace('Â', '').replace('â‚¬', '€')
-          def _club_name(val):
-              if not val: return ''
-              import ast as _ast
-              s = str(val).strip()
-              if s.startswith('{'):
-                  try:
-                      import json as _j
-                      return _j.loads(s.replace("'",'"')).get('clubName', s)
-                  except:
-                      try: return _ast.literal_eval(s).get('clubName', s)
-                      except: pass
-              return s
-          # ── TRANSFERS ──
           transfers_raw = load_jsonl(RAW / 'transfers.json')
           new_transfer_rows = []
           for t in transfers_raw:
@@ -608,7 +603,6 @@ jobs:
                   w = csv.DictWriter(f, fieldnames=list(merged_transfers[0].keys()))
                   w.writeheader(); w.writerows(merged_transfers)
               print(f'transfers.csv: {len(merged_transfers)} rijen (was {len(existing_transfers)}, +{len(merged_transfers)-len(existing_transfers)} nieuw)')
-          # ── VALUATIONS ──
           valuations_raw = load_jsonl(RAW / 'valuations.json')
           new_val_rows = []
           for v in valuations_raw:
@@ -633,7 +627,6 @@ jobs:
                   w = csv.DictWriter(f, fieldnames=list(merged_vals[0].keys()))
                   w.writeheader(); w.writerows(merged_vals)
               print(f'player_valuations.csv: {len(merged_vals)} rijen (was {len(existing_vals)}, +{len(merged_vals)-len(existing_vals)} nieuw)')
-          # Ruim tijdelijk bestand op
           tmp = Path('data/csv/appearances_existing.csv')
           if tmp.exists(): tmp.unlink()
           print('Conversie en samenvoegen klaar!')
