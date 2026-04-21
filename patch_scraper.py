@@ -135,6 +135,23 @@ def patch_appearances():
         print("  appearances.py: vervanging mislukt - overslaan")
         return False
 
+    # Extra fix uit dcaribou main-branch: TM heeft 'div.table-header' vervangen
+    # door 'div.content-box-headline' voor de competitie-namen bij stats-tabellen.
+    # Issue #34 in dcaribou/transfermarkt-scraper.
+    old_css = "response.css(\n        'div.table-header > a::attr(name)'\n    ).getall()"
+    new_css = "response.css('div.content-box-headline > a::attr(name)').getall()"
+    if old_css in new_src:
+        new_src = new_src.replace(old_css, new_css)
+        print("  ✅ appearances.py: CSS-selector bijgewerkt (table-header -> content-box-headline)")
+    else:
+        # Probeer een minder specifieke match (een-regelige variant)
+        alt_old = "response.css('div.table-header > a::attr(name)').getall()"
+        if alt_old in new_src:
+            new_src = new_src.replace(alt_old, new_css)
+            print("  ✅ appearances.py: CSS-selector bijgewerkt (table-header -> content-box-headline)")
+        else:
+            print("  ⚠ appearances.py: oude CSS-selector niet gevonden (al bijgewerkt?)")
+
     fpath.write_text(new_src)
     print(f"  ✅ appearances.py: None-guard + fallback toegevoegd (indent={len(indent)} chars)")
     return True
