@@ -1,0 +1,844 @@
+name: Weekly Transfermarkt Scrape 2
+
+on:
+  schedule:
+    - cron: '0 4 * * 1'  # Elke maandag om 04:00 UTC
+  workflow_dispatch:
+
+env:
+  CURRENT_SEASON: '2025'
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install transfermarkt-scraper (gepind op v0.4.0)
+        run: |
+          pip install poetry
+          git clone --branch v0.4.0 --depth 1 \
+            https://github.com/dcaribou/transfermarkt-scraper.git /tmp/scraper
+          cd /tmp/scraper
+          poetry config virtualenvs.create false
+          poetry install --without dev
+          pip install aiohttp asyncio
+          cat >> /tmp/scraper/tfmkt/settings.py << 'SETTINGS'
+
+          USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+          ROBOTSTXT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+          DOWNLOAD_DELAY = 0.5
+          RANDOMIZE_DOWNLOAD_DELAY = True
+          CONCURRENT_REQUESTS = 6
+          CONCURRENT_REQUESTS_PER_DOMAIN = 6
+          RETRY_ENABLED = True
+          RETRY_TIMES = 5
+          RETRY_HTTP_CODES = [403, 429, 500, 502, 503, 504, 522, 524, 408]
+          AUTOTHROTTLE_ENABLED = True
+          AUTOTHROTTLE_START_DELAY = 0.5
+          AUTOTHROTTLE_MAX_DELAY = 8
+          AUTOTHROTTLE_TARGET_CONCURRENCY = 6.0
+          HTTPCACHE_ENABLED = False
+          LOG_LEVEL = "INFO"
+          SETTINGS
+          if [ -f "$GITHUB_WORKSPACE/patch_scraper.py" ]; then
+            python3 $GITHUB_WORKSPACE/patch_scraper.py || echo "Patch niet van toepassing, overslaan"
+          fi
+
+      - name: Verifieer scraper
+        run: |
+          cd /tmp/scraper
+          git describe --tags || git rev-parse HEAD
+          python -c "import scrapy; print('Scrapy versie:', scrapy.__version__)"
+          scrapy list
+
+      - name: Maak output map aan
+        run: mkdir -p data/raw data/csv
+
+      - name: Stap 0 - Bestaande CSV data inladen
+        run: |
+          python3 << 'PYEOF'
+          import gzip, shutil
+          from pathlib import Path
+          CSV = Path('data/csv')
+          for gz_file in sorted(CSV.glob('*.csv.gz')):
+              stem = gz_file.stem
+              out_name = 'appearances_existing.csv' if stem == 'appearances.csv' else stem
+              out_path = CSV / out_name
+              print(f"Decomprimeer {gz_file.name} → {out_name} ({gz_file.stat().st_size // 1024} KB)")
+              with gzip.open(gz_file, 'rb') as f_in:
+                  with open(out_path, 'wb') as f_out:
+                      shutil.copyfileobj(f_in, f_out)
+          PYEOF
+
+      - name: Reinig competitions.json input
+        run: |
+          python3 << 'PYEOF'
+          # Reinig ook de input-file - v0.4.0 common.py crasht op elke lege regel
+          import json, sys
+          from pathlib import Path
+          src = Path('data/competitions.json')
+          if not src.exists() or src.stat().st_size == 0:
+              print("FOUT: competitions.json ontbreekt!")
+              sys.exit(1)
+          valid = []
+          with open(src, encoding='utf-8') as f:
+              for line in f:
+                  line = line.strip()
+                  if not line: continue
+                  try:
+                      obj = json.loads(line)
+                      if 'href' in obj:
+                          valid.append(obj)
+                  except: pass
+          with open(src, 'w', encoding='utf-8') as f:
+              for item in valid:
+                  f.write(json.dumps(item) + '\n')
+          print(f"competitions.json: {len(valid)} geldige competities")
+          PYEOF
+
+      - name: Stap 1+2 - Clubs/spelers uit bestaande CSV's (geen scraping)
+        run: |
+          # We slaan het scrapen van clubs en spelers OVER om requests te besparen.
+          # In plaats daarvan lezen we de bestaande CSV's en bouwen de JSON-bestanden
+          # die de appearances- en games-spiders nodig hebben als parent-input.
+          python3 << 'PYEOF'
+          import csv, json, sys
+          from pathlib import Path
+          RAW = Path('data/raw')
+          CSV = Path('data/csv')
+          RAW.mkdir(parents=True, exist_ok=True)
+
+          # --- Clubs vanuit clubs.csv ---
+          clubs_csv = CSV / 'clubs.csv'
+          if not clubs_csv.exists():
+              print("FOUT: clubs.csv ontbreekt - kan niet verder zonder clubs")
+              sys.exit(1)
+          clubs_out = RAW / 'clubs.json'
+          n_clubs = 0
+          with open(clubs_csv, encoding='utf-8') as fi, open(clubs_out, 'w', encoding='utf-8') as fo:
+              reader = csv.DictReader(fi)
+              for row in reader:
+                  club_id = (row.get('club_id') or '').strip()
+                  url = (row.get('url') or '').strip()
+                  comp_id = (row.get('domestic_competition_id') or '').strip()
+                  if not club_id or not url:
+                      continue
+                  # Bouw href in het format dat v0.4.0 verwacht (zonder domain)
+                  href = url.replace('https://www.transfermarkt.co.uk', '').replace('https://www.transfermarkt.com', '')
+                  if not href.startswith('/'):
+                      href = '/' + href
+                  obj = {
+                      'type': 'club',
+                      'href': href,
+                      'parent': {
+                          'type': 'competition',
+                          'competition_type': 'first_tier',
+                          'href': f'/x/startseite/wettbewerb/{comp_id}' if comp_id else '',
+                          'country_code': comp_id,
+                      }
+                  }
+                  fo.write(json.dumps(obj) + '\n')
+                  n_clubs += 1
+          print(f"clubs.json gereconstrueerd: {n_clubs} clubs uit clubs.csv")
+
+          # --- Spelers vanuit players.csv ---
+          players_csv = CSV / 'players.csv'
+          if not players_csv.exists():
+              print("FOUT: players.csv ontbreekt")
+              sys.exit(1)
+          players_out = RAW / 'players.json'
+          n_players = 0
+          with open(players_csv, encoding='utf-8') as fi, open(players_out, 'w', encoding='utf-8') as fo:
+              reader = csv.DictReader(fi)
+              for row in reader:
+                  player_id = (row.get('player_id') or '').strip()
+                  url = (row.get('url') or '').strip()
+                  current_club_id = (row.get('current_club_id') or '').strip()
+                  if not player_id or not url:
+                      continue
+                  href = url.replace('https://www.transfermarkt.co.uk', '').replace('https://www.transfermarkt.com', '')
+                  if not href.startswith('/'):
+                      href = '/' + href
+                  obj = {
+                      'type': 'player',
+                      'href': href,
+                      'parent': {
+                          'type': 'club',
+                          'href': f'/x/startseite/verein/{current_club_id}' if current_club_id else '',
+                          'current_club': {'href': f'/x/startseite/verein/{current_club_id}' if current_club_id else ''},
+                      }
+                  }
+                  fo.write(json.dumps(obj) + '\n')
+                  n_players += 1
+          print(f"players.json gereconstrueerd: {n_players} spelers uit players.csv")
+
+          # Zet market_values / transfers / valuations als lege bestanden zodat
+          # stap 5 (CSV merge) geen crash geeft op ontbrekende files
+          for name in ('market_values.json', 'transfers.json', 'valuations.json'):
+              p = RAW / name
+              if not p.exists():
+                  p.write_text('' if name != 'market_values.json' else '{}')
+          PYEOF
+
+      - name: Stap 2e - Incrementeel filter voor appearances
+        run: |
+          python3 << 'PYEOF'
+          import json, csv
+          from pathlib import Path
+          from datetime import datetime, timedelta
+          PLAYERS_FULL = Path('data/raw/players.json')
+          PLAYERS_FILTERED = Path('data/raw/players_to_scrape.json')
+          APPEARANCES_EXISTING = Path('data/csv/appearances_existing.csv')
+          THRESHOLD_DAYS = 7
+          threshold_date = datetime.now() - timedelta(days=THRESHOLD_DAYS)
+          print(f"Drempel: spelers met appearance na {threshold_date.date()} overslaan")
+          last_seen = {}
+          if APPEARANCES_EXISTING.exists():
+              with open(APPEARANCES_EXISTING, encoding='utf-8') as f:
+                  reader = csv.DictReader(f)
+                  for row in reader:
+                      pid = str(row.get('player_id', ''))
+                      date_str = row.get('date', '')
+                      if not pid or not date_str:
+                          continue
+                      dt = None
+                      for fmt in ('%Y-%m-%d', '%m/%d/%y', '%b %d, %Y'):
+                          try:
+                              dt = datetime.strptime(date_str, fmt)
+                              break
+                          except:
+                              continue
+                      if dt is None:
+                          continue
+                      if pid not in last_seen or dt > last_seen[pid]:
+                          last_seen[pid] = dt
+              print(f"Historische appearances bekend: {len(last_seen)} unieke spelers")
+          else:
+              print("Geen bestaande appearances gevonden")
+          total, kept = 0, 0
+          with open(PLAYERS_FULL, encoding='utf-8') as f_in, \
+               open(PLAYERS_FILTERED, 'w', encoding='utf-8') as f_out:
+              for line in f_in:
+                  line = line.strip()
+                  if not line: continue
+                  total += 1
+                  try:
+                      p = json.loads(line)
+                  except:
+                      continue
+                  href = p.get('href', '')
+                  parts = href.rstrip('/').split('/')
+                  pid = ''
+                  if 'spieler' in parts:
+                      pid = parts[parts.index('spieler') + 1]
+                  if pid in last_seen and last_seen[pid] > threshold_date:
+                      continue
+                  f_out.write(line + '\n')
+                  kept += 1
+          print(f"Filter resultaat: {kept}/{total} spelers nog te scrapen ({100*kept//max(total,1)}%)")
+          PYEOF
+
+      - name: Stap 3 - Optredens scrapen
+        timeout-minutes: 90
+        continue-on-error: true
+        run: |
+          cd /tmp/scraper
+          echo "=== Optredens seizoen $CURRENT_SEASON ==="
+          rm -f /tmp/appearances_raw.jsonl
+          scrapy crawl appearances \
+            -a parents=$GITHUB_WORKSPACE/data/raw/players_to_scrape.json \
+            -a season=$CURRENT_SEASON \
+            -t jsonlines \
+            -o /tmp/appearances_raw.jsonl || true
+          if [ -f /tmp/appearances_raw.jsonl ]; then
+            cp /tmp/appearances_raw.jsonl $GITHUB_WORKSPACE/data/raw/appearances.json
+          fi
+          echo "Optredens: $(wc -l < $GITHUB_WORKSPACE/data/raw/appearances.json 2>/dev/null || echo 0)"
+
+      - name: Stap 4 - Wedstrijden scrapen
+        timeout-minutes: 40
+        continue-on-error: true
+        run: |
+          cd /tmp/scraper
+          echo "=== Wedstrijden seizoen $CURRENT_SEASON ==="
+          rm -f /tmp/games_raw.jsonl
+          scrapy crawl games \
+            -a parents=$GITHUB_WORKSPACE/data/competitions.json \
+            -a season=$CURRENT_SEASON \
+            -t jsonlines \
+            -o /tmp/games_raw.jsonl || true
+          if [ -f /tmp/games_raw.jsonl ]; then
+            cp /tmp/games_raw.jsonl $GITHUB_WORKSPACE/data/raw/games.json
+          fi
+          echo "Wedstrijden: $(wc -l < $GITHUB_WORKSPACE/data/raw/games.json 2>/dev/null || echo 0)"
+
+      - name: Stap 5 - JSON naar CSV omzetten en samenvoegen
+        run: |
+          python3 << 'PYEOF'
+          import json, csv
+          from pathlib import Path
+          RAW = Path('data/raw')
+          OUT = Path('data/csv')
+          OUT.mkdir(exist_ok=True)
+          def load_jsonl(path):
+              items = []
+              if not path.exists(): return items
+              with open(path, encoding='utf-8') as f:
+                  for line in f:
+                      line = line.strip()
+                      if line:
+                          try: items.append(json.loads(line))
+                          except: pass
+              return items
+          def load_csv_existing(path):
+              rows = []
+              if not path.exists(): return rows
+              with open(path, encoding='utf-8') as f:
+                  reader = csv.DictReader(f)
+                  for row in reader:
+                      rows.append(row)
+              return rows
+          def extract_id(href):
+              if not href: return ''
+              parts = href.rstrip('/').split('/')
+              if 'wettbewerb' in parts: return parts[parts.index('wettbewerb') + 1]
+              if 'verein' in parts: return parts[parts.index('verein') + 1]
+              if 'spieler' in parts: return parts[parts.index('spieler') + 1]
+              if 'spielbericht' in parts: return parts[parts.index('spielbericht') + 1]
+              return parts[-1]
+          def parse_market_value(mv_str):
+              if not mv_str: return ''
+              mv_str = str(mv_str).strip()
+              try:
+                  multiplier = 1
+                  if 'm' in mv_str.lower():
+                      multiplier = 1_000_000
+                      mv_str = mv_str.lower().replace('m','').replace('€','').replace('£','').strip()
+                  elif 'k' in mv_str.lower() or 'th.' in mv_str.lower():
+                      multiplier = 1_000
+                      mv_str = mv_str.lower().replace('k','').replace('th.','').replace('€','').replace('£','').strip()
+                  else:
+                      mv_str = mv_str.replace('€','').replace('£','').replace(',','').strip()
+                  return int(float(mv_str) * multiplier)
+              except: return ''
+          mv_lookup = {}
+          mv_file = RAW / 'market_values.json'
+          if mv_file.exists():
+              with open(mv_file, encoding='utf-8') as f:
+                  mv_raw = json.load(f)
+                  for pid, mv in mv_raw.items():
+                      mv_lookup[str(pid)] = parse_market_value(mv)
+              print(f"Marktwaarden geladen: {len(mv_lookup)}")
+          clubs = load_jsonl(RAW / 'clubs.json')
+          club_lookup = {}
+          new_club_rows = []
+          for c in clubs:
+              comp_href = c.get('parent', {}).get('href', '')
+              comp_id = extract_id(comp_href)
+              club_id = c.get('id') or extract_id(c.get('href', ''))
+              club_lookup[c.get('href', '')] = {'club_id': club_id, 'name': c.get('name', ''), 'competition_id': comp_id}
+              new_club_rows.append({
+                  'club_id': club_id, 'name': c.get('name', ''),
+                  'domestic_competition_id': comp_id,
+                  'squad_size': c.get('squad_size', ''),
+                  'average_age': c.get('average_age', ''),
+                  'total_market_value': c.get('total_market_value', ''),
+                  'coach_name': c.get('coach_name', ''),
+                  'url': f"https://www.transfermarkt.co.uk{c.get('href', '')}",
+              })
+          existing_clubs = load_csv_existing(OUT / 'clubs.csv')
+          club_id_map = {r['club_id']: r for r in existing_clubs if r.get('club_id')}
+          for r in new_club_rows:
+              if r.get('club_id'):
+                  club_id_map[str(r['club_id'])] = r
+          merged_clubs = list(club_id_map.values())
+          if merged_clubs:
+              with open(OUT / 'clubs.csv', 'w', newline='', encoding='utf-8') as f:
+                  w = csv.DictWriter(f, fieldnames=list(merged_clubs[0].keys()))
+                  w.writeheader(); w.writerows(merged_clubs)
+              print(f'clubs.csv: {len(merged_clubs)} rijen (was {len(existing_clubs)}, +{len(merged_clubs)-len(existing_clubs)} nieuw)')
+          players = load_jsonl(RAW / 'players.json')
+          new_player_rows = []
+          for p in players:
+              club_href = p.get('parent', {}).get('href', '')
+              club_info = club_lookup.get(club_href, {})
+              player_id = p.get('id') or extract_id(p.get('href', ''))
+              height_raw = p.get('height', '') or ''
+              try: height_cm = int(float(height_raw.replace('m','').replace(',','.').strip()) * 100)
+              except: height_cm = ''
+              pos = p.get('position', '') or ''
+              pos_map = {
+                  'goalkeeper': 'Goalkeeper',
+                  'centre-back': 'Defender', 'left-back': 'Defender', 'right-back': 'Defender', 'defender': 'Defender',
+                  'attacking midfield': 'Midfield', 'midfielder': 'Midfield', 'midfield': 'Midfield',
+                  'centre-forward': 'Attack', 'left winger': 'Attack', 'right winger': 'Attack', 'forward': 'Attack', 'attack': 'Attack'
+              }
+              position = next((v for k, v in pos_map.items() if k in pos.lower()), 'Midfield')
+              mv = mv_lookup.get(str(player_id), '')
+              if not mv:
+                  mv_raw = p.get('current_market_value') or ''
+                  try: mv = int(str(mv_raw).replace('€','').replace(',','').strip()) if mv_raw else ''
+                  except: mv = ''
+              mv_high_raw = p.get('highest_market_value') or ''
+              try: mv_high = int(str(mv_high_raw).replace('€','').replace(',','').strip()) if mv_high_raw else ''
+              except: mv_high = ''
+              first_name = p.get('name', '') or ''
+              last_name = p.get('last_name', '') or ''
+              full_name = f"{first_name} {last_name}".strip() or first_name
+              new_player_rows.append({
+                  'player_id': player_id,
+                  'name': full_name,
+                  'first_name': first_name,
+                  'last_name': last_name,
+                  'date_of_birth': p.get('date_of_birth', ''),
+                  'age': p.get('age', ''),
+                  'country_of_citizenship': p.get('citizenship', ''),
+                  'country_of_birth': (p.get('place_of_birth') or {}).get('country', ''),
+                  'position': position,
+                  'sub_position': pos,
+                  'foot': p.get('foot', ''),
+                  'height_in_cm': height_cm,
+                  'market_value_in_eur': mv,
+                  'highest_market_value_in_eur': mv_high,
+                  'contract_expiration_date': p.get('contract_expires', ''),
+                  'current_club_id': club_info.get('club_id', ''),
+                  'current_club_name': club_info.get('name', ''),
+                  'current_club_domestic_competition_id': club_info.get('competition_id', ''),
+                  'image_url': p.get('image_url', ''),
+                  'url': f"https://www.transfermarkt.co.uk{p.get('href', '')}",
+              })
+          existing_players = load_csv_existing(OUT / 'players.csv')
+          player_id_map = {r['player_id']: r for r in existing_players if r.get('player_id')}
+          # Merge nieuwe data INTO bestaande rows: bestaande velden behouden
+          # als nieuwe waarde leeg/null is (voorkomt degradatie van archief)
+          for r in new_player_rows:
+              pid = r.get('player_id')
+              if not pid: continue
+              pid = str(pid)
+              existing = player_id_map.get(pid, {})
+              merged = dict(existing)  # start van bestaande row
+              for k, v in r.items():
+                  # Overschrijf alleen als nieuwe waarde niet-leeg is
+                  if v not in (None, '', 'null'):
+                      merged[k] = v
+                  elif k not in merged:
+                      merged[k] = v  # nieuwe kolom, vul lege in
+              player_id_map[pid] = merged
+          merged_players = list(player_id_map.values())
+          if merged_players:
+              # Opschoning: deze Nederlandse kolommen worden geschrapt t.b.v.
+              # de Engelse tegenhangers (debut_highest_division_*, debut_second_tier_*)
+              DROP_COLS = {
+                  'hoogste_divisie_debut_date', 'hoogste_divisie_debut_club',
+                  'tweede_niveau_debut_date', 'tweede_niveau_debut_club',
+              }
+              # Verzamel alle kolommen uit bestaande + nieuwe rows, behalve drop-kolommen
+              all_fields = []
+              seen_fields = set()
+              for r in existing_players:
+                  for k in r.keys():
+                      if k in DROP_COLS: continue
+                      if k not in seen_fields:
+                          all_fields.append(k); seen_fields.add(k)
+              for r in merged_players:
+                  for k in r.keys():
+                      if k in DROP_COLS: continue
+                      if k not in seen_fields:
+                          all_fields.append(k); seen_fields.add(k)
+              if not all_fields:
+                  all_fields = [k for k in merged_players[0].keys() if k not in DROP_COLS]
+              # Verwijder drop-kolommen uit de rows zelf
+              for row in merged_players:
+                  for k in DROP_COLS:
+                      row.pop(k, None)
+              with open(OUT / 'players.csv', 'w', newline='', encoding='utf-8') as f:
+                  w = csv.DictWriter(f, fieldnames=all_fields, extrasaction='ignore')
+                  w.writeheader()
+                  for row in merged_players:
+                      for k in all_fields:
+                          if k not in row: row[k] = ''
+                      w.writerow(row)
+              print(f'players.csv: {len(merged_players)} rijen, {len(all_fields)} kolommen (was {len(existing_players)}, +{len(merged_players)-len(existing_players)} nieuw)')
+          appearances = load_jsonl(RAW / 'appearances.json')
+          new_app_rows = []
+          for a in appearances:
+              parent = a.get('parent') or {}
+              player_id = extract_id(parent.get('href', ''))
+              player_club_id = extract_id((parent.get('current_club') or {}).get('href', ''))
+              result_raw = a.get('result')
+              if isinstance(result_raw, dict): result_href = result_raw.get('href', '')
+              elif isinstance(result_raw, str): result_href = result_raw
+              else: result_href = ''
+              game_id = extract_id(result_href)
+              date = a.get('date', '')
+              appearance_id = f"{player_id}_{date.replace('/', '')}" if player_id and date else ''
+              min_raw = a.get('minutes_played', '') or ''
+              try: minutes_played = int(str(min_raw).replace("'", "").strip())
+              except: minutes_played = 0
+              def card_count(val):
+                  if val is None or val == '' or val == 0: return 0
+                  return 1
+              def safe_int(val):
+                  try: return int(val) if val != '' and val is not None else 0
+                  except: return 0
+              new_app_rows.append({
+                  'appearance_id': appearance_id,
+                  'game_id': game_id,
+                  'player_id': player_id,
+                  'player_club_id': player_club_id,
+                  'date': date,
+                  'player_name': f"{parent.get('name', '')} {parent.get('last_name', '')}".strip(),
+                  'competition_id': a.get('competition_code', ''),
+                  'yellow_cards': card_count(a.get('yellow_cards')),
+                  'red_cards': card_count(a.get('red_cards')),
+                  'goals': safe_int(a.get('goals')),
+                  'assists': safe_int(a.get('assists')),
+                  'minutes_played': minutes_played,
+              })
+          existing_apps = load_csv_existing(OUT / 'appearances_existing.csv')
+          app_id_map = {r['appearance_id']: r for r in existing_apps}
+          for r in new_app_rows:
+              if r['appearance_id']:
+                  app_id_map[r['appearance_id']] = r
+          merged_apps = list(app_id_map.values())
+          if merged_apps:
+              with open(OUT / 'appearances.csv', 'w', newline='', encoding='utf-8') as f:
+                  w = csv.DictWriter(f, fieldnames=list(merged_apps[0].keys()))
+                  w.writeheader(); w.writerows(merged_apps)
+              print(f'appearances.csv: {len(merged_apps)} rijen (was {len(existing_apps)}, +{len(merged_apps)-len(existing_apps)} nieuw)')
+          games = load_jsonl(RAW / 'games.json')
+          new_game_rows = []
+          for g in games:
+              result = g.get('result', '') or ''
+              try:
+                  home_goals, away_goals = result.split(':')
+                  home_goals = home_goals.strip(); away_goals = away_goals.strip()
+              except: home_goals, away_goals = '', ''
+              home_id = extract_id((g.get('home_club') or {}).get('href', ''))
+              away_id = extract_id((g.get('away_club') or {}).get('href', ''))
+              comp_id = (g.get('parent') or {}).get('country_code', '') or \
+                        extract_id((g.get('parent') or {}).get('href', ''))
+              new_game_rows.append({
+                  'game_id': g.get('game_id', ''),
+                  'competition_id': comp_id,
+                  'season': g.get('season', '2025'),
+                  'date': g.get('date', ''),
+                  'home_club_id': home_id,
+                  'away_club_id': away_id,
+                  'home_club_goals': home_goals,
+                  'away_club_goals': away_goals,
+                  'home_club_name': g.get('home_club_name', ''),
+                  'away_club_name': g.get('away_club_name', ''),
+                  'stadium': g.get('stadium', ''),
+                  'attendance': g.get('attendance', ''),
+                  'url': f"https://www.transfermarkt.co.uk{g.get('href', '')}",
+              })
+          existing_games = load_csv_existing(OUT / 'games.csv')
+          game_id_map = {r['game_id']: r for r in existing_games}
+          for r in new_game_rows:
+              if r['game_id']:
+                  game_id_map[str(r['game_id'])] = r
+          merged_games = list(game_id_map.values())
+          if merged_games:
+              with open(OUT / 'games.csv', 'w', newline='', encoding='utf-8') as f:
+                  w = csv.DictWriter(f, fieldnames=list(merged_games[0].keys()))
+                  w.writeheader(); w.writerows(merged_games)
+              print(f'games.csv: {len(merged_games)} rijen (was {len(existing_games)}, +{len(merged_games)-len(existing_games)} nieuw)')
+          def _fix_encoding(s):
+              if not s: return s
+              return str(s).replace('â\x82\xac', '€').replace('Â', '').replace('â‚¬', '€')
+          def _extract_club_name(val):
+              """Haal clubnaam uit ofwel een dict {'clubName': ...} ofwel een plain string."""
+              if not val: return ''
+              if isinstance(val, dict):
+                  return str(val.get('clubName', '') or val.get('name', '')).strip()
+              s = str(val).strip()
+              # Edge case: dict is als stringified repr beland (quotes, enz)
+              if s.startswith('{') and 'clubName' in s:
+                  try:
+                      import ast as _ast
+                      parsed = _ast.literal_eval(s)
+                      if isinstance(parsed, dict):
+                          return str(parsed.get('clubName', s)).strip()
+                  except:
+                      pass
+              return s
+          transfers_raw = load_jsonl(RAW / 'transfers.json')
+          new_transfer_rows = []
+          for t in transfers_raw:
+              player_id = str(t.get('player_id', ''))
+              new_transfer_rows.append({
+                  'player_id':                player_id,
+                  'transfer_date':            t.get('date', '') or t.get('transferDate', ''),
+                  'transfer_season':          t.get('season', ''),
+                  'from_club_name':           _extract_club_name(t.get('from', '') or t.get('fromClubName', '')),
+                  'to_club_name':             _extract_club_name(t.get('to', '') or t.get('toClubName', '')),
+                  'transfer_fee':             _fix_encoding(t.get('fee', '') or t.get('transferFee', '')),
+                  'market_value_at_transfer': _fix_encoding(t.get('mv', '') or t.get('marketValue', '')),
+              })
+          existing_transfers = load_csv_existing(OUT / 'transfers.csv')
+          transfer_key = lambda r: f"{r.get('player_id','')}_{r.get('transfer_date','')}_{r.get('to_club_name','')}"
+          transfer_map = {transfer_key(r): r for r in existing_transfers}
+          for r in new_transfer_rows:
+              transfer_map[transfer_key(r)] = r
+          merged_transfers = list(transfer_map.values())
+          if merged_transfers:
+              with open(OUT / 'transfers.csv', 'w', newline='', encoding='utf-8') as f:
+                  w = csv.DictWriter(f, fieldnames=list(merged_transfers[0].keys()))
+                  w.writeheader(); w.writerows(merged_transfers)
+              print(f'transfers.csv: {len(merged_transfers)} rijen (was {len(existing_transfers)}, +{len(merged_transfers)-len(existing_transfers)} nieuw)')
+          valuations_raw = load_jsonl(RAW / 'valuations.json')
+          new_val_rows = []
+          for v in valuations_raw:
+              player_id = str(v.get('player_id', ''))
+              mv_raw = v.get('market_value', '') or v.get('mw', '')
+              new_val_rows.append({
+                  'player_id':           player_id,
+                  'date':                v.get('datum_mw', ''),
+                  'date_timestamp':      v.get('date_x', ''),
+                  'market_value_in_eur': parse_market_value(str(mv_raw)) if mv_raw else '',
+                  'club_name':           v.get('verein', ''),
+                  'age':                 v.get('age', ''),
+              })
+          existing_vals = load_csv_existing(OUT / 'player_valuations.csv')
+          val_key = lambda r: f"{r.get('player_id','')}_{r.get('date','')}"
+          val_map = {val_key(r): r for r in existing_vals}
+          for r in new_val_rows:
+              val_map[val_key(r)] = r
+          merged_vals = list(val_map.values())
+          if merged_vals:
+              with open(OUT / 'player_valuations.csv', 'w', newline='', encoding='utf-8') as f:
+                  w = csv.DictWriter(f, fieldnames=list(merged_vals[0].keys()))
+                  w.writeheader(); w.writerows(merged_vals)
+              print(f'player_valuations.csv: {len(merged_vals)} rijen (was {len(existing_vals)}, +{len(merged_vals)-len(existing_vals)} nieuw)')
+          tmp = Path('data/csv/appearances_existing.csv')
+          if tmp.exists(): tmp.unlink()
+          print('Conversie en samenvoegen klaar!')
+          PYEOF
+
+      - name: Stap 6 - Debuten ophalen voor nieuwe/ontbrekende spelers
+        timeout-minutes: 45
+        continue-on-error: true
+        env:
+          MAX_PLAYERS_PER_RUN: '500'   # harde limiet; eventueel aanpassen
+        run: |
+          pip install aiohttp beautifulsoup4 lxml
+          python3 << 'PYEOF'
+          import asyncio, csv, os, re
+          from pathlib import Path
+          from urllib.parse import urlparse
+          import aiohttp
+          from bs4 import BeautifulSoup
+
+          PLAYERS_CSV = Path('data/csv/players.csv')
+          MAX_PER_RUN = int(os.getenv('MAX_PLAYERS_PER_RUN', '500'))
+
+          # Als players.csv niet bestaat of is weggegzipt, stoppen we gewoon
+          if not PLAYERS_CSV.exists():
+              # Check of er een gz is en decomprimeer
+              import gzip, shutil
+              gz = Path('data/csv/players.csv.gz')
+              if gz.exists():
+                  with gzip.open(gz, 'rb') as fi, open(PLAYERS_CSV, 'wb') as fo:
+                      shutil.copyfileobj(fi, fo)
+              else:
+                  print("Geen players.csv gevonden - debuten overslaan")
+                  import sys; sys.exit(0)
+
+          HEADERS = {
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+              "Accept-Language": "nl-BE,nl;q=0.9,en;q=0.8,de;q=0.7",
+              "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+              "Referer": "https://www.transfermarkt.be/",
+          }
+
+          HIGHEST_TITLES = {
+              "hoogste divisie", "highest division", "höchste spielklasse",
+              "division la plus haute", "massima divisione", "primera division",
+              "primeira divisão", "en yüksek lig",
+          }
+          SECOND_TITLES = {
+              "2de niveau", "tweede niveau", "2e niveau", "second tier",
+              "second division", "2nd division", "2. spielklasse", "2. liga",
+              "deuxième division", "seconda divisione", "segunda division",
+          }
+          MONTHS = {
+              "jan.":"01","jan":"01","feb.":"02","feb":"02",
+              "mrt.":"03","mrt":"03","mar.":"03","mar":"03",
+              "apr.":"04","apr":"04","mei":"05","may":"05",
+              "jun.":"06","jun":"06","jul.":"07","jul":"07",
+              "aug.":"08","aug":"08","sep.":"09","sep":"09",
+              "okt.":"10","okt":"10","oct.":"10","oct":"10",
+              "nov.":"11","nov":"11","dec.":"12","dec":"12",
+          }
+          DEBUT_COLS = [
+              "debut_highest_division_date", "debut_highest_division_club",
+              "debut_highest_division_competition",
+              "debut_second_tier_date", "debut_second_tier_club",
+              "debut_second_tier_competition",
+          ]
+
+          def clean(el):
+              return re.sub(r"\s+", " ", (el.get_text(" ", strip=True) if el else "").strip())
+          def norm(s):
+              return re.sub(r"\s+", " ", (s or "").strip().lower())
+          def parse_date(text):
+              s = norm(text).replace("\xa0", " ")
+              parts = s.split()
+              if len(parts) < 3: return ""
+              day = re.sub(r"\D", "", parts[0]).zfill(2)
+              month = MONTHS.get(parts[1], "")
+              year = re.sub(r"\D", "", parts[2])
+              return f"{year}-{month}-{day}" if day and month and year else ""
+
+          def build_url(row):
+              pid = str(row.get("player_id", "")).strip()
+              url = str(row.get("url", "")).strip()
+              slug = ""
+              if url:
+                  try:
+                      parts = urlparse(url).path.strip("/").split("/")
+                      if "spieler" in parts:
+                          i = parts.index("spieler")
+                          slug = parts[i - 1] if i > 0 else ""
+                          pid = parts[i + 1] if i + 1 < len(parts) else pid
+                  except: pass
+              base = f"https://www.transfermarkt.be/{slug}" if slug else "https://www.transfermarkt.be/spieler"
+              return f"{base}/debuets/spieler/{pid}"
+
+          def parse_page(html):
+              soup = BeautifulSoup(html, "lxml")
+              result = {c: "" for c in DEBUT_COLS}
+              table = None
+              for div in soup.select("div.box"):
+                  h2 = div.select_one("h2.content-box-headline")
+                  if h2 and "debut" in norm(clean(h2)):
+                      table = div.select_one("table"); break
+              if not table:
+                  table = soup.select_one("div.responsive-table table")
+              if not table: return result
+              current = ""
+              for tr in table.select("tbody tr"):
+                  hd = tr.select_one("td.hauptlink[colspan]")
+                  if hd:
+                      current = norm(clean(hd)); continue
+                  cells = tr.find_all("td", recursive=False)
+                  if len(cells) < 4: continue
+                  date_val = parse_date(clean(cells[3]))
+                  if not date_val: continue
+                  competition = clean(cells[1])
+                  club = ""
+                  img = cells[2].find("img")
+                  if img and img.get("title"): club = img["title"].strip()
+                  if not club:
+                      a = cells[2].find("a")
+                      if a: club = (a.get("title") or clean(a)).strip()
+                  if current in HIGHEST_TITLES and not result["debut_highest_division_date"]:
+                      result["debut_highest_division_date"] = date_val
+                      result["debut_highest_division_club"] = club
+                      result["debut_highest_division_competition"] = competition
+                  elif current in SECOND_TITLES and not result["debut_second_tier_date"]:
+                      result["debut_second_tier_date"] = date_val
+                      result["debut_second_tier_club"] = club
+                      result["debut_second_tier_competition"] = competition
+                  if result["debut_highest_division_date"] and result["debut_second_tier_date"]:
+                      break
+              return result
+
+          # Lees players.csv
+          with open(PLAYERS_CSV, encoding="utf-8") as f:
+              reader = csv.DictReader(f)
+              fields = list(reader.fieldnames or [])
+              rows = list(reader)
+          for col in DEBUT_COLS:
+              if col not in fields: fields.append(col)
+
+          # Welke spelers missen debut-data?
+          date_pattern = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+          def has_debut(row):
+              h = (row.get("debut_highest_division_date") or "").strip()
+              s = (row.get("debut_second_tier_date") or "").strip()
+              return bool(date_pattern.match(h) or date_pattern.match(s))
+
+          todo = [(i, r) for i, r in enumerate(rows) if not has_debut(r) and r.get("player_id")]
+          print(f"Spelers zonder debut-data: {len(todo)}")
+          if len(todo) > MAX_PER_RUN:
+              print(f"Beperkt tot {MAX_PER_RUN} deze run (rest volgende week)")
+              todo = todo[:MAX_PER_RUN]
+          if not todo:
+              print("Geen spelers om bij te werken - klaar")
+              import sys; sys.exit(0)
+
+          async def fetch_one(session, semaphore, idx, row):
+              async with semaphore:
+                  await asyncio.sleep(0.3)
+                  url = build_url(row)
+                  try:
+                      async with session.get(url, headers=HEADERS,
+                                             timeout=aiohttp.ClientTimeout(total=20),
+                                             allow_redirects=True) as resp:
+                          if resp.status == 200:
+                              html = await resp.text()
+                              if len(html) < 3000:
+                                  return idx, None, f"leeg({len(html)})"
+                              return idx, html, "ok"
+                          elif resp.status == 404:
+                              return idx, None, "not_found"
+                          return idx, None, f"http{resp.status}"
+                  except Exception as e:
+                      return idx, None, f"error:{type(e).__name__}"
+
+          async def main():
+              connector = aiohttp.TCPConnector(limit=20, ttl_dns_cache=300)
+              semaphore = asyncio.Semaphore(8)
+              updated = 0
+              async with aiohttp.ClientSession(connector=connector) as session:
+                  tasks = [fetch_one(session, semaphore, i, r) for i, r in todo]
+                  done = 0
+                  for coro in asyncio.as_completed(tasks):
+                      idx, html, status = await coro
+                      done += 1
+                      if html:
+                          parsed = parse_page(html)
+                          for k, v in parsed.items():
+                              if v: rows[idx][k] = v
+                          if parsed.get("debut_highest_division_date") or parsed.get("debut_second_tier_date"):
+                              updated += 1
+                      if done % 50 == 0:
+                          print(f"  {done}/{len(todo)} verwerkt, {updated} met debut-data")
+              print(f"Klaar: {updated} spelers bijgewerkt van {len(todo)} opgehaald")
+              # Schrijf players.csv terug
+              with open(PLAYERS_CSV, "w", newline="", encoding="utf-8") as f:
+                  w = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore")
+                  w.writeheader()
+                  for r in rows:
+                      w.writerow({k: r.get(k, "") for k in fields})
+
+          asyncio.run(main())
+          PYEOF
+
+      - name: Commit en push CSV's
+        run: |
+          git config user.name "ScoutAI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          for f in data/csv/*.csv; do [ -f "$f" ] && gzip -f "$f" || true; done
+          git add data/csv/
+          TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
+          git commit -m "ScoutAI data update: ${TIMESTAMP}" || echo "Geen wijzigingen"
+          git push
+
+      - name: Samenvatting
+        run: |
+          echo "=== SCRAPING KLAAR ==="
+          for f in data/csv/*; do
+            echo "$f: $(wc -c < $f) bytes"
+          done
