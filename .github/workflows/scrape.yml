@@ -5,10 +5,13 @@ on:
     - cron: '0 4 * * 1'  # Elke maandag om 04:00 UTC
   workflow_dispatch:
 
+env:
+  CURRENT_SEASON: '2025'   # Alleen lopend seizoen scrapen - historische data zit al in CSV's
+
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 300
 
     steps:
       - name: Checkout repo
@@ -19,34 +22,33 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install transfermarkt-scraper (gepind op v0.4.0, laatste Scrapy-versie)
+      - name: Install transfermarkt-scraper (gepind op v0.4.0)
         run: |
           pip install poetry
-          # BELANGRIJK: pin op v0.4.0 — latere main is gemigreerd naar Crawlee
-          # en geeft HTTP 405 op appearances/games endpoints van Transfermarkt
           git clone --branch v0.4.0 --depth 1 \
             https://github.com/dcaribou/transfermarkt-scraper.git /tmp/scraper
           cd /tmp/scraper
           poetry config virtualenvs.create false
           poetry install --without dev
           pip install aiohttp asyncio
-          # User-Agent + Scrapy-stabiliteitsinstellingen (v0.4.0 = Scrapy 2.7.1)
+          # Gebalanceerde Scrapy-settings: 6 parallel, 0.5s delay
           cat >> /tmp/scraper/tfmkt/settings.py << 'SETTINGS'
 
           USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
           ROBOTSTXT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-          DOWNLOAD_DELAY = 1.0
+          DOWNLOAD_DELAY = 0.5
           RANDOMIZE_DOWNLOAD_DELAY = True
-          CONCURRENT_REQUESTS = 4
-          CONCURRENT_REQUESTS_PER_DOMAIN = 4
+          CONCURRENT_REQUESTS = 6
+          CONCURRENT_REQUESTS_PER_DOMAIN = 6
           RETRY_ENABLED = True
           RETRY_TIMES = 5
           RETRY_HTTP_CODES = [403, 429, 500, 502, 503, 504, 522, 524, 408]
           AUTOTHROTTLE_ENABLED = True
-          AUTOTHROTTLE_START_DELAY = 1
-          AUTOTHROTTLE_MAX_DELAY = 10
+          AUTOTHROTTLE_START_DELAY = 0.5
+          AUTOTHROTTLE_MAX_DELAY = 8
+          AUTOTHROTTLE_TARGET_CONCURRENCY = 6.0
+          HTTPCACHE_ENABLED = False
           SETTINGS
-          # Patch (laat door als niet relevant op v0.4.0)
           if [ -f "$GITHUB_WORKSPACE/patch_scraper.py" ]; then
             python3 $GITHUB_WORKSPACE/patch_scraper.py || echo "Patch niet van toepassing, overslaan"
           fi
@@ -54,11 +56,8 @@ jobs:
       - name: Verifieer scraper versie en Scrapy CLI
         run: |
           cd /tmp/scraper
-          echo "=== Actieve tag ==="
           git describe --tags || git rev-parse HEAD
-          echo "=== Scrapy versie ==="
           python -c "import scrapy; print('Scrapy versie:', scrapy.__version__)"
-          echo "=== Beschikbare spiders ==="
           scrapy list
 
       - name: Maak output map aan
@@ -80,35 +79,25 @@ jobs:
                       shutil.copyfileobj(f_in, f_out)
           PYEOF
 
-      - name: Stap 1 - Clubs scrapen
+      - name: Stap 1 - Clubs scrapen (alleen huidig seizoen)
         run: |
           cd /tmp/scraper
-          for SEASON in 2024 2025; do
-            echo "=== Clubs seizoen $SEASON ==="
-            scrapy crawl clubs \
-              -a parents=$GITHUB_WORKSPACE/data/competitions.json \
-              -a season=$SEASON \
-              -O /tmp/clubs_$SEASON.jsonl:jsonlines || true
-            if [ -f /tmp/clubs_$SEASON.jsonl ]; then
-              cat /tmp/clubs_$SEASON.jsonl >> $GITHUB_WORKSPACE/data/raw/clubs.json
-            fi
-          done
-          echo "Clubs nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/clubs.json 2>/dev/null || echo 0)"
+          echo "=== Clubs seizoen $CURRENT_SEASON ==="
+          scrapy crawl clubs \
+            -a parents=$GITHUB_WORKSPACE/data/competitions.json \
+            -a season=$CURRENT_SEASON \
+            -O $GITHUB_WORKSPACE/data/raw/clubs.json:jsonlines || true
+          echo "Clubs: $(wc -l < $GITHUB_WORKSPACE/data/raw/clubs.json 2>/dev/null || echo 0)"
 
-      - name: Stap 2 - Spelers scrapen
+      - name: Stap 2 - Spelers scrapen (alleen huidig seizoen)
         run: |
           cd /tmp/scraper
-          for SEASON in 2024 2025; do
-            echo "=== Spelers seizoen $SEASON ==="
-            scrapy crawl players \
-              -a parents=$GITHUB_WORKSPACE/data/raw/clubs.json \
-              -a season=$SEASON \
-              -O /tmp/players_$SEASON.jsonl:jsonlines || true
-            if [ -f /tmp/players_$SEASON.jsonl ]; then
-              cat /tmp/players_$SEASON.jsonl >> $GITHUB_WORKSPACE/data/raw/players.json
-            fi
-          done
-          echo "Spelers nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/players.json 2>/dev/null || echo 0)"
+          echo "=== Spelers seizoen $CURRENT_SEASON ==="
+          scrapy crawl players \
+            -a parents=$GITHUB_WORKSPACE/data/raw/clubs.json \
+            -a season=$CURRENT_SEASON \
+            -O $GITHUB_WORKSPACE/data/raw/players.json:jsonlines || true
+          echo "Spelers: $(wc -l < $GITHUB_WORKSPACE/data/raw/players.json 2>/dev/null || echo 0)"
 
       - name: Stap 2b - Marktwaarden ophalen
         timeout-minutes: 30
@@ -174,9 +163,8 @@ jobs:
 
       - name: Wacht na marktwaarden (IP cooldown)
         run: |
-          echo "Wachten 5 minuten om IP-ban te vermijden..."
-          sleep 300
-          echo "Klaar met wachten"
+          echo "Wachten 3 minuten..."
+          sleep 180
 
       - name: Stap 2c - Transferhistorie ophalen via API
         timeout-minutes: 30
@@ -244,8 +232,8 @@ jobs:
 
       - name: Wacht na transfers (IP cooldown)
         run: |
-          echo "Wachten 3 minuten..."
-          sleep 180
+          echo "Wachten 2 minuten..."
+          sleep 120
 
       - name: Stap 2d - Historische marktwaarden ophalen via API
         timeout-minutes: 30
@@ -311,39 +299,99 @@ jobs:
           PYEOF
           echo "Valuations: $(wc -l < $GITHUB_WORKSPACE/data/raw/valuations.json 2>/dev/null || echo 0)"
 
-      - name: Stap 3 - Optredens scrapen
-        timeout-minutes: 120
+      - name: Stap 2e - Incrementeel filter - alleen spelers zonder recente data
+        run: |
+          python3 << 'PYEOF'
+          # Filter players.json zodat we alleen appearances scrapen voor spelers
+          # die geen recente data hebben (>7 dagen geleden).
+          # Dit bespaart enorm veel tijd op wekelijkse runs.
+          import json, csv
+          from pathlib import Path
+          from datetime import datetime, timedelta
+
+          PLAYERS_FULL = Path('data/raw/players.json')
+          PLAYERS_FILTERED = Path('data/raw/players_to_scrape.json')
+          APPEARANCES_EXISTING = Path('data/csv/appearances_existing.csv')
+
+          THRESHOLD_DAYS = 7   # spelers met data van <7 dagen geleden slaan we over
+          threshold_date = datetime.now() - timedelta(days=THRESHOLD_DAYS)
+          print(f"Drempel: spelers met appearance na {threshold_date.date()} overslaan")
+
+          # Bouw map van player_id -> meest recente appearance-datum
+          last_seen = {}
+          if APPEARANCES_EXISTING.exists():
+              with open(APPEARANCES_EXISTING, encoding='utf-8') as f:
+                  reader = csv.DictReader(f)
+                  for row in reader:
+                      pid = str(row.get('player_id', ''))
+                      date_str = row.get('date', '')
+                      if not pid or not date_str:
+                          continue
+                      # Probeer meerdere date-formats
+                      dt = None
+                      for fmt in ('%Y-%m-%d', '%m/%d/%y', '%b %d, %Y'):
+                          try:
+                              dt = datetime.strptime(date_str, fmt)
+                              break
+                          except:
+                              continue
+                      if dt is None:
+                          continue
+                      if pid not in last_seen or dt > last_seen[pid]:
+                          last_seen[pid] = dt
+              print(f"Historische appearances bekend: {len(last_seen)} unieke spelers")
+          else:
+              print("Geen bestaande appearances gevonden - alle spelers worden gescraped")
+
+          # Filter players.json
+          total, kept = 0, 0
+          with open(PLAYERS_FULL, encoding='utf-8') as f_in, \
+               open(PLAYERS_FILTERED, 'w', encoding='utf-8') as f_out:
+              for line in f_in:
+                  line = line.strip()
+                  if not line:
+                      continue
+                  total += 1
+                  try:
+                      p = json.loads(line)
+                  except:
+                      continue
+                  href = p.get('href', '')
+                  parts = href.rstrip('/').split('/')
+                  pid = ''
+                  if 'spieler' in parts:
+                      pid = parts[parts.index('spieler') + 1]
+                  # Hou speler als hij geen recente appearance heeft
+                  if pid in last_seen and last_seen[pid] > threshold_date:
+                      continue
+                  f_out.write(line + '\n')
+                  kept += 1
+          print(f"Filter resultaat: {kept}/{total} spelers nog te scrapen ({100*kept//max(total,1)}%)")
+          PYEOF
+
+      - name: Stap 3 - Optredens scrapen (incrementeel)
+        timeout-minutes: 90
         continue-on-error: true
         run: |
           cd /tmp/scraper
-          for SEASON in 2024 2025; do
-            echo "=== Optredens seizoen $SEASON ==="
-            scrapy crawl appearances \
-              -a parents=$GITHUB_WORKSPACE/data/raw/players.json \
-              -a season=$SEASON \
-              -O /tmp/appearances_$SEASON.jsonl:jsonlines || true
-            if [ -f /tmp/appearances_$SEASON.jsonl ]; then
-              cat /tmp/appearances_$SEASON.jsonl >> $GITHUB_WORKSPACE/data/raw/appearances.json
-            fi
-          done
+          echo "=== Optredens seizoen $CURRENT_SEASON ==="
+          scrapy crawl appearances \
+            -a parents=$GITHUB_WORKSPACE/data/raw/players_to_scrape.json \
+            -a season=$CURRENT_SEASON \
+            -O $GITHUB_WORKSPACE/data/raw/appearances.json:jsonlines || true
           echo "Optredens nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/appearances.json 2>/dev/null || echo 0)"
 
       - name: Stap 4 - Wedstrijden scrapen
-        timeout-minutes: 60
+        timeout-minutes: 40
         continue-on-error: true
         run: |
           cd /tmp/scraper
-          for SEASON in 2024 2025; do
-            echo "=== Wedstrijden seizoen $SEASON ==="
-            scrapy crawl games \
-              -a parents=$GITHUB_WORKSPACE/data/competitions.json \
-              -a season=$SEASON \
-              -O /tmp/games_$SEASON.jsonl:jsonlines || true
-            if [ -f /tmp/games_$SEASON.jsonl ]; then
-              cat /tmp/games_$SEASON.jsonl >> $GITHUB_WORKSPACE/data/raw/games.json
-            fi
-          done
-          echo "Wedstrijden nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/games.json 2>/dev/null || echo 0)"
+          echo "=== Wedstrijden seizoen $CURRENT_SEASON ==="
+          scrapy crawl games \
+            -a parents=$GITHUB_WORKSPACE/data/competitions.json \
+            -a season=$CURRENT_SEASON \
+            -O $GITHUB_WORKSPACE/data/raw/games.json:jsonlines || true
+          echo "Wedstrijden: $(wc -l < $GITHUB_WORKSPACE/data/raw/games.json 2>/dev/null || echo 0)"
 
       - name: Stap 5 - JSON naar CSV omzetten en samenvoegen
         run: |
@@ -639,8 +687,7 @@ jobs:
           for f in data/csv/*.csv; do [ -f "$f" ] && gzip -f "$f" || true; done
           git add data/csv/
           TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
-          BATCH=$(cat $GITHUB_WORKSPACE/data/competitions.json | python3 -c "import sys,json; lines=[json.loads(l) for l in sys.stdin if l.strip()]; codes=[l.get('country_code','') for l in lines[:3]]; print('+'.join(codes))" 2>/dev/null || echo "batch")
-          git commit -m "ScoutAI data update: ${TIMESTAMP} [${BATCH}...]" || echo "Geen wijzigingen"
+          git commit -m "ScoutAI data update: ${TIMESTAMP}" || echo "Geen wijzigingen"
           git push
 
       - name: Samenvatting
