@@ -16,6 +16,7 @@ async def run(parents_arg=None, season=2024, base_url=None):
     requests = build_initial_requests(parents, season, base_url, label='parse', spider_name='appearances')
 
     crawler, failures = create_crawler()
+    debug_counter = {'n': 0}
 
     @crawler.router.handler('parse')
     async def parse(context) -> None:
@@ -24,14 +25,11 @@ async def run(parents_arg=None, season=2024, base_url=None):
 
         full_stats_href = sel.xpath('//a[contains(text(),"View full stats")]/@href').get()
 
-        # PATCH: 'View full stats' link bestaat niet altijd op de profielpagina.
-        # Fallback: reconstrueer de stats-URL vanuit de profielpagina-URL.
-        # /naam/profil/spieler/12345 -> /naam/leistungsdatendetails/spieler/12345
+        # PATCH: fallback als "View full stats" link niet gevonden
         if full_stats_href is None:
             profile_path = context.request.url.split("transfermarkt.co.uk")[-1]
             if "/profil/spieler/" in profile_path:
-                full_stats_href = profile_path.replace("/profil/spieler/", "/leistungsdatendetails/spieler/")
-                logger.debug("appearances: fallback URL voor %s", context.request.url)
+                full_stats_href = profile_path.replace("/profil/spieler/", "/leistungsdaten/spieler/")
             else:
                 logger.warning("appearances: geen full_stats_href voor %s - overslaan", context.request.url)
                 return
@@ -50,6 +48,20 @@ async def run(parents_arg=None, season=2024, base_url=None):
     async def parse_stats(context) -> None:
         parent = context.request.user_data['parent']
         sel = context.selector
+
+        # DEBUG: log HTML-structuur voor eerste 3 stats-pagina's
+        debug_counter['n'] += 1
+        if debug_counter['n'] <= 3:
+            html = sel.get()
+            # Log welke selectors iets teruggeven
+            c1 = sel.css('div.content-box-headline > a::attr(name)').getall()
+            c2 = sel.css('div.table-header > a::attr(name)').getall()
+            c3 = sel.css('.content-box-headline a::attr(name)').getall()
+            tables = sel.css('div.responsive-table')
+            logger.warning(
+                "DEBUG stats #%d url=%s | content-box-headline>a: %s | table-header>a: %s | .content-box-headline a: %s | responsive-tables: %d | html-len: %d",
+                debug_counter['n'], context.request.url, c1[:3], c2[:3], c3[:3], len(tables), len(html)
+            )
 
         def parse_stats_elem(elem):
             has_classification_in_brackets = elem.xpath('*[@class = "tabellenplatz"]').get() is not None
@@ -87,20 +99,13 @@ async def run(parents_arg=None, season=2024, base_url=None):
 
             results = []
             for value_elements in value_elements_matrix:
-                header_elements_len = len(header_elements)
-                value_elements_len = len(value_elements)
-                # PATCH: vervang assert door soft-check zodat mismatch niet crasht
-                if header_elements_len != value_elements_len:
-                    logger.warning(
-                        "appearances: header/cell mismatch (%d vs %d) op %s - rij overgeslagen",
-                        header_elements_len, value_elements_len, context.request.url
-                    )
+                if len(header_elements) != len(value_elements):
+                    logger.warning("appearances: header/cell mismatch (%d vs %d) - rij overgeslagen", len(header_elements), len(value_elements))
                     continue
                 results.append(dict(zip(header_elements, value_elements)))
             return results
 
-        # PATCH: probeer meerdere CSS-selectors voor competitienamen
-        # (TM heeft 'div.table-header' vervangen door 'div.content-box-headline')
+        # Probeer meerdere selectors
         competitions = (
             sel.css('div.content-box-headline > a::attr(name)').getall()
             or sel.css('div.table-header > a::attr(name)').getall()
@@ -108,7 +113,6 @@ async def run(parents_arg=None, season=2024, base_url=None):
         )
         stats_tables = sel.css('div.responsive-table')[1:]
 
-        # PATCH: vervang assert door soft-check
         if len(competitions) != len(stats_tables):
             logger.warning(
                 "appearances: %d competitions vs %d tables op %s - overgeslagen",
