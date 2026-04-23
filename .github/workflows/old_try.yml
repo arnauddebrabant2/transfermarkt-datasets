@@ -1,4 +1,4 @@
-name: Weekly Transfermarkt Scrape 3
+name: Weekly Transfermarkt Scrape
 
 on:
   schedule:
@@ -29,7 +29,8 @@ jobs:
           cd /tmp/scraper
           poetry config virtualenvs.create false
           poetry install --without dev
-          pip install aiohttp asyncio beautifulsoup4 lxml
+          pip install aiohttp asyncio beautifulsoup4 lxml 'crawlee[playwright]'
+          python3 -m playwright install chromium --with-deps
           echo 'USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"' >> /tmp/scraper/tfmkt/settings.py
           echo 'ROBOTSTXT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"' >> /tmp/scraper/tfmkt/settings.py
           # Kopieer gecorrigeerde appearances.py (fixes: None-guard, assert -> soft-check, CSS-selector)
@@ -169,6 +170,13 @@ jobs:
             -s $CURRENT_SEASON \
             >> $GITHUB_WORKSPACE/data/raw/appearances.json || true
           echo "Optredens: $(wc -l < $GITHUB_WORKSPACE/data/raw/appearances.json 2>/dev/null || echo 0)"
+          # Sla debug HTML op als artifact
+          if [ -f /tmp/tm_appearances_debug.html ]; then
+            cp /tmp/tm_appearances_debug.html $GITHUB_WORKSPACE/data/raw/tm_debug.html
+            echo "Debug HTML: $(wc -c < /tmp/tm_appearances_debug.html) bytes"
+            echo "=== Eerste 3000 chars HTML ==="
+            head -c 3000 /tmp/tm_appearances_debug.html
+          fi
 
       - name: Stap 4 - Wedstrijden scrapen
         timeout-minutes: 60
