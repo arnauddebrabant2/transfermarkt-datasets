@@ -32,6 +32,19 @@ jobs:
           pip install aiohttp asyncio beautifulsoup4 lxml
           echo 'USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"' >> /tmp/scraper/tfmkt/settings.py
           echo 'ROBOTSTXT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"' >> /tmp/scraper/tfmkt/settings.py
+          # Patch appearances.py: 'View full stats' link bestaat niet altijd
+          python3 - << 'PATCHEOF'
+          from pathlib import Path
+          fpath = Path('/tmp/scraper/tfmkt/crawlers/appearances.py')
+          src = fpath.read_text()
+          old = '        full_stats_href = sel.xpath(\'//a[contains(text(),"View full stats")]/@href\').get()\n        seasoned_full_stats_href = full_stats_href + f"/plus/0?saison={season}"'
+          new = '        full_stats_href = sel.xpath(\'//a[contains(text(),"View full stats")]/@href\').get()\n        if full_stats_href is None:\n            profile_path = context.request.url.split("transfermarkt.co.uk")[-1]\n            if "/profil/spieler/" in profile_path:\n                full_stats_href = profile_path.replace("/profil/spieler/", "/leistungsdatendetails/spieler/")\n            else:\n                logger.warning("appearances: geen full_stats_href voor %s", context.request.url)\n                return\n        seasoned_full_stats_href = full_stats_href + f"/plus/0?saison={season}"'
+          if old in src:
+              fpath.write_text(src.replace(old, new))
+              print("appearances.py: None-guard gepatcht")
+          else:
+              print("appearances.py: patch niet nodig (al gepatcht of anders)")
+          PATCHEOF
 
       - name: Verifieer scraper
         run: |
