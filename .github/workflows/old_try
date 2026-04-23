@@ -1,0 +1,435 @@
+name: Weekly Transfermarkt Scrape 3
+
+on:
+  schedule:
+    - cron: '0 4 * * 1'  # Elke maandag om 04:00 UTC
+  workflow_dispatch:
+
+env:
+  CURRENT_SEASON: '2025'
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install transfermarkt-scraper (main branch)
+        run: |
+          pip install poetry
+          git clone https://github.com/dcaribou/transfermarkt-scraper.git /tmp/scraper
+          cd /tmp/scraper
+          poetry config virtualenvs.create false
+          poetry install --without dev
+          pip install aiohttp asyncio beautifulsoup4 lxml
+          echo 'USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"' >> /tmp/scraper/tfmkt/settings.py
+          echo 'ROBOTSTXT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"' >> /tmp/scraper/tfmkt/settings.py
+
+      - name: Verifieer scraper
+        run: |
+          cd /tmp/scraper
+          git rev-parse --short HEAD
+          python -c "import tfmkt; print('tfmkt OK')"
+
+      - name: Maak output map aan
+        run: mkdir -p data/raw data/csv
+
+      - name: Stap 0 - Bestaande CSV data inladen
+        run: |
+          python3 << 'PYEOF'
+          import gzip, shutil
+          from pathlib import Path
+          CSV = Path('data/csv')
+          for gz_file in sorted(CSV.glob('*.csv.gz')):
+              stem = gz_file.stem
+              out_name = 'appearances_existing.csv' if stem == 'appearances.csv' else stem
+              out_path = CSV / out_name
+              print(f"Decomprimeer {gz_file.name} -> {out_name} ({gz_file.stat().st_size // 1024} KB)")
+              with gzip.open(gz_file, 'rb') as f_in:
+                  with open(out_path, 'wb') as f_out:
+                      shutil.copyfileobj(f_in, f_out)
+          PYEOF
+
+      - name: Stap 1+2 - Clubs/spelers uit bestaande CSV's (geen scraping)
+        run: |
+          python3 << 'PYEOF'
+          import csv, json, sys
+          from pathlib import Path
+          RAW = Path('data/raw')
+          CSV = Path('data/csv')
+          RAW.mkdir(parents=True, exist_ok=True)
+          clubs_csv = CSV / 'clubs.csv'
+          if not clubs_csv.exists():
+              print("FOUT: clubs.csv ontbreekt!"); sys.exit(1)
+          clubs_out = RAW / 'clubs.json'
+          n_clubs = 0
+          with open(clubs_csv, encoding='utf-8') as fi, open(clubs_out, 'w', encoding='utf-8') as fo:
+              reader = csv.DictReader(fi)
+              for row in reader:
+                  club_id = (row.get('club_id') or '').strip()
+                  url = (row.get('url') or '').strip()
+                  comp_id = (row.get('domestic_competition_id') or '').strip()
+                  if not club_id or not url: continue
+                  href = url.replace('https://www.transfermarkt.co.uk', '').replace('https://www.transfermarkt.com', '')
+                  if not href.startswith('/'): href = '/' + href
+                  fo.write(json.dumps({'type': 'club', 'href': href, 'parent': {'type': 'competition', 'competition_type': 'first_tier', 'href': f'/x/startseite/wettbewerb/{comp_id}', 'country_code': comp_id}}) + '\n')
+                  n_clubs += 1
+          print(f"clubs.json: {n_clubs} clubs")
+          players_csv = CSV / 'players.csv'
+          if not players_csv.exists():
+              print("FOUT: players.csv ontbreekt!"); sys.exit(1)
+          players_out = RAW / 'players.json'
+          n_players = 0
+          with open(players_csv, encoding='utf-8') as fi, open(players_out, 'w', encoding='utf-8') as fo:
+              reader = csv.DictReader(fi)
+              for row in reader:
+                  player_id = (row.get('player_id') or '').strip()
+                  url = (row.get('url') or '').strip()
+                  club_id = (row.get('current_club_id') or '').strip()
+                  if not player_id or not url: continue
+                  href = url.replace('https://www.transfermarkt.co.uk', '').replace('https://www.transfermarkt.com', '')
+                  if not href.startswith('/'): href = '/' + href
+                  fo.write(json.dumps({'type': 'player', 'href': href, 'parent': {'type': 'club', 'href': f'/x/startseite/verein/{club_id}', 'current_club': {'href': f'/x/startseite/verein/{club_id}'}}}) + '\n')
+                  n_players += 1
+          print(f"players.json: {n_players} spelers")
+          PYEOF
+
+      - name: Stap 2e - Incrementeel filter voor appearances
+        run: |
+          python3 << 'PYEOF'
+          import json, csv
+          from pathlib import Path
+          from datetime import datetime, timedelta
+          PLAYERS_FULL = Path('data/raw/players.json')
+          PLAYERS_FILTERED = Path('data/raw/players_to_scrape.json')
+          APPEARANCES_EXISTING = Path('data/csv/appearances_existing.csv')
+          THRESHOLD_DAYS = 7
+          MAX_PLAYERS_PER_RUN = 2000
+          threshold_date = datetime.now() - timedelta(days=THRESHOLD_DAYS)
+          print(f"Drempel: spelers met appearance na {threshold_date.date()} overslaan")
+          print(f"Max per run: {MAX_PLAYERS_PER_RUN}")
+          last_seen = {}
+          if APPEARANCES_EXISTING.exists():
+              with open(APPEARANCES_EXISTING, encoding='utf-8') as f:
+                  reader = csv.DictReader(f)
+                  for row in reader:
+                      pid = str(row.get('player_id', ''))
+                      date_str = row.get('date', '')
+                      if not pid or not date_str: continue
+                      dt = None
+                      for fmt in ('%Y-%m-%d', '%m/%d/%y', '%b %d, %Y'):
+                          try: dt = datetime.strptime(date_str, fmt); break
+                          except: continue
+                      if dt and (pid not in last_seen or dt > last_seen[pid]):
+                          last_seen[pid] = dt
+              print(f"Historische appearances: {len(last_seen)} unieke spelers")
+          candidates = []
+          total = 0
+          with open(PLAYERS_FULL, encoding='utf-8') as f_in:
+              for line in f_in:
+                  line = line.strip()
+                  if not line: continue
+                  total += 1
+                  try: p = json.loads(line)
+                  except: continue
+                  href = p.get('href', '')
+                  parts = href.rstrip('/').split('/')
+                  pid = parts[parts.index('spieler') + 1] if 'spieler' in parts else ''
+                  last = last_seen.get(pid)
+                  if last is not None and last > threshold_date: continue
+                  priority = last if last else datetime(1970, 1, 1)
+                  candidates.append((priority, line))
+          candidates.sort(key=lambda x: x[0])
+          selected = candidates[:MAX_PLAYERS_PER_RUN]
+          with open(PLAYERS_FILTERED, 'w', encoding='utf-8') as f_out:
+              for _, line in selected:
+                  f_out.write(line + '\n')
+          print(f"Geselecteerd: {len(selected)}/{total} (rest: {max(0, len(candidates)-len(selected))} volgende runs)")
+          PYEOF
+
+      - name: Stap 3 - Optredens scrapen
+        timeout-minutes: 120
+        continue-on-error: true
+        run: |
+          cd /tmp/scraper
+          echo "=== Optredens seizoen $CURRENT_SEASON ==="
+          python -m tfmkt appearances \
+            -p $GITHUB_WORKSPACE/data/raw/players_to_scrape.json \
+            -s $CURRENT_SEASON \
+            >> $GITHUB_WORKSPACE/data/raw/appearances.json || true
+          echo "Optredens: $(wc -l < $GITHUB_WORKSPACE/data/raw/appearances.json 2>/dev/null || echo 0)"
+
+      - name: Stap 4 - Wedstrijden scrapen
+        timeout-minutes: 60
+        continue-on-error: true
+        run: |
+          cd /tmp/scraper
+          echo "=== Wedstrijden seizoen $CURRENT_SEASON ==="
+          python -m tfmkt games \
+            -p $GITHUB_WORKSPACE/data/competitions.json \
+            -s $CURRENT_SEASON \
+            >> $GITHUB_WORKSPACE/data/raw/games.json || true
+          echo "Wedstrijden: $(wc -l < $GITHUB_WORKSPACE/data/raw/games.json 2>/dev/null || echo 0)"
+
+      - name: Stap 5 - JSON naar CSV omzetten en samenvoegen
+        run: |
+          python3 << 'PYEOF'
+          import json, csv
+          from pathlib import Path
+          RAW = Path('data/raw')
+          OUT = Path('data/csv')
+          OUT.mkdir(exist_ok=True)
+
+          def load_jsonl(path):
+              items = []
+              if not path.exists(): return items
+              with open(path, encoding='utf-8') as f:
+                  for line in f:
+                      line = line.strip()
+                      if line:
+                          try: items.append(json.loads(line))
+                          except: pass
+              return items
+
+          def load_csv_existing(path):
+              rows = []
+              if not path.exists(): return rows
+              with open(path, encoding='utf-8') as f:
+                  reader = csv.DictReader(f)
+                  for row in reader: rows.append(row)
+              return rows
+
+          def extract_id(href):
+              if not href: return ''
+              parts = href.rstrip('/').split('/')
+              if 'wettbewerb' in parts: return parts[parts.index('wettbewerb') + 1]
+              if 'verein' in parts: return parts[parts.index('verein') + 1]
+              if 'spieler' in parts: return parts[parts.index('spieler') + 1]
+              if 'spielbericht' in parts: return parts[parts.index('spielbericht') + 1]
+              return parts[-1]
+
+          # ── APPEARANCES ──
+          appearances = load_jsonl(RAW / 'appearances.json')
+          new_app_rows = []
+          for a in appearances:
+              parent = a.get('parent') or {}
+              player_id = extract_id(parent.get('href', ''))
+              player_club_id = extract_id((parent.get('current_club') or {}).get('href', ''))
+              result_raw = a.get('result')
+              if isinstance(result_raw, dict): result_href = result_raw.get('href', '')
+              elif isinstance(result_raw, str): result_href = result_raw
+              else: result_href = ''
+              game_id = extract_id(result_href)
+              date = a.get('date', '')
+              appearance_id = f"{player_id}_{date.replace('/', '')}" if player_id and date else ''
+              min_raw = a.get('minutes_played', '') or ''
+              try: minutes_played = int(str(min_raw).replace("'", "").strip())
+              except: minutes_played = 0
+              def card_count(val):
+                  if val is None or val == '' or val == 0: return 0
+                  return 1
+              def safe_int(val):
+                  try: return int(val) if val != '' and val is not None else 0
+                  except: return 0
+              new_app_rows.append({
+                  'appearance_id': appearance_id,
+                  'game_id': game_id,
+                  'player_id': player_id,
+                  'player_club_id': player_club_id,
+                  'date': date,
+                  'player_name': f"{parent.get('name', '')} {parent.get('last_name', '')}".strip(),
+                  'competition_id': a.get('competition_code', ''),
+                  'yellow_cards': card_count(a.get('yellow_cards')),
+                  'red_cards': card_count(a.get('red_cards')),
+                  'goals': safe_int(a.get('goals')),
+                  'assists': safe_int(a.get('assists')),
+                  'minutes_played': minutes_played,
+              })
+          existing_apps = load_csv_existing(OUT / 'appearances_existing.csv')
+          app_id_map = {r['appearance_id']: r for r in existing_apps}
+          for r in new_app_rows:
+              if r['appearance_id']: app_id_map[r['appearance_id']] = r
+          merged_apps = list(app_id_map.values())
+          if merged_apps:
+              with open(OUT / 'appearances.csv', 'w', newline='', encoding='utf-8') as f:
+                  w = csv.DictWriter(f, fieldnames=list(merged_apps[0].keys()))
+                  w.writeheader(); w.writerows(merged_apps)
+              print(f'appearances.csv: {len(merged_apps)} rijen (was {len(existing_apps)}, +{len(merged_apps)-len(existing_apps)} nieuw)')
+          else:
+              print('appearances.csv: geen nieuwe data')
+
+          # ── GAMES ──
+          games = load_jsonl(RAW / 'games.json')
+          new_game_rows = []
+          for g in games:
+              result = g.get('result', '') or ''
+              try:
+                  home_goals, away_goals = result.split(':')
+                  home_goals = home_goals.strip(); away_goals = away_goals.strip()
+              except: home_goals, away_goals = '', ''
+              home_id = extract_id((g.get('home_club') or {}).get('href', ''))
+              away_id = extract_id((g.get('away_club') or {}).get('href', ''))
+              comp_id = (g.get('parent') or {}).get('country_code', '') or \
+                        extract_id((g.get('parent') or {}).get('href', ''))
+              new_game_rows.append({
+                  'game_id': g.get('game_id', ''),
+                  'competition_id': comp_id,
+                  'season': g.get('season', '2025'),
+                  'date': g.get('date', ''),
+                  'home_club_id': home_id,
+                  'away_club_id': away_id,
+                  'home_club_goals': home_goals,
+                  'away_club_goals': away_goals,
+                  'home_club_name': g.get('home_club_name', ''),
+                  'away_club_name': g.get('away_club_name', ''),
+                  'stadium': g.get('stadium', ''),
+                  'attendance': g.get('attendance', ''),
+                  'url': f"https://www.transfermarkt.co.uk{g.get('href', '')}",
+              })
+          existing_games = load_csv_existing(OUT / 'games.csv')
+          game_id_map = {r['game_id']: r for r in existing_games}
+          for r in new_game_rows:
+              if r['game_id']: game_id_map[str(r['game_id'])] = r
+          merged_games = list(game_id_map.values())
+          if merged_games:
+              with open(OUT / 'games.csv', 'w', newline='', encoding='utf-8') as f:
+                  w = csv.DictWriter(f, fieldnames=list(merged_games[0].keys()))
+                  w.writeheader(); w.writerows(merged_games)
+              print(f'games.csv: {len(merged_games)} rijen (was {len(existing_games)}, +{len(merged_games)-len(existing_games)} nieuw)')
+          else:
+              print('games.csv: geen nieuwe data')
+
+          tmp = Path('data/csv/appearances_existing.csv')
+          if tmp.exists(): tmp.unlink()
+          print('Klaar!')
+          PYEOF
+
+      - name: Stap 6 - Debuten ophalen voor nieuwe/ontbrekende spelers
+        timeout-minutes: 30
+        continue-on-error: true
+        run: |
+          python3 << 'PYEOF'
+          import asyncio, aiohttp, csv, re
+          from pathlib import Path
+          from urllib.parse import urlparse
+          from bs4 import BeautifulSoup
+          PLAYERS_CSV = Path("data/csv/players.csv")
+          MAX_PER_RUN = 500
+          HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", "Accept-Language": "nl-BE,nl;q=0.9,en;q=0.8", "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"}
+          MONTHS = {"jan":"01","feb":"02","mar":"03","apr":"04","may":"05","jun":"06","jul":"07","aug":"08","sep":"09","oct":"10","nov":"11","dec":"12"}
+          HIGHEST_TITLES = {"eerste klasse","eerste divisie","highest division","1st division","premier league","bundesliga","serie a","la liga","ligue 1","eredivisie"}
+          SECOND_TITLES = {"tweede klasse","tweede divisie","second division","2nd division","2. bundesliga","serie b","segunda division","ligue 2","eerste divisie"}
+          DEBUT_COLS = ["debut_highest_division_date","debut_highest_division_club","debut_highest_division_competition","debut_second_tier_date","debut_second_tier_club","debut_second_tier_competition"]
+          def clean(el):
+              return re.sub(r"\s+", " ", (el.get_text(" ", strip=True) if el else "").strip())
+          def norm(s):
+              return re.sub(r"\s+", " ", (s or "").strip().lower())
+          def parse_date(text):
+              s = norm(text).replace("\xa0", " "); parts = s.split()
+              if len(parts) < 3: return ""
+              day = re.sub(r"\D", "", parts[0]).zfill(2); month = MONTHS.get(parts[1], ""); year = re.sub(r"\D", "", parts[2])
+              return f"{year}-{month}-{day}" if day and month and year else ""
+          def build_url(row):
+              pid = str(row.get("player_id","")).strip(); url = str(row.get("url","")).strip(); slug = ""
+              if url:
+                  try:
+                      parts = urlparse(url).path.strip("/").split("/")
+                      if "spieler" in parts:
+                          i = parts.index("spieler"); slug = parts[i-1] if i > 0 else ""; pid = parts[i+1] if i+1 < len(parts) else pid
+                  except: pass
+              base = f"https://www.transfermarkt.be/{slug}" if slug else "https://www.transfermarkt.be/spieler"
+              return f"{base}/debuets/spieler/{pid}"
+          def parse_page(html):
+              soup = BeautifulSoup(html, "lxml"); result = {c: "" for c in DEBUT_COLS}
+              table = None
+              for div in soup.select("div.box"):
+                  h2 = div.select_one("h2.content-box-headline")
+                  if h2 and "debut" in norm(clean(h2)):
+                      table = div.select_one("table"); break
+              if not table: table = soup.select_one("div.responsive-table table")
+              if not table: return result
+              current = ""
+              for tr in table.select("tbody tr"):
+                  hd = tr.select_one("td.hauptlink[colspan]")
+                  if hd: current = norm(clean(hd)); continue
+                  cells = tr.find_all("td", recursive=False)
+                  if len(cells) < 4: continue
+                  date_val = parse_date(clean(cells[3]))
+                  if not date_val: continue
+                  competition = clean(cells[1]); club = ""
+                  img = cells[2].find("img")
+                  if img and img.get("title"): club = img["title"].strip()
+                  if not club:
+                      a = cells[2].find("a")
+                      if a: club = (a.get("title") or clean(a)).strip()
+                  if current in HIGHEST_TITLES and not result["debut_highest_division_date"]:
+                      result["debut_highest_division_date"] = date_val; result["debut_highest_division_club"] = club; result["debut_highest_division_competition"] = competition
+                  elif current in SECOND_TITLES and not result["debut_second_tier_date"]:
+                      result["debut_second_tier_date"] = date_val; result["debut_second_tier_club"] = club; result["debut_second_tier_competition"] = competition
+                  if result["debut_highest_division_date"] and result["debut_second_tier_date"]: break
+              return result
+          with open(PLAYERS_CSV, encoding="utf-8") as f:
+              reader = csv.DictReader(f); fields = list(reader.fieldnames or []); rows = list(reader)
+          for col in DEBUT_COLS:
+              if col not in fields: fields.append(col)
+          date_pattern = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+          def has_debut(row):
+              return bool(date_pattern.match((row.get("debut_highest_division_date") or "").strip()) or date_pattern.match((row.get("debut_second_tier_date") or "").strip()))
+          todo = [(i, r) for i, r in enumerate(rows) if not has_debut(r) and r.get("player_id")]
+          print(f"Spelers zonder debut-data: {len(todo)}")
+          if len(todo) > MAX_PER_RUN: print(f"Beperkt tot {MAX_PER_RUN}"); todo = todo[:MAX_PER_RUN]
+          if not todo: print("Niets te doen"); import sys; sys.exit(0)
+          async def fetch_one(session, semaphore, idx, row):
+              async with semaphore:
+                  await asyncio.sleep(0.3)
+                  url = build_url(row)
+                  try:
+                      async with session.get(url, headers=HEADERS, timeout=aiohttp.ClientTimeout(total=20), allow_redirects=True) as resp:
+                          if resp.status == 200:
+                              html = await resp.text()
+                              return idx, (html if len(html) >= 3000 else None), f"ok/leeg"
+                          return idx, None, f"http{resp.status}"
+                  except Exception as e: return idx, None, f"error:{type(e).__name__}"
+          async def main():
+              semaphore = asyncio.Semaphore(8); updated = 0
+              async with aiohttp.ClientSession() as session:
+                  tasks = [fetch_one(session, semaphore, i, r) for i, r in todo]; done = 0
+                  for coro in asyncio.as_completed(tasks):
+                      idx, html, status = await coro; done += 1
+                      if html:
+                          parsed = parse_page(html)
+                          for k, v in parsed.items():
+                              if v: rows[idx][k] = v
+                          if parsed.get("debut_highest_division_date") or parsed.get("debut_second_tier_date"): updated += 1
+                      if done % 50 == 0: print(f"  {done}/{len(todo)}, {updated} bijgewerkt")
+              print(f"Klaar: {updated}/{len(todo)} bijgewerkt")
+              with open(PLAYERS_CSV, "w", newline="", encoding="utf-8") as f:
+                  w = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore"); w.writeheader()
+                  for r in rows: w.writerow({k: r.get(k, "") for k in fields})
+          asyncio.run(main())
+          PYEOF
+
+      - name: Commit en push CSV's
+        run: |
+          git config user.name "ScoutAI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          for f in data/csv/*.csv; do [ -f "$f" ] && gzip -f "$f" || true; done
+          git add data/csv/
+          TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
+          git commit -m "ScoutAI data update: ${TIMESTAMP}" || echo "Geen wijzigingen"
+          git push
+
+      - name: Samenvatting
+        run: |
+          echo "=== SCRAPING KLAAR ==="
+          for f in data/csv/*; do
+            echo "$f: $(wc -c < $f) bytes"
+          done
