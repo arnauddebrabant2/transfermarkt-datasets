@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  CURRENT_SEASON: '2025'
+  CURRENT_SEASON: '2024'  # TM gebruikt 2024 voor seizoen 2024/25
 
 jobs:
   scrape:
@@ -101,88 +101,68 @@ jobs:
 
       - name: Stap 2e - Incrementeel filter
         run: |
-          python3 << 'PYEOF'
+          python3.12 << 'PYEOF'
           import json, csv
           from pathlib import Path
           from datetime import datetime, timedelta
-
           PLAYERS_FULL = Path('data/raw/players.json')
           PLAYERS_FILTERED = Path('data/raw/players_to_scrape.json')
-          APPEARANCES_EXISTING = Path('data/csv/appearances_existing.csv')
-
+          APPEARANCES_GZ = Path('data/csv/appearances.csv.gz')
+          APPEARANCES_CSV = Path('data/csv/appearances_existing.csv')
           THRESHOLD_DAYS = 7
-          SCRAPE_ALL_PLAYERS = True   # <-- alle spelers scrapen
-
+          MAX_PLAYERS_PER_RUN = 2000
           threshold_date = datetime.now() - timedelta(days=THRESHOLD_DAYS)
           print(f"Drempel: spelers met appearance na {threshold_date.date()} overslaan")
-
           last_seen = {}
-
-          if APPEARANCES_EXISTING.exists():
-              with open(APPEARANCES_EXISTING, encoding='utf-8') as f:
+          # Probeer eerst gedecomprimeerd bestand, anders rechtstreeks .gz
+          import gzip
+          src = None
+          if APPEARANCES_CSV.exists():
+              src = APPEARANCES_CSV
+              open_fn = open
+              print(f"Gebruik {APPEARANCES_CSV}")
+          elif APPEARANCES_GZ.exists():
+              src = APPEARANCES_GZ
+              open_fn = gzip.open
+              print(f"Gebruik {APPEARANCES_GZ} (gz)")
+          if src:
+              with open_fn(src, 'rt', encoding='utf-8') as f:
                   reader = csv.DictReader(f)
                   for row in reader:
                       pid = str(row.get('player_id', ''))
                       date_str = row.get('date', '')
-                      if not pid or not date_str:
-                          continue
-
+                      if not pid or not date_str: continue
                       dt = None
                       for fmt in ('%Y-%m-%d', '%m/%d/%y', '%b %d, %Y'):
-                          try:
-                              dt = datetime.strptime(date_str, fmt)
-                              break
-                          except:
-                              continue
-
+                          try: dt = datetime.strptime(date_str, fmt); break
+                          except: continue
                       if dt and (pid not in last_seen or dt > last_seen[pid]):
                           last_seen[pid] = dt
-
               print(f"Historische appearances: {len(last_seen)} unieke spelers")
-
+          else:
+              print("Geen bestaande appearances gevonden, alle spelers zijn kandidaat")
           candidates = []
           total = 0
-          skipped_recent = 0
-
           with open(PLAYERS_FULL, encoding='utf-8') as f_in:
               for line in f_in:
                   line = line.strip()
-                  if not line:
-                      continue
-
+                  if not line: continue
                   total += 1
-
-                  try:
-                      p = json.loads(line)
-                  except:
-                      continue
-
+                  try: p = json.loads(line)
+                  except: continue
                   href = p.get('href', '')
                   parts = href.rstrip('/').split('/')
                   pid = parts[parts.index('spieler') + 1] if 'spieler' in parts else ''
-
                   last = last_seen.get(pid)
-
-                  # Als je echt IEDEREEN elke run wil scrapen, zet deze if uit.
-                  # Nu scrapt hij iedereen behalve spelers die de laatste 7 dagen al data hebben.
-                  if not SCRAPE_ALL_PLAYERS and last is not None and last > threshold_date:
-                      skipped_recent += 1
-                      continue
-
+                  if last is not None and last > threshold_date: continue
                   priority = last if last else datetime(1970, 1, 1)
                   candidates.append((priority, line))
-
           candidates.sort(key=lambda x: x[0])
-
-          selected = candidates  # <-- geen limiet meer
-
+          selected = candidates[:MAX_PLAYERS_PER_RUN]
           with open(PLAYERS_FILTERED, 'w', encoding='utf-8') as f_out:
               for _, line in selected:
                   f_out.write(line + '\n')
-
-          print(f"Totaal spelers: {total}")
-          print(f"Geselecteerd om te scrapen: {len(selected)}")
-          print(f"Recent overgeslagen: {skipped_recent}")
+          print(f"Geselecteerd: {len(selected)}/{total}")
           PYEOF
 
       - name: Stap 3 - Appearances ophalen via ceapi
@@ -205,7 +185,7 @@ jobs:
           RAW = Path('data/raw')
           PLAYERS_FILE = RAW / 'players_to_scrape.json'
           OUT_FILE = RAW / 'appearances.json'
-          SEASONS = {2024, 2025}
+          SEASONS = {2024, 2025}  # ceapi geeft seizoen 2025 terug voor lopend seizoen
           CEAPI_URL = "https://www.transfermarkt.co.uk/ceapi/performance-game/{player_id}"
           PROXY = os.environ.get('HTTPS_PROXY') or os.environ.get('HTTP_PROXY') or ''
           HEADERS = {
@@ -213,8 +193,8 @@ jobs:
               "Accept": "application/json",
               "Referer": "https://www.transfermarkt.co.uk/",
           }
-          CONCURRENCY = 8
-          DELAY = 0.4
+          CONCURRENCY = 3
+          DELAY = 1.5
 
           def get_player_ids():
               ids, seen = [], set()
@@ -315,9 +295,11 @@ jobs:
               async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=False)) as session:
                   tasks = [fetch_player(session, semaphore, pid) for pid in player_ids]
                   for i, coro in enumerate(asyncio.as_completed(tasks)):
-                      all_appearances.extend(await coro)
-                      if (i + 1) % 100 == 0:
-                          print(f"  {i+1}/{len(player_ids)} spelers, {len(all_appearances)} appearances")
+                      batch = await coro
+                      all_appearances.extend(batch)
+                      if (i + 1) % 500 == 0:
+                          seizoenen = set(a['competition_id'] for a in all_appearances[-100:])
+                          print(f"  {i+1}/{len(player_ids)} spelers, {len(all_appearances)} appearances (laatste batch: {len(batch)})")
               seen = set()
               unique = [a for a in all_appearances if a['appearance_id'] not in seen and not seen.add(a['appearance_id'])]
               print(f"Nieuw: {len(unique)} appearances")
