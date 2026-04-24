@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  CURRENT_SEASON: '2024'  # TM gebruikt 2024 voor seizoen 2024/25
+  CURRENT_SEASON: '2025'
 
 jobs:
   scrape:
@@ -29,6 +29,9 @@ jobs:
           cd /tmp/scraper
           poetry config virtualenvs.create false
           poetry install --without dev
+          # Installeer playwright voor games scraper
+          pip install 'crawlee[playwright]'
+          python3 -m playwright install chromium --with-deps
           # Zorg dat aiohttp ook beschikbaar is voor python3.12
           python3.12 -m pip install aiohttp beautifulsoup4 lxml --quiet 2>/dev/null || true
 
@@ -110,7 +113,7 @@ jobs:
           APPEARANCES_GZ = Path('data/csv/appearances.csv.gz')
           APPEARANCES_CSV = Path('data/csv/appearances_existing.csv')
           THRESHOLD_DAYS = 7
-          MAX_PLAYERS_PER_RUN = 2000
+          MAX_PLAYERS_PER_RUN = 40000  # Alles scrapen
           threshold_date = datetime.now() - timedelta(days=THRESHOLD_DAYS)
           print(f"Drempel: spelers met appearance na {threshold_date.date()} overslaan")
           last_seen = {}
@@ -166,7 +169,7 @@ jobs:
           PYEOF
 
       - name: Stap 3 - Appearances ophalen via ceapi
-        timeout-minutes: 120
+        timeout-minutes: 360
         continue-on-error: true
         run: |
           echo "=== Debug: bestanden checken ==="
@@ -297,7 +300,7 @@ jobs:
                   for i, coro in enumerate(asyncio.as_completed(tasks)):
                       batch = await coro
                       all_appearances.extend(batch)
-                      if (i + 1) % 500 == 0:
+                      if (i + 1) % 1000 == 0:
                           seizoenen = set(a['competition_id'] for a in all_appearances[-100:])
                           print(f"  {i+1}/{len(player_ids)} spelers, {len(all_appearances)} appearances (laatste batch: {len(batch)})")
               seen = set()
@@ -323,7 +326,7 @@ jobs:
           python -m tfmkt games \
             -p $GITHUB_WORKSPACE/data/competitions.json \
             -s $CURRENT_SEASON \
-            >> $GITHUB_WORKSPACE/data/raw/games.json || true
+            > $GITHUB_WORKSPACE/data/raw/games.json || true
           echo "Wedstrijden: $(wc -l < $GITHUB_WORKSPACE/data/raw/games.json 2>/dev/null || echo 0)"
 
       - name: Stap 5 - JSON naar CSV omzetten en samenvoegen
