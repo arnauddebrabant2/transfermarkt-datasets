@@ -236,6 +236,8 @@ jobs:
                           if resp.status == 200:
                               raw = await resp.json(content_type=None)
                               return parse_appearances(player_id, raw.get('data') or raw)
+                          elif resp.status == 405:
+                              return []  # Speler niet actief, stilletjes overslaan
                           else:
                               print(f"  [{resp.status}] speler {player_id}")
                               return []
@@ -246,9 +248,23 @@ jobs:
           async def main():
               player_ids = get_player_ids()
               print(f"Spelers te scrapen: {len(player_ids)}")
-              print(f"Proxy: {PROXY[:40] + '...' if PROXY else 'GEEN - requests kunnen 403 geven!'}")
+              print(f"Eerste 5 player IDs: {player_ids[:5]}")
+              print(f"Proxy: {PROXY[:40] + '...' if PROXY else 'GEEN'}")
               if not player_ids:
                   return
+
+              # Test eerste speler direct
+              import aiohttp as _aiohttp
+              async with _aiohttp.ClientSession() as _s:
+                  _url = CEAPI_URL.format(player_id=player_ids[0])
+                  print(f"Test URL: {_url}")
+                  async with _s.get(_url, headers=HEADERS, timeout=_aiohttp.ClientTimeout(total=10)) as _r:
+                      print(f"Test status: {_r.status}")
+                      if _r.status == 200:
+                          _d = await _r.json(content_type=None)
+                          _perfs = (_d.get('data') or _d).get('performance', [])
+                          print(f"Test performances: {len(_perfs)}, seizoenen: {set(p.get('gameInformation',{}).get('seasonId') for p in _perfs[:5])}")
+
               semaphore = asyncio.Semaphore(CONCURRENCY)
               all_appearances = []
               async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=False)) as session:
