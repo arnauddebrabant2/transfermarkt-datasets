@@ -29,6 +29,8 @@ jobs:
           cd /tmp/scraper
           poetry config virtualenvs.create false
           poetry install --without dev
+          # Zorg dat aiohttp ook beschikbaar is voor python3.12
+          python3.12 -m pip install aiohttp beautifulsoup4 lxml --quiet 2>/dev/null || true
 
       - name: Verifieer scraper
         run: |
@@ -160,9 +162,9 @@ jobs:
           echo "Eerste 2 regels:"
           head -2 data/raw/players_to_scrape.json 2>/dev/null || echo "LEEG"
           echo "=== Start Python ==="
-          pip install aiohttp -q
-          python3 -c "import aiohttp; print('aiohttp versie:', aiohttp.__version__)"
-          python3 << 'PYEOF'
+          python3.12 -m pip install aiohttp -q
+          python3.12 -c "import aiohttp; print('aiohttp versie:', aiohttp.__version__)"
+          python3.12 << 'PYEOF'
           import json, asyncio, aiohttp, os
           from pathlib import Path
 
