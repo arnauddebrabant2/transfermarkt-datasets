@@ -1,4 +1,4 @@
-name: Weekly Transfermarkt Scrape 40
+name: Weekly Transfermarkt Scrape
 
 on:
   schedule:
@@ -22,11 +22,11 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install transfermarkt-scraper (v0.5.0)
+      - name: Install transfermarkt-scraper (main)
         run: |
           pip install poetry
           git clone --depth 1 \
-              https://github.com/dcaribou/transfermarkt-scraper.git /tmp/scraper
+            https://github.com/dcaribou/transfermarkt-scraper.git /tmp/scraper
           cd /tmp/scraper
           poetry config virtualenvs.create false
           poetry install --without dev
@@ -94,7 +94,7 @@ jobs:
           python -m tfmkt clubs \
             -p $GITHUB_WORKSPACE/data/competitions.json \
             -s $CURRENT_SEASON \
-            -o /tmp/clubs_raw.jsonl
+            > /tmp/clubs_raw.jsonl
           echo "Clubs raw bestand grootte: $(wc -c < /tmp/clubs_raw.jsonl 2>/dev/null || echo 0) bytes"
           echo "Clubs raw regels: $(wc -l < /tmp/clubs_raw.jsonl 2>/dev/null || echo 0)"
           cp /tmp/clubs_raw.jsonl $GITHUB_WORKSPACE/data/raw/clubs.json
@@ -150,7 +150,7 @@ jobs:
           python -m tfmkt players \
             -p $GITHUB_WORKSPACE/data/raw/clubs.json \
             -s $CURRENT_SEASON \
-            -o /tmp/players_raw.jsonl
+            > /tmp/players_raw.jsonl
           echo "Spelers raw bestand grootte: $(wc -c < /tmp/players_raw.jsonl 2>/dev/null || echo 0) bytes"
           echo "Spelers raw regels: $(wc -l < /tmp/players_raw.jsonl 2>/dev/null || echo 0)"
           cp /tmp/players_raw.jsonl $GITHUB_WORKSPACE/data/raw/players.json
@@ -460,7 +460,7 @@ jobs:
           python -m tfmkt appearances \
             -p $GITHUB_WORKSPACE/data/raw/players_to_scrape.json \
             -s 2024 \
-            -o /tmp/appearances_2024.jsonl || true
+            > /tmp/appearances_2024.jsonl || true
           echo "Optredens 2024: $(wc -l < /tmp/appearances_2024.jsonl 2>/dev/null || echo 0) regels"
 
           echo "=== Optredens seizoen 2025 ==="
@@ -468,7 +468,7 @@ jobs:
           python -m tfmkt appearances \
             -p $GITHUB_WORKSPACE/data/raw/players_to_scrape.json \
             -s 2025 \
-            -o /tmp/appearances_2025.jsonl || true
+            > /tmp/appearances_2025.jsonl || true
           echo "Optredens 2025: $(wc -l < /tmp/appearances_2025.jsonl 2>/dev/null || echo 0) regels"
 
           # Combineer beide seizoenen
@@ -493,7 +493,7 @@ jobs:
           python -m tfmkt games \
             -p $GITHUB_WORKSPACE/data/competitions.json \
             -s $CURRENT_SEASON \
-            -o /tmp/games_raw.jsonl || true
+            > /tmp/games_raw.jsonl || true
           if [ -s /tmp/games_raw.jsonl ]; then
             cp /tmp/games_raw.jsonl $GITHUB_WORKSPACE/data/raw/games.json
           fi
