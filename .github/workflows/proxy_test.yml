@@ -105,50 +105,84 @@ jobs:
           import json, csv
           from pathlib import Path
           from datetime import datetime, timedelta
+
           PLAYERS_FULL = Path('data/raw/players.json')
           PLAYERS_FILTERED = Path('data/raw/players_to_scrape.json')
           APPEARANCES_EXISTING = Path('data/csv/appearances_existing.csv')
+
           THRESHOLD_DAYS = 7
-          MAX_PLAYERS_PER_RUN = 2000
+          SCRAPE_ALL_PLAYERS = True   # <-- alle spelers scrapen
+
           threshold_date = datetime.now() - timedelta(days=THRESHOLD_DAYS)
           print(f"Drempel: spelers met appearance na {threshold_date.date()} overslaan")
+
           last_seen = {}
+
           if APPEARANCES_EXISTING.exists():
               with open(APPEARANCES_EXISTING, encoding='utf-8') as f:
                   reader = csv.DictReader(f)
                   for row in reader:
                       pid = str(row.get('player_id', ''))
                       date_str = row.get('date', '')
-                      if not pid or not date_str: continue
+                      if not pid or not date_str:
+                          continue
+
                       dt = None
                       for fmt in ('%Y-%m-%d', '%m/%d/%y', '%b %d, %Y'):
-                          try: dt = datetime.strptime(date_str, fmt); break
-                          except: continue
+                          try:
+                              dt = datetime.strptime(date_str, fmt)
+                              break
+                          except:
+                              continue
+
                       if dt and (pid not in last_seen or dt > last_seen[pid]):
                           last_seen[pid] = dt
+
               print(f"Historische appearances: {len(last_seen)} unieke spelers")
+
           candidates = []
           total = 0
+          skipped_recent = 0
+
           with open(PLAYERS_FULL, encoding='utf-8') as f_in:
               for line in f_in:
                   line = line.strip()
-                  if not line: continue
+                  if not line:
+                      continue
+
                   total += 1
-                  try: p = json.loads(line)
-                  except: continue
+
+                  try:
+                      p = json.loads(line)
+                  except:
+                      continue
+
                   href = p.get('href', '')
                   parts = href.rstrip('/').split('/')
                   pid = parts[parts.index('spieler') + 1] if 'spieler' in parts else ''
+
                   last = last_seen.get(pid)
-                  if last is not None and last > threshold_date: continue
+
+                  # Als je echt IEDEREEN elke run wil scrapen, zet deze if uit.
+                  # Nu scrapt hij iedereen behalve spelers die de laatste 7 dagen al data hebben.
+                  if not SCRAPE_ALL_PLAYERS and last is not None and last > threshold_date:
+                      skipped_recent += 1
+                      continue
+
                   priority = last if last else datetime(1970, 1, 1)
                   candidates.append((priority, line))
+
           candidates.sort(key=lambda x: x[0])
-          selected = candidates[:MAX_PLAYERS_PER_RUN]
+
+          selected = candidates  # <-- geen limiet meer
+
           with open(PLAYERS_FILTERED, 'w', encoding='utf-8') as f_out:
               for _, line in selected:
                   f_out.write(line + '\n')
-          print(f"Geselecteerd: {len(selected)}/{total}")
+
+          print(f"Totaal spelers: {total}")
+          print(f"Geselecteerd om te scrapen: {len(selected)}")
+          print(f"Recent overgeslagen: {skipped_recent}")
           PYEOF
 
       - name: Stap 3 - Appearances ophalen via ceapi
@@ -179,8 +213,8 @@ jobs:
               "Accept": "application/json",
               "Referer": "https://www.transfermarkt.co.uk/",
           }
-          CONCURRENCY = 3
-          DELAY = 1.5
+          CONCURRENCY = 8
+          DELAY = 0.4
 
           def get_player_ids():
               ids, seen = [], set()
