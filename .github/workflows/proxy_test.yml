@@ -153,6 +153,13 @@ jobs:
         timeout-minutes: 120
         continue-on-error: true
         run: |
+          echo "=== Debug: bestanden checken ==="
+          ls -la data/raw/ 2>/dev/null || echo "data/raw/ bestaat niet!"
+          echo "--- players_to_scrape.json ---"
+          wc -l data/raw/players_to_scrape.json 2>/dev/null || echo "BESTAND BESTAAT NIET"
+          echo "Eerste 2 regels:"
+          head -2 data/raw/players_to_scrape.json 2>/dev/null || echo "LEEG"
+          echo "=== Start Python ==="
           python3 << 'PYEOF'
           import json, asyncio, aiohttp, os
           from pathlib import Path
