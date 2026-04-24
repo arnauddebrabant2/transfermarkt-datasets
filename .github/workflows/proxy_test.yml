@@ -1,4 +1,4 @@
-name: Weekly Transfermarkt Scrape proxy
+name: Weekly Transfermarkt Scrape
 
 on:
   schedule:
@@ -152,8 +152,6 @@ jobs:
       - name: Stap 3 - Appearances ophalen via ceapi
         timeout-minutes: 120
         continue-on-error: true
-        env:
-          HTTPS_PROXY: ${{ secrets.PROXY_URL }}
         run: |
           python3 << 'PYEOF'
           import json, asyncio, aiohttp, os
