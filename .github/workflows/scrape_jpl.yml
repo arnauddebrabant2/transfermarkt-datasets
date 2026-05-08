@@ -88,11 +88,34 @@ jobs:
           RAW = Path('data/raw')
           PLAYERS_FILE = RAW / 'players_jpl.json'
           MV_FILE = RAW / 'market_values_jpl.json'
-          MARKET_VALUES_API = "https://www.transfermarkt.com/ceapi/marketValueDevelopment/graph/"
-          HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", "Accept": "application/json"}
-          def get_player_ids():
-              ids, seen = [], set()
-              if not PLAYERS_FILE.exists(): return ids
+
+          # Stap 1: haal marktwaarden rechtstreeks uit de players.json
+          # De scraper slaat current_market_value op van de TM spelerspagina
+          results = {}
+          if PLAYERS_FILE.exists():
+              with open(PLAYERS_FILE, encoding='utf-8') as f:
+                  for line in f:
+                      line = line.strip()
+                      if not line: continue
+                      try:
+                          p = json.loads(line)
+                          href = p.get('href', '')
+                          parts = href.rstrip('/').split('/')
+                          if 'spieler' not in parts: continue
+                          pid = parts[parts.index('spieler') + 1]
+                          # Probeer alle mogelijke veldnamen
+                          for field in ['current_market_value','market_value','marketValue']:
+                              mv = p.get(field)
+                              if mv and str(mv).strip() not in ('', 'None', '0', '-'):
+                                  results[pid] = str(mv).strip()
+                                  break
+                      except: pass
+          print(f"Marktwaarden uit scraper: {len(results)} spelers")
+
+          # Stap 2: probeer ook ceapi voor spelers zonder waarde
+          missing = [pid for pid in results if not results.get(pid)]
+          all_ids = []
+          if PLAYERS_FILE.exists():
               with open(PLAYERS_FILE, encoding='utf-8') as f:
                   for line in f:
                       line = line.strip()
@@ -103,40 +126,38 @@ jobs:
                           parts = href.rstrip('/').split('/')
                           if 'spieler' in parts:
                               pid = parts[parts.index('spieler') + 1]
-                              if pid and pid not in seen:
-                                  ids.append(pid); seen.add(pid)
+                              if pid not in results:
+                                  all_ids.append(pid)
                       except: pass
-              return ids
-          async def fetch_mv(session, player_id, semaphore):
-              async with semaphore:
-                  url = f"{MARKET_VALUES_API}{player_id}"
-                  try:
-                      async with session.get(url, headers=HEADERS, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                          if resp.status == 200:
-                              data = await resp.json(content_type=None)
-                              values = data.get('list', [])
-                              if values:
-                                  return player_id, values[-1].get('mw', '')
-                  except: pass
-                  return player_id, None
-          async def main():
-              player_ids = get_player_ids()
-              print(f"JPL marktwaarden ophalen voor {len(player_ids)} spelers...")
-              semaphore = asyncio.Semaphore(3)
-              results = {}
-              async with aiohttp.ClientSession() as session:
-                  tasks = [fetch_mv(session, pid, semaphore) for pid in player_ids]
-                  done = 0
-                  for coro in asyncio.as_completed(tasks):
-                      pid, mv = await coro
-                      if mv: results[pid] = mv
-                      done += 1
-                      if done % 100 == 0:
-                          print(f"  {done}/{len(player_ids)} verwerkt, {len(results)} met waarde")
-              print(f"Klaar: {len(results)} marktwaarden")
-              with open(MV_FILE, 'w', encoding='utf-8') as f:
-                  json.dump(results, f)
-          asyncio.run(main())
+
+          if all_ids:
+              MARKET_VALUES_API = "https://www.transfermarkt.com/ceapi/marketValueDevelopment/graph/"
+              HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36", "Accept": "application/json"}
+              async def fetch_mv(session, player_id, semaphore):
+                  async with semaphore:
+                      url = f"{MARKET_VALUES_API}{player_id}"
+                      try:
+                          async with session.get(url, headers=HEADERS, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                              if resp.status == 200:
+                                  data = await resp.json(content_type=None)
+                                  values = data.get('list', [])
+                                  if values:
+                                      return player_id, values[-1].get('mw', '')
+                      except: pass
+                      return player_id, None
+              async def main():
+                  semaphore = asyncio.Semaphore(3)
+                  async with aiohttp.ClientSession() as session:
+                      tasks = [fetch_mv(session, pid, semaphore) for pid in all_ids]
+                      for coro in asyncio.as_completed(tasks):
+                          pid, mv = await coro
+                          if mv: results[pid] = mv
+              asyncio.run(main())
+              print(f"Na ceapi: {len(results)} totaal")
+
+          with open(MV_FILE, 'w', encoding='utf-8') as f:
+              json.dump(results, f)
+          print(f"market_values_jpl.json: {len(results)} spelers opgeslagen")
           PYEOF
           echo "JPL Marktwaarden: $(wc -c < $GITHUB_WORKSPACE/data/raw/market_values_jpl.json 2>/dev/null || echo 0) bytes"
 
@@ -211,11 +232,11 @@ jobs:
           RAW = Path('data/raw')
           PLAYERS_FILE = RAW / 'players_jpl.json'
           VALUATIONS_FILE = RAW / 'valuations_jpl.json'
-          MV_API = "https://www.transfermarkt.com/ceapi/marketValueDevelopment/graph/"
-          HEADERS = {"User-Agent": "transfermarkt-datasets/1.0", "Accept": "application/json"}
-          def get_player_ids():
-              ids, seen = [], set()
-              if not PLAYERS_FILE.exists(): return ids
+
+          # Stap 1: haal market_value_history uit players.json (scraper data)
+          all_vals = []
+          player_ids_missing = []
+          if PLAYERS_FILE.exists():
               with open(PLAYERS_FILE, encoding='utf-8') as f:
                   for line in f:
                       line = line.strip()
@@ -224,44 +245,53 @@ jobs:
                           p = json.loads(line)
                           href = p.get('href', '')
                           parts = href.rstrip('/').split('/')
-                          if 'spieler' in parts:
-                              pid = parts[parts.index('spieler') + 1]
-                              if pid and pid not in seen:
-                                  ids.append(pid); seen.add(pid)
+                          if 'spieler' not in parts: continue
+                          pid = parts[parts.index('spieler') + 1]
+                          history = p.get('market_value_history', [])
+                          # Scraper kan history opslaan als lijst of als {'data': [...]}
+                          if isinstance(history, dict):
+                              history = history.get('data', [])
+                          if isinstance(history, list) and history:
+                              for h in history:
+                                  if isinstance(h, dict):
+                                      h['player_id'] = pid
+                                      all_vals.append(h)
+                          else:
+                              player_ids_missing.append(pid)
                       except: pass
-              return ids
-          async def fetch_valuations(session, player_id, semaphore):
-              async with semaphore:
-                  url = f"{MV_API}{player_id}"
-                  try:
-                      async with session.get(url, headers=HEADERS, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                          if resp.status == 200:
-                              data = await resp.json(content_type=None)
-                              return player_id, data.get('list', [])
-                  except: pass
-                  return player_id, []
-          async def main():
-              player_ids = get_player_ids()
-              print(f"JPL valuations ophalen voor {len(player_ids)} spelers...")
-              semaphore = asyncio.Semaphore(5)
-              all_vals = []
-              async with aiohttp.ClientSession() as session:
-                  tasks = [fetch_valuations(session, pid, semaphore) for pid in player_ids]
-                  done = 0
-                  for coro in asyncio.as_completed(tasks):
-                      pid, values = await coro
-                      for v in values:
-                          v['player_id'] = pid
-                          all_vals.append(v)
-                      done += 1
-              print(f"Klaar: {len(all_vals)} valuations")
-              with open(VALUATIONS_FILE, 'w', encoding='utf-8') as f:
-                  for v in all_vals:
-                      f.write(json.dumps(v) + chr(10))
-          asyncio.run(main())
+          print(f"Valuations uit scraper: {len(all_vals)} (voor {len(player_ids_missing)} spelers ontbreekt history)")
+
+          # Stap 2: ceapi voor spelers zonder history
+          if player_ids_missing:
+              MV_API = "https://www.transfermarkt.com/ceapi/marketValueDevelopment/graph/"
+              HEADERS = {"User-Agent": "transfermarkt-datasets/1.0", "Accept": "application/json"}
+              async def fetch_val(session, player_id, semaphore):
+                  async with semaphore:
+                      try:
+                          async with session.get(f"{MV_API}{player_id}", headers=HEADERS, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                              if resp.status == 200:
+                                  data = await resp.json(content_type=None)
+                                  return player_id, data.get('list', [])
+                      except: pass
+                      return player_id, []
+              async def main():
+                  semaphore = asyncio.Semaphore(5)
+                  async with aiohttp.ClientSession() as session:
+                      tasks = [fetch_val(session, pid, semaphore) for pid in player_ids_missing]
+                      for coro in asyncio.as_completed(tasks):
+                          pid, values = await coro
+                          for v in values:
+                              v['player_id'] = pid
+                              all_vals.append(v)
+              asyncio.run(main())
+              print(f"Na ceapi: {len(all_vals)} valuations totaal")
+
+          with open(VALUATIONS_FILE, 'w', encoding='utf-8') as f:
+              for v in all_vals:
+                  f.write(json.dumps(v) + chr(10))
+          print(f"valuations_jpl.json: {len(all_vals)} rijen")
           PYEOF
           echo "JPL Valuations: $(wc -l < $GITHUB_WORKSPACE/data/raw/valuations_jpl.json 2>/dev/null || echo 0)"
-
       - name: Stap 3 - JPL optredens scrapen
         timeout-minutes: 60
         continue-on-error: true
@@ -338,14 +368,23 @@ jobs:
               if not s: return s
               return str(s).replace(chr(226)+chr(130)+chr(172), 'EUR').replace(chr(194), '')
 
-          # Marktwaarden
+          # Marktwaarden - laad uit market_values_jpl.json
           mv_lookup = {}
           mv_file = RAW / 'market_values_jpl.json'
           if mv_file.exists():
               with open(mv_file, encoding='utf-8') as f:
-                  for pid, mv in json.load(f).items():
-                      mv_lookup[str(pid)] = parse_market_value(mv)
-              print(f"Marktwaarden: {len(mv_lookup)}")
+                  raw_mv = json.load(f)
+              for pid, mv in raw_mv.items():
+                  if mv and str(mv).strip() not in ('', 'None', '0', '-'):
+                      parsed = parse_market_value(str(mv))
+                      if parsed:
+                          mv_lookup[str(pid)] = parsed
+              print(f"Marktwaarden geladen: {len(mv_lookup)} spelers")
+              if mv_lookup:
+                  sample = list(mv_lookup.items())[:3]
+                  print(f"Sample mv_lookup: {sample}")
+          else:
+              print("WAARSCHUWING: market_values_jpl.json niet gevonden")
 
           # ── CLUBS JPL ──
           clubs = load_jsonl(RAW / 'clubs_jpl.json')
@@ -403,11 +442,15 @@ jobs:
                   'centre-forward':'Attack','left winger':'Attack','right winger':'Attack','forward':'Attack','attack':'Attack'
               }
               position = next((v for k, v in pos_map.items() if k in pos.lower()), 'Midfield')
-              mv = mv_lookup.get(str(player_id), '')
+              # Zoek op string én zonder leading zeros
+              mv = mv_lookup.get(str(player_id), '') or mv_lookup.get(str(int(player_id)) if str(player_id).isdigit() else player_id, '')
               if not mv:
-                  mv_raw = p.get('current_market_value') or ''
-                  try: mv = int(str(mv_raw).replace('e','').replace(',','').strip()) if mv_raw else ''
-                  except: mv = ''
+                  # Probeer alle veldnamen die scraper gebruikt
+                  for field in ['current_market_value', 'market_value', 'marketValue']:
+                      mv_raw = p.get(field) or ''
+                      if mv_raw and str(mv_raw).strip() not in ('', 'None', '0', '-'):
+                          mv = parse_market_value(str(mv_raw))
+                          if mv: break
               mv_high_raw = p.get('highest_market_value') or ''
               try: mv_high = int(str(mv_high_raw).replace('e','').replace(',','').strip()) if mv_high_raw else ''
               except: mv_high = ''
@@ -432,6 +475,8 @@ jobs:
               })
           if player_rows:
               all_cols = list(player_rows[0].keys()) + [c for c in debut_cols if c not in player_rows[0]]
+              with_mv = sum(1 for r in player_rows if r.get('market_value_in_eur'))
+              print(f"Spelers met marktwaarde: {with_mv}/{len(player_rows)}")
               with open(OUT / 'players_jpl.csv', 'w', newline='', encoding='utf-8') as f:
                   w = csv.DictWriter(f, fieldnames=all_cols, extrasaction='ignore')
                   w.writeheader()
@@ -509,29 +554,56 @@ jobs:
               print(f'transfers_jpl.csv: {len(transfer_rows)} transfers')
 
           # ── VALUATIONS JPL ──
+          # Scraper formaat: datum_mw, mw, verein, date_x, market_value
+          # ceapi formaat:   date, market_value, club_name
+          # Als valuations_jpl.json leeg is: gebruik market_values_jpl.json als fallback
           valuations_raw = load_jsonl(RAW / 'valuations_jpl.json')
+          if not valuations_raw and mv_lookup:
+              print("Valuations leeg - gebruik market_values_jpl.json als fallback")
+              import datetime
+              today = datetime.date.today().strftime('%Y-%m-%d')
+              for pid, mv_val in mv_lookup.items():
+                  valuations_raw.append({
+                      'player_id': pid,
+                      'date': today,
+                      'date_timestamp': '',
+                      'market_value_in_eur': mv_val,
+                      'club_name': '',
+                      'age': '',
+                  })
+              print(f"Fallback valuations: {len(valuations_raw)} rijen")
           val_rows = []
           seen_v = set()
           for v in valuations_raw:
               player_id = str(v.get('player_id', ''))
-              mv_raw = v.get('market_value', '') or v.get('mw', '')
-              date = v.get('datum_mw', '')
-              key = f"{player_id}_{date}"
+              if not player_id: continue
+              # Datum: probeer alle veldnamen
+              date = (v.get('datum_mw') or v.get('date') or '').strip()
+              # Timestamp als fallback voor datum
+              ts = str(v.get('date_x') or v.get('date_timestamp') or '')
+              # Marktwaarde: scraper gebruikt 'mw' of 'market_value'
+              mv_raw = v.get('market_value') or v.get('mw') or ''
+              # Club: scraper gebruikt 'verein', ceapi gebruikt 'club_name'
+              club = v.get('verein') or v.get('club_name') or ''
+              # Deduplicatie op player_id + datum + timestamp
+              key = f"{player_id}_{date}_{ts}"
               if key in seen_v: continue
               seen_v.add(key)
               val_rows.append({
                   'player_id': player_id,
                   'date': date,
-                  'date_timestamp': v.get('date_x', ''),
+                  'date_timestamp': ts,
                   'market_value_in_eur': parse_market_value(str(mv_raw)) if mv_raw else '',
-                  'club_name': v.get('verein', ''),
-                  'age': v.get('age', ''),
+                  'club_name': str(club),
+                  'age': str(v.get('age') or ''),
               })
           if val_rows:
               with open(OUT / 'jpl_player_valuations.csv', 'w', newline='', encoding='utf-8') as f:
                   w = csv.DictWriter(f, fieldnames=list(val_rows[0].keys()))
                   w.writeheader(); w.writerows(val_rows)
               print(f'jpl_player_valuations.csv: {len(val_rows)} valuations')
+          else:
+              print('WAARSCHUWING: geen valuations data gevonden in valuations_jpl.json')
 
           # ── GAMES JPL ──
           games = load_jsonl(RAW / 'games_jpl.json')
@@ -598,8 +670,12 @@ jobs:
         run: |
           git config user.name "ScoutAI Bot"
           git config user.email "actions@users.noreply.github.com"
+          # Verwijder tijdelijk bestand dat niet gecommit mag worden
+          rm -f data/csv/appearances_existing_jpl.csv data/csv/appearances_existing_jpl.csv.gz
           for f in data/csv/*_jpl.csv data/csv/jpl_*.csv; do [ -f "$f" ] && gzip -f "$f" || true; done
-          git add data/csv/*_jpl.csv.gz data/csv/jpl_*.csv.gz
+          git add data/csv/players_jpl.csv.gz data/csv/clubs_jpl.csv.gz
+          git add data/csv/appearances_jpl.csv.gz data/csv/transfers_jpl.csv.gz
+          git add data/csv/jpl_player_valuations.csv.gz data/csv/jpl_games.csv.gz
           TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M)
           git commit -m "JPL update ${TIMESTAMP}" || echo "Geen wijzigingen"
           git pull --rebase origin master || true
