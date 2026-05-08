@@ -140,9 +140,6 @@ jobs:
           PYEOF
           echo "JPL Marktwaarden: $(wc -c < $GITHUB_WORKSPACE/data/raw/market_values_jpl.json 2>/dev/null || echo 0) bytes"
 
-      - name: Wacht na marktwaarden
-        run: sleep 120
-
       - name: Stap 2c - JPL transfers ophalen
         timeout-minutes: 20
         continue-on-error: true
@@ -203,9 +200,6 @@ jobs:
           asyncio.run(main())
           PYEOF
           echo "JPL Transfers: $(wc -l < $GITHUB_WORKSPACE/data/raw/transfers_jpl.json 2>/dev/null || echo 0)"
-
-      - name: Wacht na transfers
-        run: sleep 60
 
       - name: Stap 2d - JPL valuations ophalen
         timeout-minutes: 20
@@ -281,6 +275,21 @@ jobs:
               >> $GITHUB_WORKSPACE/data/raw/appearances_jpl.json || true
           done
           echo "JPL Optredens: $(wc -l < $GITHUB_WORKSPACE/data/raw/appearances_jpl.json)"
+
+      - name: Stap 3b - JPL wedstrijden scrapen
+        timeout-minutes: 30
+        continue-on-error: true
+        run: |
+          cd /tmp/scraper
+          for SEASON in 2024 2025; do
+            echo "=== JPL Wedstrijden seizoen $SEASON ==="
+            echo '{"type":"competition","country_name":"Belgium","country_code":"BE1","competition_type":"first_tier","href":"/jupiler-pro-league/startseite/wettbewerb/BE1"}' > /tmp/be_comps.json
+          python -m tfmkt games \
+              -p /tmp/be_comps.json \
+              -s $SEASON \
+              >> $GITHUB_WORKSPACE/data/raw/games_jpl.json || true
+          done
+          echo "JPL Wedstrijden: $(wc -l < $GITHUB_WORKSPACE/data/raw/games_jpl.json)"
 
       - name: Stap 4 - JSON naar aparte JPL CSV bestanden
         run: |
@@ -519,10 +528,68 @@ jobs:
                   'age': v.get('age', ''),
               })
           if val_rows:
-              with open(OUT / 'player_valuations_jpl.csv', 'w', newline='', encoding='utf-8') as f:
+              with open(OUT / 'jpl_player_valuations.csv', 'w', newline='', encoding='utf-8') as f:
                   w = csv.DictWriter(f, fieldnames=list(val_rows[0].keys()))
                   w.writeheader(); w.writerows(val_rows)
-              print(f'player_valuations_jpl.csv: {len(val_rows)} valuations')
+              print(f'jpl_player_valuations.csv: {len(val_rows)} valuations')
+
+          # ── GAMES JPL ──
+          games = load_jsonl(RAW / 'games_jpl.json')
+          game_rows = []
+          seen_g = set()
+          for g in games:
+              # Ondersteunt zowel scraper als dcaribou formaat
+              if g.get('home_club_id'):
+                  game_id = str(g.get('game_id', ''))
+                  if game_id in seen_g: continue
+                  seen_g.add(game_id)
+                  game_rows.append({
+                      'game_id': game_id,
+                      'competition_id': g.get('competition_id', ''),
+                      'season': g.get('season', ''),
+                      'date': g.get('date', ''),
+                      'home_club_id': g.get('home_club_id', ''),
+                      'away_club_id': g.get('away_club_id', ''),
+                      'home_club_goals': g.get('home_club_goals', ''),
+                      'away_club_goals': g.get('away_club_goals', ''),
+                      'home_club_name': g.get('home_club_name', ''),
+                      'away_club_name': g.get('away_club_name', ''),
+                      'stadium': g.get('stadium', ''),
+                      'attendance': g.get('attendance', ''),
+                      'url': g.get('url', ''),
+                  })
+              else:
+                  result = g.get('result', '') or ''
+                  try:
+                      home_goals, away_goals = result.split(':')
+                      home_goals = home_goals.strip(); away_goals = away_goals.strip()
+                  except: home_goals, away_goals = '', ''
+                  home_id = extract_id((g.get('home_club') or {}).get('href', ''))
+                  away_id = extract_id((g.get('away_club') or {}).get('href', ''))
+                  comp_id = (g.get('parent') or {}).get('country_code', '') or                             extract_id((g.get('parent') or {}).get('href', ''))
+                  game_id = str(g.get('game_id', ''))
+                  if game_id in seen_g: continue
+                  seen_g.add(game_id)
+                  game_rows.append({
+                      'game_id': game_id,
+                      'competition_id': comp_id,
+                      'season': g.get('season', ''),
+                      'date': g.get('date', ''),
+                      'home_club_id': home_id,
+                      'away_club_id': away_id,
+                      'home_club_goals': home_goals,
+                      'away_club_goals': away_goals,
+                      'home_club_name': g.get('home_club_name', ''),
+                      'away_club_name': g.get('away_club_name', ''),
+                      'stadium': g.get('stadium', ''),
+                      'attendance': g.get('attendance', ''),
+                      'url': f"https://www.transfermarkt.co.uk{g.get('href', '')}",
+                  })
+          if game_rows:
+              with open(OUT / 'jpl_games.csv', 'w', newline='', encoding='utf-8') as f:
+                  w = csv.DictWriter(f, fieldnames=list(game_rows[0].keys()))
+                  w.writeheader(); w.writerows(game_rows)
+              print(f'jpl_games.csv: {len(game_rows)} wedstrijden')
 
           print('JPL conversie klaar!')
           PYEOF
@@ -531,8 +598,8 @@ jobs:
         run: |
           git config user.name "ScoutAI Bot"
           git config user.email "actions@users.noreply.github.com"
-          for f in data/csv/*_jpl.csv; do [ -f "$f" ] && gzip -f "$f" || true; done
-          git add data/csv/*_jpl.csv.gz
+          for f in data/csv/*_jpl.csv data/csv/jpl_*.csv; do [ -f "$f" ] && gzip -f "$f" || true; done
+          git add data/csv/*_jpl.csv.gz data/csv/jpl_*.csv.gz
           TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M)
           git commit -m "JPL update ${TIMESTAMP}" || echo "Geen wijzigingen"
           git pull --rebase origin master || true
