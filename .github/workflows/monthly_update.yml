@@ -50,34 +50,34 @@ jobs:
                       shutil.copyfileobj(f_in, f_out)
           PYEOF
 
-      - name: Stap 1 - Clubs scrapen
-        run: |
-          cd /tmp/scraper
-          for SEASON in 2024 2025; do
-            echo "=== Clubs seizoen $SEASON ==="
-            python -m tfmkt clubs \
-              -p $GITHUB_WORKSPACE/data/competitions.json \
-              -s $SEASON \
-              >> $GITHUB_WORKSPACE/data/raw/clubs.json || true
-          done
-          echo "Clubs nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/clubs.json)"
-
-      - name: Stap 2 - Spelers scrapen
-        run: |
-          cd /tmp/scraper
-          for SEASON in 2024 2025; do
-            echo "=== Spelers seizoen $SEASON ==="
-            python -m tfmkt players \
-              -p $GITHUB_WORKSPACE/data/raw/clubs.json \
-              -s $SEASON \
-              >> $GITHUB_WORKSPACE/data/raw/players.json || true
-          done
-          echo "Spelers nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/players.json)"
-
-      - name: Stap 2b - Marktwaarden ophalen
-        timeout-minutes: 30
-        continue-on-error: true
+      # - name: Stap 1 - Clubs scrapen
       #   run: |
+      #     cd /tmp/scraper
+      #     for SEASON in 2024 2025; do
+      #       echo "=== Clubs seizoen $SEASON ==="
+      #       python -m tfmkt clubs \
+      #         -p $GITHUB_WORKSPACE/data/competitions.json \
+      #         -s $SEASON \
+      #         >> $GITHUB_WORKSPACE/data/raw/clubs.json || true
+      #     done
+      #     echo "Clubs nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/clubs.json)"
+
+      # - name: Stap 2 - Spelers scrapen
+      #   run: |
+      #     cd /tmp/scraper
+      #     for SEASON in 2024 2025; do
+      #       echo "=== Spelers seizoen $SEASON ==="
+      #       python -m tfmkt players \
+      #         -p $GITHUB_WORKSPACE/data/raw/clubs.json \
+      #         -s $SEASON \
+      #         >> $GITHUB_WORKSPACE/data/raw/players.json || true
+      #     done
+      #     echo "Spelers nieuw: $(wc -l < $GITHUB_WORKSPACE/data/raw/players.json)"
+
+      # - name: Stap 2b - Marktwaarden ophalen
+      #   timeout-minutes: 30
+      #   continue-on-error: true
+      # #   run: |
       #     python3 << 'PYEOF'
       #     import json, asyncio, aiohttp
       #     from pathlib import Path
