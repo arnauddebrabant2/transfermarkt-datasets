@@ -350,18 +350,24 @@ jobs:
 
           def parse_market_value(mv_str):
               if not mv_str: return ''
-              mv_str = str(mv_str).strip()
+              s = str(mv_str).strip()
+              # Als het al een getal is
               try:
-                  multiplier = 1
-                  if 'm' in mv_str.lower():
-                      multiplier = 1_000_000
-                      mv_str = mv_str.lower().replace('m','').replace('e','').replace('£','').strip()
-                  elif 'k' in mv_str.lower() or 'th.' in mv_str.lower():
-                      multiplier = 1_000
-                      mv_str = mv_str.lower().replace('k','').replace('th.','').replace('e','').replace('£','').strip()
-                  else:
-                      mv_str = mv_str.replace('e','').replace('£','').replace(',','').strip()
-                  return int(float(mv_str) * multiplier)
+                  v = int(float(s))
+                  if v > 0: return v
+              except: pass
+              # Verwijder valuta symbolen
+              s = s.replace('€','').replace('£','').replace('$','').strip()
+              s_low = s.lower()
+              try:
+                  if 'mio' in s_low or s_low.endswith('m') or ' m' in s_low:
+                      s2 = s_low.replace('mio.','').replace('mio','').replace(' m','').replace('m','').replace(',','.').strip()
+                      return int(float(s2) * 1_000_000)
+                  if 'th.' in s_low or s_low.endswith('k') or ' k' in s_low or 'tsd' in s_low:
+                      s2 = s_low.replace('th.','').replace('tsd.','').replace('tsd','').replace(' k','').replace('k','').replace(',','.').strip()
+                      return int(float(s2) * 1_000)
+                  s2 = s.replace('.','').replace(',','').strip()
+                  return int(float(s2))
               except: return ''
 
           def _fix_encoding(s):
@@ -673,9 +679,10 @@ jobs:
           # Verwijder tijdelijk bestand dat niet gecommit mag worden
           rm -f data/csv/appearances_existing_jpl.csv data/csv/appearances_existing_jpl.csv.gz
           for f in data/csv/*_jpl.csv data/csv/jpl_*.csv; do [ -f "$f" ] && gzip -f "$f" || true; done
-          git add data/csv/players_jpl.csv.gz data/csv/clubs_jpl.csv.gz
-          git add data/csv/appearances_jpl.csv.gz data/csv/transfers_jpl.csv.gz
-          git add data/csv/jpl_player_valuations.csv.gz data/csv/jpl_games.csv.gz
+          git add data/csv/players_jpl.csv.gz data/csv/clubs_jpl.csv.gz || true
+          git add data/csv/appearances_jpl.csv.gz || true
+          git add data/csv/transfers_jpl.csv.gz || true
+          git add data/csv/jpl_player_valuations.csv.gz data/csv/jpl_games.csv.gz || true
           TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M)
           git commit -m "JPL update ${TIMESTAMP}" || echo "Geen wijzigingen"
           git pull --rebase origin master || true
