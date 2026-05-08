@@ -626,12 +626,17 @@ jobs:
         run: |
           git config user.name "ScoutAI Bot"
           git config user.email "actions@users.noreply.github.com"
+
           for f in data/csv/*.csv; do [ -f "$f" ] && gzip -f "$f" || true; done
           git add data/csv/
+
           TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
           BATCH=$(cat $GITHUB_WORKSPACE/data/competitions.json | python3 -c "import sys,json; lines=[json.loads(l) for l in sys.stdin if l.strip()]; codes=[l.get('country_code','') for l in lines[:3]]; print('+'.join(codes))" 2>/dev/null || echo "batch")
+
           git commit -m "ScoutAI data update: ${TIMESTAMP} [${BATCH}...]" || echo "Geen wijzigingen"
-          git push
+
+          git pull --rebase origin master
+          git push origin master
 
       - name: Samenvatting
         run: |
