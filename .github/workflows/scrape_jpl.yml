@@ -55,8 +55,12 @@ jobs:
         run: |
           cd /tmp/scraper
           # Maak een tijdelijk competitions.json met alleen BE1 en BE2
-          echo '{"type":"competition","country_name":"Belgium","country_code":"BE1","competition_type":"first_tier","href":"/jupiler-pro-league/startseite/wettbewerb/BE1"}' > /tmp/be_comps.json
-          echo '{"type":"competition","country_name":"Belgium","country_code":"BE2","competition_type":"second_tier","href":"/challenger-pro-league/startseite/wettbewerb/BE2"}' >> /tmp/be_comps.json
+          cat > /tmp/be_comps.json <<'EOF'
+          {"type":"competition","country_name":"Belgium","country_code":"BE1","competition_type":"first_tier","href":"/jupiler-pro-league/startseite/wettbewerb/BE1"}
+          {"type":"competition","country_name":"Belgium","country_code":"EJPL","competition_type":"playoff","href":"/jupiler-pro-league-playoff-i/startseite/wettbewerb/EJPL"}
+          {"type":"competition","country_name":"Belgium","country_code":"POBE","competition_type":"playoff","href":"/jupiler-pro-league-playoff-ii/startseite/wettbewerb/POBE"}
+          {"type":"competition","country_name":"Belgium","country_code":"BPO4","competition_type":"playoff","href":"/jupiler-pro-league-degradatie-playoff/startseite/wettbewerb/BPO4"}
+          EOF
           for SEASON in 2024 2025; do
             echo "=== JPL Clubs seizoen $SEASON ==="
             python -m tfmkt clubs \
@@ -311,11 +315,17 @@ jobs:
         continue-on-error: true
         run: |
           cd /tmp/scraper
+          cat > /tmp/jpl_game_comps.json <<'EOF'
+          {"type":"competition","country_name":"Belgium","country_code":"BE1","competition_type":"first_tier","href":"/jupiler-pro-league/startseite/wettbewerb/BE1"}
+          {"type":"competition","country_name":"Belgium","country_code":"EJPL","competition_type":"playoff","href":"/jupiler-pro-league-playoff-i/startseite/wettbewerb/EJPL"}
+          {"type":"competition","country_name":"Belgium","country_code":"POBE","competition_type":"playoff","href":"/jupiler-pro-league-playoff-ii/startseite/wettbewerb/POBE"}
+          {"type":"competition","country_name":"Belgium","country_code":"BPO4","competition_type":"playoff","href":"/jupiler-pro-league-degradatie-playoff/startseite/wettbewerb/BPO4"}
+          EOF
+
           for SEASON in 2024 2025; do
-            echo "=== JPL Wedstrijden seizoen $SEASON ==="
-            echo '{"type":"competition","country_name":"Belgium","country_code":"BE1","competition_type":"first_tier","href":"/jupiler-pro-league/startseite/wettbewerb/BE1"}' > /tmp/be_comps.json
-          python -m tfmkt games \
-              -p /tmp/be_comps.json \
+            echo "=== JPL Wedstrijden seizoen $SEASON inclusief playoffs ==="
+            python -m tfmkt games \
+              -p /tmp/jpl_game_comps.json \
               -s $SEASON \
               >> $GITHUB_WORKSPACE/data/raw/games_jpl.json || true
           done
@@ -347,6 +357,16 @@ jobs:
               for key in ['wettbewerb','verein','spieler','spielbericht']:
                   if key in parts: return parts[parts.index(key)+1]
               return parts[-1]
+
+          JPL_COMP_ALIASES = {
+              'BE1': 'BE1',
+              'EJPL': 'BE1',
+              'POBE': 'BE1',
+              'BPO4': 'BE1',
+          }
+
+          def normalize_jpl_comp(comp_id):
+              return JPL_COMP_ALIASES.get(str(comp_id).strip(), comp_id)
 
           def parse_market_value(mv_str):
               if not mv_str: return ''
@@ -390,10 +410,16 @@ jobs:
               comp_href = c.get('parent', {}).get('href', '')
               comp_id = extract_id(comp_href)
               club_id = c.get('id') or extract_id(c.get('href', ''))
-              club_lookup[c.get('href', '')] = {'club_id': club_id, 'name': c.get('name', ''), 'competition_id': comp_id}
+              club_lookup[c.get('href', '')] = {
+                  'club_id': club_id,
+                  'name': c.get('name', ''),
+                  'competition_id': normalize_jpl_comp(comp_id),
+                  'competition_stage_id': comp_id,
+              }
               club_rows.append({
                   'club_id': club_id, 'name': c.get('name', ''),
-                  'domestic_competition_id': comp_id,
+                  'domestic_competition_id': normalize_jpl_comp(comp_id),
+                  'domestic_competition_stage_id': comp_id,
                   'squad_size': c.get('squad_size', ''),
                   'average_age': c.get('average_age', ''),
                   'total_market_value': c.get('total_market_value', ''),
@@ -465,6 +491,7 @@ jobs:
                   'current_club_id': club_info.get('club_id', ''),
                   'current_club_name': club_info.get('name', ''),
                   'current_club_domestic_competition_id': club_info.get('competition_id', ''),
+                  'current_club_domestic_competition_stage_id': club_info.get('competition_stage_id', ''),
                   'image_url': p.get('image_url', ''),
                   'url': f"https://www.transfermarkt.co.uk{p.get('href', '')}",
               })
@@ -510,7 +537,8 @@ jobs:
                   'player_id': player_id, 'player_club_id': player_club_id,
                   'date': date,
                   'player_name': f"{parent.get('name', '')} {parent.get('last_name', '')}".strip(),
-                  'competition_id': a.get('competition_code', ''),
+                  'competition_id': normalize_jpl_comp(a.get('competition_code', '')),
+                  'competition_stage_id': a.get('competition_code', ''),
                   'yellow_cards': card_count(a.get('yellow_cards')),
                   'red_cards': card_count(a.get('red_cards')),
                   'goals': safe_int(a.get('goals')),
@@ -612,7 +640,8 @@ jobs:
                   seen_g.add(game_id)
                   game_rows.append({
                       'game_id': game_id,
-                      'competition_id': g.get('competition_id', ''),
+                      'competition_id': normalize_jpl_comp(g.get('competition_id', '')),
+                      'competition_stage_id': g.get('competition_id', ''),
                       'season': g.get('season', ''),
                       'date': g.get('date', ''),
                       'home_club_id': g.get('home_club_id', ''),
@@ -639,7 +668,8 @@ jobs:
                   seen_g.add(game_id)
                   game_rows.append({
                       'game_id': game_id,
-                      'competition_id': comp_id,
+                      'competition_id': normalize_jpl_comp(comp_id),
+                      'competition_stage_id': comp_id,
                       'season': g.get('season', ''),
                       'date': g.get('date', ''),
                       'home_club_id': home_id,
