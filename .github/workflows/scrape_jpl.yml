@@ -457,8 +457,11 @@ jobs:
                   'centre-forward':'Attack','left winger':'Attack','right winger':'Attack','forward':'Attack','attack':'Attack'
               }
               position = next((v for k, v in pos_map.items() if k in pos.lower()), 'Midfield')
-              # Zoek op string én zonder leading zeros
-              mv = mv_lookup.get(str(player_id), '') or mv_lookup.get(str(int(player_id)) if str(player_id).isdigit() else player_id, '')
+              # Gebruik altijd href-based ID voor mv lookup (zelfde als stap 2b)
+              _href = p.get('href', '')
+              _parts = _href.rstrip('/').split('/')
+              _pid_key = _parts[_parts.index('spieler')+1] if 'spieler' in _parts else str(player_id)
+              mv = mv_lookup.get(_pid_key, '') or mv_lookup.get(str(player_id), '')
               if not mv:
                   # Probeer alle veldnamen die scraper gebruikt
                   for field in ['current_market_value', 'market_value', 'marketValue']:
