@@ -1,38 +1,28 @@
 {"type": "competition", "country_name": "Russia", "country_code": "RU1", "competition_type": "first_tier", "href": "/premier-liga/startseite/wettbewerb/RU1"}
 {"type": "competition", "country_name": "Russia", "country_code": "RU2", "competition_type": "second_tier", "href": "/fnl/startseite/wettbewerb/RU2"}
-
 {"type": "competition", "country_name": "Ukraine", "country_code": "UKR1", "competition_type": "first_tier", "href": "/premier-liga/startseite/wettbewerb/UKR1"}
-
 {"type": "competition", "country_name": "Poland", "country_code": "PL1", "competition_type": "first_tier", "href": "/ekstraklasa/startseite/wettbewerb/PL1"}
 {"type": "competition", "country_name": "Poland", "country_code": "PL2", "competition_type": "second_tier", "href": "/i-liga/startseite/wettbewerb/PL2"}
-
 {"type": "competition", "country_name": "Romania", "country_code": "RO1", "competition_type": "first_tier", "href": "/superliga/startseite/wettbewerb/RO1"}
 {"type": "competition", "country_name": "Romania", "country_code": "RO1R", "competition_type": "playoff", "href": "/superliga-championship-group/startseite/wettbewerb/RO1R"}
 {"type": "competition", "country_name": "Romania", "country_code": "ROPC", "competition_type": "playoff", "href": "/superliga-playoff-conference-league/startseite/pokalwettbewerb/ROPC"}
 {"type": "competition", "country_name": "Romania", "country_code": "RO1C", "competition_type": "playoff", "href": "/superliga-playoff-conference-league/startseite/pokalwettbewerb/RO1C"}
-
 {"type": "competition", "country_name": "Romania", "country_code": "RO2", "competition_type": "second_tier", "href": "/liga-ii/startseite/wettbewerb/RO2"}
 {"type": "competition", "country_name": "Romania", "country_code": "R2AP", "competition_type": "second_tier", "href": "/liga-ii/startseite/wettbewerb/R2AP"}
 {"type": "competition", "country_name": "Romania", "country_code": "R2AO", "competition_type": "second_tier", "href": "/liga-ii/startseite/wettbewerb/R2AP"}
-
-
 {"type": "competition", "country_name": "Czech Republic", "country_code": "TS1", "competition_type": "first_tier", "href": "/fortuna-liga/startseite/wettbewerb/TS1"}
 {"type": "competition", "country_name": "Czech Republic", "country_code": "T1MR", "competition_type": "first_tier", "href": "/fortuna-liga/startseite/wettbewerb/T1MR"}
 {"type": "competition", "country_name": "Czech Republic", "country_code": "T1EL", "competition_type": "first_tier", "href": "/fortuna-liga/startseite/wettbewerb/T1EL"}
 {"type": "competition", "country_name": "Czech Republic", "country_code": "T1AR", "competition_type": "first_tier", "href": "/fortuna-liga/startseite/wettbewerb/T1AR"}
 {"type": "competition", "country_name": "Czech Republic", "country_code": "TS2", "competition_type": "second_tier", "href": "/fnl/startseite/wettbewerb/TS2"}
-
 {"type": "competition", "country_name": "Hungary", "country_code": "UNG1", "competition_type": "first_tier", "href": "/nb-i/startseite/wettbewerb/UNG1"}
 {"type": "competition", "country_name": "Hungary", "country_code": "UNG2", "competition_type": "second_tier", "href": "/nb-ii/startseite/wettbewerb/UNG2"}
-
 {"type": "competition", "country_name": "Serbia", "country_code": "SER1", "competition_type": "first_tier", "href": "/superliga/startseite/wettbewerb/SER1"}
 {"type": "competition", "country_name": "Serbia", "country_code": "SR1C", "competition_type": "playoff", "href": "/super-liga-championship-round/startseite/wettbewerb/SR1C"}
 {"type": "competition", "country_name": "Serbia", "country_code": "SR1R", "competition_type": "playoff", "href": "/super-liga-relegation-round/startseite/wettbewerb/SR1R"}
 {"type": "competition", "country_name": "Serbia", "country_code": "SER2", "competition_type": "second_tier", "href": "/prva-liga/startseite/wettbewerb/SER2"}
 {"type": "competition", "country_name": "Serbia", "country_code": "PVRR", "competition_type": "second_tier", "href": "/prva-liga/startseite/wettbewerb/PVRR"}
 {"type": "competition", "country_name": "Serbia", "country_code": "PVCR", "competition_type": "second_tier", "href": "/prva-liga/startseite/wettbewerb/PVCR"}
-
-
 {"type": "competition", "country_name": "Slovakia", "country_code": "SLO1", "competition_type": "first_tier", "href": "/nike-liga/startseite/wettbewerb/SLO1"}
 {"type": "competition", "country_name": "Slovakia", "country_code": "SLAR", "competition_type": "first_tier", "href": "/nike-liga/startseite/wettbewerb/SLAR"}
 {"type": "competition", "country_name": "Slovakia", "country_code": "SLMR", "competition_type": "first_tier", "href": "/nike-liga/startseite/wettbewerb/SLMR"}
