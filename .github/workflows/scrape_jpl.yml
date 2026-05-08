@@ -155,9 +155,17 @@ jobs:
               asyncio.run(main())
               print(f"Na ceapi: {len(results)} totaal")
 
+          # Sla op als integers (niet als strings)
+          results_int = {}
+          for pid, mv in results.items():
+              try:
+                  v = int(float(str(mv))) if mv else 0
+                  if v > 0:
+                      results_int[str(pid)] = v
+              except: pass
           with open(MV_FILE, 'w', encoding='utf-8') as f:
-              json.dump(results, f)
-          print(f"market_values_jpl.json: {len(results)} spelers opgeslagen")
+              json.dump(results_int, f)
+          print(f"market_values_jpl.json: {len(results_int)} spelers opgeslagen (als integers)")
           PYEOF
           echo "JPL Marktwaarden: $(wc -c < $GITHUB_WORKSPACE/data/raw/market_values_jpl.json 2>/dev/null || echo 0) bytes"
 
@@ -381,10 +389,11 @@ jobs:
               with open(mv_file, encoding='utf-8') as f:
                   raw_mv = json.load(f)
               for pid, mv in raw_mv.items():
-                  if mv and str(mv).strip() not in ('', 'None', '0', '-'):
-                      parsed = parse_market_value(str(mv))
-                      if parsed:
-                          mv_lookup[str(pid)] = parsed
+                  try:
+                      v = int(float(str(mv))) if mv else 0
+                      if v > 0:
+                          mv_lookup[str(pid)] = v
+                  except: pass
               print(f"Marktwaarden geladen: {len(mv_lookup)} spelers")
               if mv_lookup:
                   sample = list(mv_lookup.items())[:3]
