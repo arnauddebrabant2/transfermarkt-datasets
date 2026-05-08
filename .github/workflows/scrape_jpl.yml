@@ -1,0 +1,546 @@
+name: JPL ScoutAI Update
+
+on:
+  schedule:
+    - cron: '0 5 * * 2'  # Elke dinsdag om 05:00 UTC (na weekly run)
+  workflow_dispatch:
+
+jobs:
+  scrape_jpl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install transfermarkt-scraper
+        run: |
+          pip install poetry
+          git clone https://github.com/dcaribou/transfermarkt-scraper.git /tmp/scraper
+          cd /tmp/scraper
+          poetry config virtualenvs.create false
+          poetry install --without dev
+          pip install aiohttp asyncio
+          echo 'USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"' >> /tmp/scraper/tfmkt/settings.py
+          echo 'ROBOTSTXT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"' >> /tmp/scraper/tfmkt/settings.py
+          python3 $GITHUB_WORKSPACE/patch_scraper.py
+
+      - name: Maak output map aan
+        run: mkdir -p data/raw data/csv
+
+      - name: Stap 0 - Bestaande CSV data inladen
+        run: |
+          python3 << 'PYEOF'
+          import gzip, shutil
+          from pathlib import Path
+          CSV = Path('data/csv')
+          for gz_file in sorted(CSV.glob('*.csv.gz')):
+              stem = gz_file.stem
+              out_name = 'appearances_existing_jpl.csv' if stem == 'appearances_jpl.csv' else (
+                         'appearances_existing.csv' if stem == 'appearances.csv' else stem)
+              out_path = CSV / out_name
+              print(f"Decomprimeer {gz_file.name} -> {out_name} ({gz_file.stat().st_size // 1024} KB)")
+              with gzip.open(gz_file, 'rb') as f_in:
+                  with open(out_path, 'wb') as f_out:
+                      shutil.copyfileobj(f_in, f_out)
+          PYEOF
+
+      - name: Stap 1 - JPL clubs scrapen (BE1 + BE2)
+        run: |
+          cd /tmp/scraper
+          # Maak een tijdelijk competitions.json met alleen BE1 en BE2
+          echo '{"type":"competition","country_name":"Belgium","country_code":"BE1","competition_type":"first_tier","href":"/jupiler-pro-league/startseite/wettbewerb/BE1"}' > /tmp/be_comps.json
+          echo '{"type":"competition","country_name":"Belgium","country_code":"BE2","competition_type":"second_tier","href":"/challenger-pro-league/startseite/wettbewerb/BE2"}' >> /tmp/be_comps.json
+          for SEASON in 2024 2025; do
+            echo "=== JPL Clubs seizoen $SEASON ==="
+            python -m tfmkt clubs \
+              -p /tmp/be_comps.json \
+              -s $SEASON \
+              >> $GITHUB_WORKSPACE/data/raw/clubs_jpl.json || true
+          done
+          echo "JPL Clubs: $(wc -l < $GITHUB_WORKSPACE/data/raw/clubs_jpl.json)"
+
+      - name: Stap 2 - JPL spelers scrapen
+        run: |
+          cd /tmp/scraper
+          for SEASON in 2024 2025; do
+            echo "=== JPL Spelers seizoen $SEASON ==="
+            python -m tfmkt players \
+              -p $GITHUB_WORKSPACE/data/raw/clubs_jpl.json \
+              -s $SEASON \
+              >> $GITHUB_WORKSPACE/data/raw/players_jpl.json || true
+          done
+          echo "JPL Spelers: $(wc -l < $GITHUB_WORKSPACE/data/raw/players_jpl.json)"
+
+      - name: Stap 2b - JPL marktwaarden ophalen
+        timeout-minutes: 15
+        continue-on-error: true
+        run: |
+          python3 << 'PYEOF'
+          import json, asyncio, aiohttp
+          from pathlib import Path
+          RAW = Path('data/raw')
+          PLAYERS_FILE = RAW / 'players_jpl.json'
+          MV_FILE = RAW / 'market_values_jpl.json'
+          MARKET_VALUES_API = "https://www.transfermarkt.com/ceapi/marketValueDevelopment/graph/"
+          HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", "Accept": "application/json"}
+          def get_player_ids():
+              ids, seen = [], set()
+              if not PLAYERS_FILE.exists(): return ids
+              with open(PLAYERS_FILE, encoding='utf-8') as f:
+                  for line in f:
+                      line = line.strip()
+                      if not line: continue
+                      try:
+                          p = json.loads(line)
+                          href = p.get('href', '')
+                          parts = href.rstrip('/').split('/')
+                          if 'spieler' in parts:
+                              pid = parts[parts.index('spieler') + 1]
+                              if pid and pid not in seen:
+                                  ids.append(pid); seen.add(pid)
+                      except: pass
+              return ids
+          async def fetch_mv(session, player_id, semaphore):
+              async with semaphore:
+                  url = f"{MARKET_VALUES_API}{player_id}"
+                  try:
+                      async with session.get(url, headers=HEADERS, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                          if resp.status == 200:
+                              data = await resp.json(content_type=None)
+                              values = data.get('list', [])
+                              if values:
+                                  return player_id, values[-1].get('mw', '')
+                  except: pass
+                  return player_id, None
+          async def main():
+              player_ids = get_player_ids()
+              print(f"JPL marktwaarden ophalen voor {len(player_ids)} spelers...")
+              semaphore = asyncio.Semaphore(3)
+              results = {}
+              async with aiohttp.ClientSession() as session:
+                  tasks = [fetch_mv(session, pid, semaphore) for pid in player_ids]
+                  done = 0
+                  for coro in asyncio.as_completed(tasks):
+                      pid, mv = await coro
+                      if mv: results[pid] = mv
+                      done += 1
+                      if done % 100 == 0:
+                          print(f"  {done}/{len(player_ids)} verwerkt, {len(results)} met waarde")
+              print(f"Klaar: {len(results)} marktwaarden")
+              with open(MV_FILE, 'w', encoding='utf-8') as f:
+                  json.dump(results, f)
+          asyncio.run(main())
+          PYEOF
+          echo "JPL Marktwaarden: $(wc -c < $GITHUB_WORKSPACE/data/raw/market_values_jpl.json 2>/dev/null || echo 0) bytes"
+
+      - name: Wacht na marktwaarden
+        run: sleep 120
+
+      - name: Stap 2c - JPL transfers ophalen
+        timeout-minutes: 20
+        continue-on-error: true
+        run: |
+          python3 << 'PYEOF'
+          import json, asyncio, aiohttp
+          from pathlib import Path
+          RAW = Path('data/raw')
+          PLAYERS_FILE = RAW / 'players_jpl.json'
+          TRANSFERS_FILE = RAW / 'transfers_jpl.json'
+          TRANSFERS_API = "https://www.transfermarkt.co.uk/ceapi/transferHistory/list/"
+          HEADERS = {"User-Agent": "transfermarkt-datasets/1.0", "Accept": "application/json"}
+          def get_player_ids():
+              ids, seen = [], set()
+              if not PLAYERS_FILE.exists(): return ids
+              with open(PLAYERS_FILE, encoding='utf-8') as f:
+                  for line in f:
+                      line = line.strip()
+                      if not line: continue
+                      try:
+                          p = json.loads(line)
+                          href = p.get('href', '')
+                          parts = href.rstrip('/').split('/')
+                          if 'spieler' in parts:
+                              pid = parts[parts.index('spieler') + 1]
+                              if pid and pid not in seen:
+                                  ids.append(pid); seen.add(pid)
+                      except: pass
+              return ids
+          async def fetch_transfers(session, player_id, semaphore):
+              async with semaphore:
+                  url = f"{TRANSFERS_API}{player_id}"
+                  try:
+                      async with session.get(url, headers=HEADERS, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                          if resp.status == 200:
+                              data = await resp.json(content_type=None)
+                              return player_id, data.get('transfers', [])
+                  except: pass
+                  return player_id, []
+          async def main():
+              player_ids = get_player_ids()
+              print(f"JPL transfers ophalen voor {len(player_ids)} spelers...")
+              semaphore = asyncio.Semaphore(5)
+              all_transfers = []
+              async with aiohttp.ClientSession() as session:
+                  tasks = [fetch_transfers(session, pid, semaphore) for pid in player_ids]
+                  done = 0
+                  for coro in asyncio.as_completed(tasks):
+                      pid, transfers = await coro
+                      for t in transfers:
+                          t['player_id'] = pid
+                          all_transfers.append(t)
+                      done += 1
+              print(f"Klaar: {len(all_transfers)} transfers")
+              with open(TRANSFERS_FILE, 'w', encoding='utf-8') as f:
+                  for t in all_transfers:
+                      f.write(json.dumps(t) + chr(10))
+          asyncio.run(main())
+          PYEOF
+          echo "JPL Transfers: $(wc -l < $GITHUB_WORKSPACE/data/raw/transfers_jpl.json 2>/dev/null || echo 0)"
+
+      - name: Wacht na transfers
+        run: sleep 60
+
+      - name: Stap 2d - JPL valuations ophalen
+        timeout-minutes: 20
+        continue-on-error: true
+        run: |
+          python3 << 'PYEOF'
+          import json, asyncio, aiohttp
+          from pathlib import Path
+          RAW = Path('data/raw')
+          PLAYERS_FILE = RAW / 'players_jpl.json'
+          VALUATIONS_FILE = RAW / 'valuations_jpl.json'
+          MV_API = "https://www.transfermarkt.com/ceapi/marketValueDevelopment/graph/"
+          HEADERS = {"User-Agent": "transfermarkt-datasets/1.0", "Accept": "application/json"}
+          def get_player_ids():
+              ids, seen = [], set()
+              if not PLAYERS_FILE.exists(): return ids
+              with open(PLAYERS_FILE, encoding='utf-8') as f:
+                  for line in f:
+                      line = line.strip()
+                      if not line: continue
+                      try:
+                          p = json.loads(line)
+                          href = p.get('href', '')
+                          parts = href.rstrip('/').split('/')
+                          if 'spieler' in parts:
+                              pid = parts[parts.index('spieler') + 1]
+                              if pid and pid not in seen:
+                                  ids.append(pid); seen.add(pid)
+                      except: pass
+              return ids
+          async def fetch_valuations(session, player_id, semaphore):
+              async with semaphore:
+                  url = f"{MV_API}{player_id}"
+                  try:
+                      async with session.get(url, headers=HEADERS, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                          if resp.status == 200:
+                              data = await resp.json(content_type=None)
+                              return player_id, data.get('list', [])
+                  except: pass
+                  return player_id, []
+          async def main():
+              player_ids = get_player_ids()
+              print(f"JPL valuations ophalen voor {len(player_ids)} spelers...")
+              semaphore = asyncio.Semaphore(5)
+              all_vals = []
+              async with aiohttp.ClientSession() as session:
+                  tasks = [fetch_valuations(session, pid, semaphore) for pid in player_ids]
+                  done = 0
+                  for coro in asyncio.as_completed(tasks):
+                      pid, values = await coro
+                      for v in values:
+                          v['player_id'] = pid
+                          all_vals.append(v)
+                      done += 1
+              print(f"Klaar: {len(all_vals)} valuations")
+              with open(VALUATIONS_FILE, 'w', encoding='utf-8') as f:
+                  for v in all_vals:
+                      f.write(json.dumps(v) + chr(10))
+          asyncio.run(main())
+          PYEOF
+          echo "JPL Valuations: $(wc -l < $GITHUB_WORKSPACE/data/raw/valuations_jpl.json 2>/dev/null || echo 0)"
+
+      - name: Stap 3 - JPL optredens scrapen
+        timeout-minutes: 60
+        continue-on-error: true
+        run: |
+          cd /tmp/scraper
+          for SEASON in 2024 2025; do
+            echo "=== JPL Optredens seizoen $SEASON ==="
+            python -m tfmkt appearances \
+              -p $GITHUB_WORKSPACE/data/raw/players_jpl.json \
+              -s $SEASON \
+              >> $GITHUB_WORKSPACE/data/raw/appearances_jpl.json || true
+          done
+          echo "JPL Optredens: $(wc -l < $GITHUB_WORKSPACE/data/raw/appearances_jpl.json)"
+
+      - name: Stap 4 - JSON naar aparte JPL CSV bestanden
+        run: |
+          python3 << 'PYEOF'
+          import json, csv, gzip
+          from pathlib import Path
+          RAW = Path('data/raw')
+          OUT = Path('data/csv')
+          OUT.mkdir(exist_ok=True)
+
+          def load_jsonl(path):
+              items = []
+              if not path.exists(): return items
+              with open(path, encoding='utf-8') as f:
+                  for line in f:
+                      line = line.strip()
+                      if line:
+                          try: items.append(json.loads(line))
+                          except: pass
+              return items
+
+          def extract_id(href):
+              if not href: return ''
+              parts = href.rstrip('/').split('/')
+              for key in ['wettbewerb','verein','spieler','spielbericht']:
+                  if key in parts: return parts[parts.index(key)+1]
+              return parts[-1]
+
+          def parse_market_value(mv_str):
+              if not mv_str: return ''
+              mv_str = str(mv_str).strip()
+              try:
+                  multiplier = 1
+                  if 'm' in mv_str.lower():
+                      multiplier = 1_000_000
+                      mv_str = mv_str.lower().replace('m','').replace('e','').replace('£','').strip()
+                  elif 'k' in mv_str.lower() or 'th.' in mv_str.lower():
+                      multiplier = 1_000
+                      mv_str = mv_str.lower().replace('k','').replace('th.','').replace('e','').replace('£','').strip()
+                  else:
+                      mv_str = mv_str.replace('e','').replace('£','').replace(',','').strip()
+                  return int(float(mv_str) * multiplier)
+              except: return ''
+
+          def _fix_encoding(s):
+              if not s: return s
+              return str(s).replace(chr(226)+chr(130)+chr(172), 'EUR').replace(chr(194), '')
+
+          # Marktwaarden
+          mv_lookup = {}
+          mv_file = RAW / 'market_values_jpl.json'
+          if mv_file.exists():
+              with open(mv_file, encoding='utf-8') as f:
+                  for pid, mv in json.load(f).items():
+                      mv_lookup[str(pid)] = parse_market_value(mv)
+              print(f"Marktwaarden: {len(mv_lookup)}")
+
+          # ── CLUBS JPL ──
+          clubs = load_jsonl(RAW / 'clubs_jpl.json')
+          club_lookup = {}
+          club_rows = []
+          for c in clubs:
+              comp_href = c.get('parent', {}).get('href', '')
+              comp_id = extract_id(comp_href)
+              club_id = c.get('id') or extract_id(c.get('href', ''))
+              club_lookup[c.get('href', '')] = {'club_id': club_id, 'name': c.get('name', ''), 'competition_id': comp_id}
+              club_rows.append({
+                  'club_id': club_id, 'name': c.get('name', ''),
+                  'domestic_competition_id': comp_id,
+                  'squad_size': c.get('squad_size', ''),
+                  'average_age': c.get('average_age', ''),
+                  'total_market_value': c.get('total_market_value', ''),
+                  'coach_name': c.get('coach_name', ''),
+                  'url': f"https://www.transfermarkt.co.uk{c.get('href', '')}",
+              })
+          seen_club_ids = set()
+          unique_clubs = []
+          for r in club_rows:
+              if r['club_id'] and r['club_id'] not in seen_club_ids:
+                  seen_club_ids.add(r['club_id']); unique_clubs.append(r)
+          if unique_clubs:
+              with open(OUT / 'clubs_jpl.csv', 'w', newline='', encoding='utf-8') as f:
+                  w = csv.DictWriter(f, fieldnames=list(unique_clubs[0].keys()))
+                  w.writeheader(); w.writerows(unique_clubs)
+              print(f'clubs_jpl.csv: {len(unique_clubs)} clubs')
+
+          # ── SPELERS JPL ──
+          debut_cols = [
+              'hoogste_divisie_debut_date','hoogste_divisie_debut_club',
+              'tweede_niveau_debut_date','tweede_niveau_debut_club',
+              'debut_highest_division_date','debut_highest_division_club','debut_highest_division_competition',
+              'debut_second_tier_date','debut_second_tier_club','debut_second_tier_competition',
+          ]
+          players = load_jsonl(RAW / 'players_jpl.json')
+          player_rows = []
+          seen_pids = set()
+          for p in players:
+              club_href = p.get('parent', {}).get('href', '')
+              club_info = club_lookup.get(club_href, {})
+              player_id = p.get('id') or extract_id(p.get('href', ''))
+              if player_id in seen_pids: continue
+              seen_pids.add(player_id)
+              height_raw = p.get('height', '') or ''
+              try: height_cm = int(float(height_raw.replace('m','').replace(',','.').strip()) * 100)
+              except: height_cm = ''
+              pos = p.get('position', '') or ''
+              pos_map = {
+                  'goalkeeper':'Goalkeeper',
+                  'centre-back':'Defender','left-back':'Defender','right-back':'Defender','defender':'Defender',
+                  'attacking midfield':'Midfield','midfielder':'Midfield','midfield':'Midfield',
+                  'centre-forward':'Attack','left winger':'Attack','right winger':'Attack','forward':'Attack','attack':'Attack'
+              }
+              position = next((v for k, v in pos_map.items() if k in pos.lower()), 'Midfield')
+              mv = mv_lookup.get(str(player_id), '')
+              if not mv:
+                  mv_raw = p.get('current_market_value') or ''
+                  try: mv = int(str(mv_raw).replace('e','').replace(',','').strip()) if mv_raw else ''
+                  except: mv = ''
+              mv_high_raw = p.get('highest_market_value') or ''
+              try: mv_high = int(str(mv_high_raw).replace('e','').replace(',','').strip()) if mv_high_raw else ''
+              except: mv_high = ''
+              first_name = p.get('name', '') or ''
+              last_name = p.get('last_name', '') or ''
+              player_rows.append({
+                  'player_id': player_id,
+                  'name': f"{first_name} {last_name}".strip() or first_name,
+                  'first_name': first_name, 'last_name': last_name,
+                  'date_of_birth': p.get('date_of_birth', ''), 'age': p.get('age', ''),
+                  'country_of_citizenship': p.get('citizenship', ''),
+                  'country_of_birth': (p.get('place_of_birth') or {}).get('country', ''),
+                  'position': position, 'sub_position': pos,
+                  'foot': p.get('foot', ''), 'height_in_cm': height_cm,
+                  'market_value_in_eur': mv, 'highest_market_value_in_eur': mv_high,
+                  'contract_expiration_date': p.get('contract_expires', ''),
+                  'current_club_id': club_info.get('club_id', ''),
+                  'current_club_name': club_info.get('name', ''),
+                  'current_club_domestic_competition_id': club_info.get('competition_id', ''),
+                  'image_url': p.get('image_url', ''),
+                  'url': f"https://www.transfermarkt.co.uk{p.get('href', '')}",
+              })
+          if player_rows:
+              all_cols = list(player_rows[0].keys()) + [c for c in debut_cols if c not in player_rows[0]]
+              with open(OUT / 'players_jpl.csv', 'w', newline='', encoding='utf-8') as f:
+                  w = csv.DictWriter(f, fieldnames=all_cols, extrasaction='ignore')
+                  w.writeheader()
+                  for row in player_rows:
+                      w.writerow({k: row.get(k, '') for k in all_cols})
+              print(f'players_jpl.csv: {len(player_rows)} spelers')
+
+          # ── APPEARANCES JPL ──
+          appearances = load_jsonl(RAW / 'appearances_jpl.json')
+          app_rows = []
+          seen_app_ids = set()
+          for a in appearances:
+              parent = a.get('parent') or {}
+              player_id = extract_id(parent.get('href', ''))
+              player_club_id = extract_id((parent.get('current_club') or {}).get('href', ''))
+              result_raw = a.get('result')
+              if isinstance(result_raw, dict): result_href = result_raw.get('href', '')
+              elif isinstance(result_raw, str): result_href = result_raw
+              else: result_href = ''
+              game_id = extract_id(result_href)
+              date = a.get('date', '')
+              appearance_id = f"{player_id}_{date.replace('/', '')}" if player_id and date else ''
+              if not appearance_id or appearance_id in seen_app_ids: continue
+              seen_app_ids.add(appearance_id)
+              min_raw = a.get('minutes_played', '') or ''
+              try: minutes_played = int(str(min_raw).replace("'", "").strip())
+              except: minutes_played = 0
+              def card_count(val):
+                  if val is None or val == '' or val == 0: return 0
+                  return 1
+              def safe_int(val):
+                  try: return int(val) if val != '' and val is not None else 0
+                  except: return 0
+              app_rows.append({
+                  'appearance_id': appearance_id, 'game_id': game_id,
+                  'player_id': player_id, 'player_club_id': player_club_id,
+                  'date': date,
+                  'player_name': f"{parent.get('name', '')} {parent.get('last_name', '')}".strip(),
+                  'competition_id': a.get('competition_code', ''),
+                  'yellow_cards': card_count(a.get('yellow_cards')),
+                  'red_cards': card_count(a.get('red_cards')),
+                  'goals': safe_int(a.get('goals')),
+                  'assists': safe_int(a.get('assists')),
+                  'minutes_played': minutes_played,
+                  'position_in_game': str(a.get('position_in_game', '') or '').strip(),
+              })
+          if app_rows:
+              with open(OUT / 'appearances_jpl.csv', 'w', newline='', encoding='utf-8') as f:
+                  w = csv.DictWriter(f, fieldnames=list(app_rows[0].keys()))
+                  w.writeheader(); w.writerows(app_rows)
+              print(f'appearances_jpl.csv: {len(app_rows)} optredens')
+
+          # ── TRANSFERS JPL ──
+          transfers_raw = load_jsonl(RAW / 'transfers_jpl.json')
+          transfer_rows = []
+          seen_t = set()
+          for t in transfers_raw:
+              player_id = str(t.get('player_id', ''))
+              row = {
+                  'player_id': player_id,
+                  'transfer_date': t.get('date', '') or t.get('transferDate', ''),
+                  'transfer_season': t.get('season', ''),
+                  'from_club_name': str(t.get('from', '') or t.get('fromClubName', '')),
+                  'to_club_name': str(t.get('to', '') or t.get('toClubName', '')),
+                  'transfer_fee': _fix_encoding(t.get('fee', '') or t.get('transferFee', '')),
+                  'market_value_at_transfer': _fix_encoding(t.get('mv', '') or t.get('marketValue', '')),
+              }
+              key = f"{row['player_id']}_{row['transfer_date']}_{row['to_club_name']}"
+              if key not in seen_t:
+                  seen_t.add(key); transfer_rows.append(row)
+          if transfer_rows:
+              with open(OUT / 'transfers_jpl.csv', 'w', newline='', encoding='utf-8') as f:
+                  w = csv.DictWriter(f, fieldnames=list(transfer_rows[0].keys()))
+                  w.writeheader(); w.writerows(transfer_rows)
+              print(f'transfers_jpl.csv: {len(transfer_rows)} transfers')
+
+          # ── VALUATIONS JPL ──
+          valuations_raw = load_jsonl(RAW / 'valuations_jpl.json')
+          val_rows = []
+          seen_v = set()
+          for v in valuations_raw:
+              player_id = str(v.get('player_id', ''))
+              mv_raw = v.get('market_value', '') or v.get('mw', '')
+              date = v.get('datum_mw', '')
+              key = f"{player_id}_{date}"
+              if key in seen_v: continue
+              seen_v.add(key)
+              val_rows.append({
+                  'player_id': player_id,
+                  'date': date,
+                  'date_timestamp': v.get('date_x', ''),
+                  'market_value_in_eur': parse_market_value(str(mv_raw)) if mv_raw else '',
+                  'club_name': v.get('verein', ''),
+                  'age': v.get('age', ''),
+              })
+          if val_rows:
+              with open(OUT / 'player_valuations_jpl.csv', 'w', newline='', encoding='utf-8') as f:
+                  w = csv.DictWriter(f, fieldnames=list(val_rows[0].keys()))
+                  w.writeheader(); w.writerows(val_rows)
+              print(f'player_valuations_jpl.csv: {len(val_rows)} valuations')
+
+          print('JPL conversie klaar!')
+          PYEOF
+
+      - name: Commit en push CSVs
+        run: |
+          git config user.name "ScoutAI Bot"
+          git config user.email "actions@users.noreply.github.com"
+          for f in data/csv/*_jpl.csv; do [ -f "$f" ] && gzip -f "$f" || true; done
+          git add data/csv/*_jpl.csv.gz
+          TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M)
+          git commit -m "JPL update ${TIMESTAMP}" || echo "Geen wijzigingen"
+          git pull --rebase origin master || true
+          git push
+
+      - name: Samenvatting
+        run: |
+          echo "=== JPL UPDATE KLAAR ==="
+          for f in data/csv/*.csv.gz; do
+            echo "$f: $(wc -c < $f) bytes"
+          done
