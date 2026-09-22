@@ -1,4 +1,4 @@
-name: Weekly Transfermarkt Scrape 2
+name: updated Weekly Transfermarkt Scrape 2
 
 on:
   schedule:
