@@ -1,4 +1,4 @@
-name: Updated Weekly Transfermarkt Scrape 2
+name: Update Weekly Transfermarkt Scrape 2
 
 on:
   schedule:
@@ -115,7 +115,35 @@ jobs:
           if [ -f /tmp/clubs_raw.jsonl ]; then
             cp /tmp/clubs_raw.jsonl $GITHUB_WORKSPACE/data/raw/clubs.json
           fi
-          echo "Clubs: $(wc -l < $GITHUB_WORKSPACE/data/raw/clubs.json 2>/dev/null || echo 0)"
+          CLUB_COUNT=$(wc -l < $GITHUB_WORKSPACE/data/raw/clubs.json 2>/dev/null || echo 0)
+          echo "Clubs (live gescraped): $CLUB_COUNT"
+          # Fallback: als live scrapen 0 opleverde (bv. Transfermarkt blokkeert
+          # GitHub Actions-IP's structureel met HTTP 202), bouw clubs.json op
+          # uit de reeds gekende clubs in data/csv/clubs.csv. Zo kan Stap 2
+          # (spelers) toch doorgaan i.p.v. dat de hele run niks oplevert.
+          if [ "$CLUB_COUNT" -eq 0 ]; then
+            echo "Live scrape gaf 0 clubs - val terug op bestaande clubs.csv"
+            python3 << 'PYEOF'
+          import csv, json
+          from pathlib import Path
+          RAW = Path('data/raw')
+          RAW.mkdir(parents=True, exist_ok=True)
+          clubs_csv = Path('data/csv/clubs.csv')
+          out = RAW / 'clubs.json'
+          written = 0
+          if clubs_csv.exists():
+              with open(clubs_csv, encoding='utf-8') as f, open(out, 'w', encoding='utf-8') as fo:
+                  for row in csv.DictReader(f):
+                      club_id = (row.get('club_id') or '').strip()
+                      if not club_id:
+                          continue
+                      href = row.get('url') or f"https://www.transfermarkt.co.uk/club/startseite/verein/{club_id}"
+                      fo.write(json.dumps({'href': href}) + '\n')
+                      written += 1
+          print(f"Fallback clubs.json opgebouwd uit clubs.csv: {written} clubs")
+          PYEOF
+            echo "Clubs (fallback uit csv): $(wc -l < $GITHUB_WORKSPACE/data/raw/clubs.json 2>/dev/null || echo 0)"
+          fi
       - name: Stap 2 - Spelers scrapen
         timeout-minutes: 30
         continue-on-error: true
@@ -137,6 +165,7 @@ jobs:
           python3 << 'PYEOF'
           from pathlib import Path
           RAW = Path('data/raw')
+          RAW.mkdir(parents=True, exist_ok=True)
           for name in ('market_values.json', 'transfers.json', 'valuations.json'):
               p = RAW / name
               if not p.exists():
