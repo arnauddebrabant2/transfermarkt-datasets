@@ -39,9 +39,36 @@ jobs:
         run: |
           mkdir -p /tmp/test
           cat > /tmp/test/competities_test.json << 'EOF'
-          {"href": "/premier-league/startseite/wettbewerb/GB1", "type": "competition", "parent": {"href": "", "type": "confederation"}}
-          {"href": "/jupiler-pro-league/startseite/wettbewerb/BE1", "type": "competition", "parent": {"href": "", "type": "confederation"}}
+          {"href": "/premier-league/startseite/wettbewerb/GB1", "type": "competition", "competition_type": "first_tier", "parent": {"href": "", "type": "confederation"}}
+          {"href": "/jupiler-pro-league/startseite/wettbewerb/BE1", "type": "competition", "competition_type": "first_tier", "parent": {"href": "", "type": "confederation"}}
           EOF
+
+      - name: Test met aiohttp (geen Scrapy, geen proxy - test fingerprint-hypothese)
+        run: |
+          pip install aiohttp
+          python3 << 'PYEOF'
+          import asyncio, aiohttp
+          URLS = [
+              "https://www.transfermarkt.co.uk/premier-league/startseite/wettbewerb/GB1?saison_id=2025",
+              "https://www.transfermarkt.co.uk/jupiler-pro-league/startseite/wettbewerb/BE1?saison_id=2025",
+          ]
+          HEADERS = {
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+              "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+              "Accept-Language": "en-US,en;q=0.9",
+          }
+          async def main():
+              async with aiohttp.ClientSession() as session:
+                  for url in URLS:
+                      try:
+                          async with session.get(url, headers=HEADERS, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+                              body = await resp.text()
+                              print(f"{resp.status} - {url} - {len(body)} bytes")
+                      except Exception as e:
+                          print(f"FOUT - {url} - {e}")
+          asyncio.run(main())
+          PYEOF
+          echo "=== Als dit 200 geeft terwijl Scrapy 202 geeft, is het geen (puur) IP-probleem maar een library/fingerprint-probleem ==="
 
       - name: Test ZONDER proxy (baseline - verwacht 202)
         continue-on-error: true
