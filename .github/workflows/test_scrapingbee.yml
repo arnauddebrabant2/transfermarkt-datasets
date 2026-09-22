@@ -1,0 +1,87 @@
+name: Test ScrapingBee Proxy (diagnose 202-blokkade)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-proxy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install transfermarkt-scraper (gepind op v0.4.0)
+        run: |
+          pip install poetry
+          git clone --branch v0.4.0 --depth 1 \
+            https://github.com/dcaribou/transfermarkt-scraper.git /tmp/scraper
+          cd /tmp/scraper
+          poetry config virtualenvs.create false
+          poetry install --without dev
+          cat >> /tmp/scraper/tfmkt/settings.py << 'SETTINGS'
+          USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+          ROBOTSTXT_OBEY = False
+          DOWNLOAD_DELAY = 0
+          CONCURRENT_REQUESTS = 2
+          RETRY_ENABLED = True
+          RETRY_TIMES = 2
+          LOG_LEVEL = "INFO"
+          SETTINGS
+
+      - name: Maak testbestand met 2 competities
+        run: |
+          mkdir -p /tmp/test
+          cat > /tmp/test/competities_test.json << 'EOF'
+          {"href": "/premier-league/startseite/wettbewerb/GB1", "type": "competition", "parent": {"href": "", "type": "confederation"}}
+          {"href": "/jupiler-pro-league/startseite/wettbewerb/BE1", "type": "competition", "parent": {"href": "", "type": "confederation"}}
+          EOF
+
+      - name: Test ZONDER proxy (baseline - verwacht 202)
+        continue-on-error: true
+        run: |
+          cd /tmp/scraper
+          rm -f /tmp/test/zonder_proxy.jsonl
+          scrapy crawl clubs \
+            -a parents=/tmp/test/competities_test.json \
+            -a season=2025 \
+            -t jsonlines \
+            -o /tmp/test/zonder_proxy.jsonl 2>&1 | tail -40
+          echo "=== Resultaat zonder proxy: $(wc -l < /tmp/test/zonder_proxy.jsonl 2>/dev/null || echo 0) items ==="
+
+      - name: Test MET ScrapingBee premium proxy
+        continue-on-error: true
+        env:
+          SCRAPINGBEE_API_KEY: ${{ secrets.SCRAPINGBEE_API_KEY }}
+        run: |
+          if [ -z "$SCRAPINGBEE_API_KEY" ]; then
+            echo "FOUT: secret SCRAPINGBEE_API_KEY is niet ingesteld in deze repo."
+            echo "Ga naar Settings -> Secrets and variables -> Actions -> New repository secret"
+            exit 1
+          fi
+          cd /tmp/scraper
+          rm -f /tmp/test/met_proxy.jsonl
+          # ScrapingBee proxy-modus: API key als proxy-gebruikersnaam,
+          # parameters (premium_proxy + render_js) als proxy-wachtwoord.
+          export https_proxy="https://${SCRAPINGBEE_API_KEY}:premium_proxy=True&render_js=False@proxy.scrapingbee.com:8887"
+          export http_proxy="$https_proxy"
+          scrapy crawl clubs \
+            -a parents=/tmp/test/competities_test.json \
+            -a season=2025 \
+            -t jsonlines \
+            -o /tmp/test/met_proxy.jsonl 2>&1 | tail -60
+          echo "=== Resultaat MET ScrapingBee proxy: $(wc -l < /tmp/test/met_proxy.jsonl 2>/dev/null || echo 0) items ==="
+
+      - name: Samenvatting
+        run: |
+          echo "Zonder proxy: $(wc -l < /tmp/test/zonder_proxy.jsonl 2>/dev/null || echo 0) clubs gevonden"
+          echo "Met ScrapingBee proxy: $(wc -l < /tmp/test/met_proxy.jsonl 2>/dev/null || echo 0) clubs gevonden"
+          echo ""
+          echo "Als 'met proxy' > 0 en 'zonder proxy' = 0, dan werkt de omweg."
+          echo "Elke geslaagde request via premium_proxy kost ~10 ScrapingBee credits."
