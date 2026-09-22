@@ -33,6 +33,7 @@ jobs:
           RETRY_ENABLED = True
           RETRY_TIMES = 2
           LOG_LEVEL = "INFO"
+          HTTPCACHE_ENABLED = False
           SETTINGS
 
       - name: Maak testbestand met 2 competities
@@ -93,6 +94,7 @@ jobs:
             exit 1
           fi
           cd /tmp/scraper
+          rm -rf /tmp/scraper/.scrapy  # extra zekerheid tegen cache-hergebruik
           rm -f /tmp/test/met_proxy.jsonl
           # ScrapingBee proxy-modus: API key als proxy-gebruikersnaam,
           # parameters (premium_proxy + render_js) als proxy-wachtwoord.
