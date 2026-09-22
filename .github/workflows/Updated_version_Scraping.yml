@@ -1,4 +1,4 @@
-name: Updated Version Weekly Transfermarkt Scrape 2
+name: Weekly Transfermarkt Scrape 2
 
 on:
   schedule:
@@ -100,87 +100,90 @@ jobs:
                   f.write(json.dumps(item) + '\n')
           print(f"competitions.json: {len(valid)} geldige competities")
           PYEOF
-      - name: Stap 1+2 - Clubs/spelers uit bestaande CSV's (geen scraping)
+      - name: Stap 1 - Clubs scrapen
+        timeout-minutes: 20
+        continue-on-error: true
         run: |
-          # We slaan het scrapen van clubs en spelers OVER om requests te besparen.
-          # In plaats daarvan lezen we de bestaande CSV's en bouwen de JSON-bestanden
-          # die de appearances- en games-spiders nodig hebben als parent-input.
-          python3 << 'PYEOF'
-          import csv, json, sys
-          from pathlib import Path
-          RAW = Path('data/raw')
-          CSV = Path('data/csv')
-          RAW.mkdir(parents=True, exist_ok=True)
-          # --- Clubs vanuit clubs.csv ---
-          clubs_csv = CSV / 'clubs.csv'
-          if not clubs_csv.exists():
-              print("FOUT: clubs.csv ontbreekt - kan niet verder zonder clubs")
-              sys.exit(1)
-          clubs_out = RAW / 'clubs.json'
-          n_clubs = 0
-          with open(clubs_csv, encoding='utf-8') as fi, open(clubs_out, 'w', encoding='utf-8') as fo:
-              reader = csv.DictReader(fi)
-              for row in reader:
-                  club_id = (row.get('club_id') or '').strip()
-                  url = (row.get('url') or '').strip()
-                  comp_id = (row.get('domestic_competition_id') or '').strip()
-                  if not club_id or not url:
-                      continue
-                  # Bouw href in het format dat v0.4.0 verwacht (zonder domain)
-                  href = url.replace('https://www.transfermarkt.co.uk', '').replace('https://www.transfermarkt.com', '')
-                  if not href.startswith('/'):
-                      href = '/' + href
-                  obj = {
-                      'type': 'club',
-                      'href': href,
-                      'parent': {
-                          'type': 'competition',
-                          'competition_type': 'first_tier',
-                          'href': f'/x/startseite/wettbewerb/{comp_id}' if comp_id else '',
-                          'country_code': comp_id,
-                      }
-                  }
-                  fo.write(json.dumps(obj) + '\n')
-                  n_clubs += 1
-          print(f"clubs.json gereconstrueerd: {n_clubs} clubs uit clubs.csv")
-          # --- Spelers vanuit players.csv ---
-          players_csv = CSV / 'players.csv'
-          if not players_csv.exists():
-              print("FOUT: players.csv ontbreekt")
-              sys.exit(1)
-          players_out = RAW / 'players.json'
-          n_players = 0
-          with open(players_csv, encoding='utf-8') as fi, open(players_out, 'w', encoding='utf-8') as fo:
-              reader = csv.DictReader(fi)
-              for row in reader:
-                  player_id = (row.get('player_id') or '').strip()
-                  url = (row.get('url') or '').strip()
-                  current_club_id = (row.get('current_club_id') or '').strip()
-                  if not player_id or not url:
-                      continue
-                  href = url.replace('https://www.transfermarkt.co.uk', '').replace('https://www.transfermarkt.com', '')
-                  if not href.startswith('/'):
-                      href = '/' + href
-                  obj = {
-                      'type': 'player',
-                      'href': href,
-                      'parent': {
-                          'type': 'club',
-                          'href': f'/x/startseite/verein/{current_club_id}' if current_club_id else '',
-                          'current_club': {'href': f'/x/startseite/verein/{current_club_id}' if current_club_id else ''},
-                      }
-                  }
-                  fo.write(json.dumps(obj) + '\n')
-                  n_players += 1
-          print(f"players.json gereconstrueerd: {n_players} spelers uit players.csv")
+          cd /tmp/scraper
+          echo "=== Clubs seizoen $CURRENT_SEASON ==="
+          rm -f /tmp/clubs_raw.jsonl
+          scrapy crawl clubs \
+            -a parents=$GITHUB_WORKSPACE/data/competitions.json \
+            -a season=$CURRENT_SEASON \
+            -t jsonlines \
+            -o /tmp/clubs_raw.jsonl || true
+          if [ -f /tmp/clubs_raw.jsonl ]; then
+            cp /tmp/clubs_raw.jsonl $GITHUB_WORKSPACE/data/raw/clubs.json
+          fi
+          echo "Clubs: $(wc -l < $GITHUB_WORKSPACE/data/raw/clubs.json 2>/dev/null || echo 0)"
+      - name: Stap 2 - Spelers scrapen
+        timeout-minutes: 30
+        continue-on-error: true
+        run: |
+          cd /tmp/scraper
+          echo "=== Spelers seizoen $CURRENT_SEASON ==="
+          rm -f /tmp/players_raw.jsonl
+          scrapy crawl players \
+            -a parents=$GITHUB_WORKSPACE/data/raw/clubs.json \
+            -a season=$CURRENT_SEASON \
+            -t jsonlines \
+            -o /tmp/players_raw.jsonl || true
+          if [ -f /tmp/players_raw.jsonl ]; then
+            cp /tmp/players_raw.jsonl $GITHUB_WORKSPACE/data/raw/players.json
+          fi
+          echo "Spelers: $(wc -l < $GITHUB_WORKSPACE/data/raw/players.json 2>/dev/null || echo 0)"
           # Zet market_values / transfers / valuations als lege bestanden zodat
           # stap 5 (CSV merge) geen crash geeft op ontbrekende files
+          python3 << 'PYEOF'
+          from pathlib import Path
+          RAW = Path('data/raw')
           for name in ('market_values.json', 'transfers.json', 'valuations.json'):
               p = RAW / name
               if not p.exists():
                   p.write_text('' if name != 'market_values.json' else '{}')
           PYEOF
-      - name: Stap 2c - Transferhistorie ophalen via API
+      - name: Stap 2a - Nieuwe spelers bepalen
+        run: |
+          python3 << 'PYEOF'
+          # Vergelijk de vers gescrapete spelers met wie al in players.csv staat.
+          # Alleen écht nieuwe spelers (nieuwe debutanten, transfers van buiten
+          # de dataset, enz.) gaan door naar de dure transfer/valuation-API-calls -
+          # bestaande spelers hebben die geschiedenis al en worden overgeslagen.
+          import csv, json
+          from pathlib import Path
+          RAW = Path('data/raw')
+          existing_ids = set()
+          players_csv = Path('data/csv/players.csv')
+          if players_csv.exists():
+              with open(players_csv, encoding='utf-8') as f:
+                  for row in csv.DictReader(f):
+                      pid = (row.get('player_id') or '').strip()
+                      if pid:
+                          existing_ids.add(pid)
+          print(f"Reeds bekende spelers in players.csv: {len(existing_ids)}")
+          src = RAW / 'players.json'
+          out = RAW / 'players_new.json'
+          total, new = 0, 0
+          with open(src, encoding='utf-8') as fi, open(out, 'w', encoding='utf-8') as fo:
+              for line in fi:
+                  line = line.strip()
+                  if not line: continue
+                  total += 1
+                  try:
+                      p = json.loads(line)
+                  except:
+                      continue
+                  href = p.get('href', '')
+                  parts = href.rstrip('/').split('/')
+                  pid = ''
+                  if 'spieler' in parts:
+                      pid = parts[parts.index('spieler') + 1]
+                  if pid and pid not in existing_ids:
+                      fo.write(line + '\n')
+                      new += 1
+          print(f"Nieuwe spelers deze run: {new}/{total}")
+          PYEOF
+      - name: Stap 2b - Transferhistorie ophalen (alleen nieuwe spelers)
         timeout-minutes: 30
         continue-on-error: true
         run: |
@@ -188,7 +191,7 @@ jobs:
           import json, asyncio, aiohttp
           from pathlib import Path
           RAW = Path('data/raw')
-          PLAYERS_FILE = RAW / 'players.json'
+          PLAYERS_FILE = RAW / 'players_new.json'
           TRANSFERS_FILE = RAW / 'transfers.json'
           TRANSFERS_API = "https://www.transfermarkt.co.uk/ceapi/transferHistory/list/"
           HEADERS = {"User-Agent": "transfermarkt-datasets/1.0", "Accept": "application/json"}
@@ -247,7 +250,7 @@ jobs:
         run: |
           echo "Wachten 3 minuten..."
           sleep 180
-      - name: Stap 2d - Historische marktwaarden ophalen via API
+      - name: Stap 2c - Historische marktwaarden ophalen (alleen nieuwe spelers)
         timeout-minutes: 30
         continue-on-error: true
         run: |
@@ -255,7 +258,7 @@ jobs:
           import json, asyncio, aiohttp
           from pathlib import Path
           RAW = Path('data/raw')
-          PLAYERS_FILE = RAW / 'players.json'
+          PLAYERS_FILE = RAW / 'players_new.json'
           VALUATIONS_FILE = RAW / 'valuations.json'
           MV_API = "https://www.transfermarkt.com/ceapi/marketValueDevelopment/graph/"
           HEADERS = {"User-Agent": "transfermarkt-datasets/1.0", "Accept": "application/json"}
